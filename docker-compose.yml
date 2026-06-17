@@ -10,10 +10,12 @@ services:
     working_dir: /var/www
     volumes:
       - ./backend:/var/www
+      - ./backend/.env:/var/www/.env
     networks:
       - agri_network
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   webserver:
     image: nginx:stable-alpine
@@ -43,6 +45,11 @@ services:
       - "5432:5432"
     networks:
       - agri_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-agri_user} -d ${DB_DATABASE:-agri_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     image: node:lts-alpine
