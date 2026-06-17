@@ -1,0 +1,45 @@
+# ===========================
+# Backend Laravel
+# ===========================
+backend/vendor/
+backend/.env
+backend/.env.backup
+backend/storage/logs/*.log
+backend/storage/framework/cache/
+backend/storage/framework/sessions/
+backend/storage/framework/views/
+backend/bootstrap/cache/
+backend/.phpunit.result.cache
+backend/coverage.xml
+backend/test-report.xml
+
+# ===========================
+# Frontend Angular
+# ===========================
+frontend-web/node_modules/
+frontend-web/dist/
+frontend-web/.angular/
+frontend-web/coverage/
+
+# ===========================
+# Mobile Flutter
+# ===========================
+mobile-app/.dart_tool/
+mobile-app/.flutter-plugins
+mobile-app/.flutter-plugins-dependencies
+mobile-app/build/
+mobile-app/*.iml
+
+# ===========================
+# Docker
+# ===========================
+.env
+*.env.local
+
+# ===========================
+# IDE / OS
+# ===========================
+.idea/
+.vscode/
+*.DS_Store
+Thumbs.db

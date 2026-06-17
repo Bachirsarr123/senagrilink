@@ -1,0 +1,65 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: ./backend
+      dockerfile: docker/Dockerfile
+    container_name: agri_app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./backend:/var/www
+    networks:
+      - agri_network
+    depends_on:
+      - db
+
+  webserver:
+    image: nginx:stable-alpine
+    container_name: agri_webserver
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend:/var/www
+      - ./backend/docker/nginx.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - agri_network
+    depends_on:
+      - app
+
+  db:
+    image: postgres:16-alpine
+    container_name: agri_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-agri_platform}
+      POSTGRES_USER: ${DB_USERNAME:-agri_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - agri_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - agri_network
+
+  frontend:
+    image: node:lts-alpine
+    container_name: agri_frontend
+    working_dir: /app
+    volumes:
+      - ./frontend-web:/app
+    ports:
+      - "4200:4200"
+    command: sh -c "npm install && npm run start -- --host 0.0.0.0 --poll 500"
+    networks:
+      - agri_network
+
+networks:
+  agri_network:
+    driver: bridge
+
+volumes:
+  agri_pgdata:
+    driver: local
