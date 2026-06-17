@@ -35,6 +35,12 @@ class Utilisateur extends Authenticatable
         ];
     }
 
+    // Laravel utilise "password" par défaut — on redirige vers mot_de_passe
+    public function getAuthPasswordName(): string
+    {
+        return 'mot_de_passe';
+    }
+
     // Relations vers les profils spécifiques
     public function producteur()
     {
