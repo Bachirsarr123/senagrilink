@@ -2,58 +2,113 @@ pipeline {
     agent any
 
     environment {
-        SONAR_HOST_URL = 'http://sonarqube:9000'
+        SONAR_HOST_URL   = 'http://sonarqube:9000'
+        COMPOSER_HOME    = "${WORKSPACE}/.composer"
+        NODE_OPTIONS     = '--max-old-space-size=2048'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
     }
 
     stages {
+
+        // ── 1. Checkout ───────────────────────────────────────────────────────
         stage('Checkout') {
             steps {
                 checkout scm
-                echo 'Code récupéré depuis GitHub.'
+                echo "Branche : ${env.BRANCH_NAME} — commit : ${env.GIT_COMMIT?.take(8)}"
             }
         }
 
-        stage('Installation des dépendances Backend') {
+        // ── 2. Dépendances Backend ────────────────────────────────────────────
+        stage('Dépendances Backend') {
             steps {
                 dir('backend') {
-                    sh 'composer install --no-interaction --prefer-dist --optimize-autoloader'
+                    sh 'composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress'
+                    echo 'Dépendances Laravel installées.'
                 }
-                echo 'Dépendances Laravel installées.'
             }
         }
 
-        stage('Installation des dépendances Frontend') {
+        // ── 3. Dépendances Frontend ───────────────────────────────────────────
+        stage('Dépendances Frontend') {
             steps {
                 dir('frontend-web') {
-                    sh 'npm install'
+                    sh 'npm ci --prefer-offline'
+                    echo 'Dépendances Angular installées.'
                 }
-                echo 'Dépendances Angular installées.'
             }
         }
 
-        stage('Tests Backend (PHPUnit)') {
+        // ── 4. Tests Backend (PHPUnit) ────────────────────────────────────────
+        stage('Tests Backend') {
             steps {
                 dir('backend') {
+                    // Préparer l'environnement de test
                     sh 'cp .env.testing .env'
-                    sh 'php artisan key:generate'
-                    sh 'php artisan test --testsuite=Unit --coverage-clover coverage.xml'
+                    sh 'php artisan key:generate --force'
+
+                    // Exécuter les tests avec rapport JUnit et couverture Clover
+                    // XDEBUG_MODE=coverage requiert l'extension Xdebug sur l'agent
+                    sh '''
+                        XDEBUG_MODE=coverage php artisan test \
+                            --log-junit=test-report.xml \
+                            --coverage-clover=coverage.xml \
+                            2>&1 | tee test-output.log
+                    '''
                 }
-                echo 'Tests PHPUnit terminés.'
+            }
+            post {
+                always {
+                    // Publier les résultats JUnit dans Jenkins
+                    junit 'backend/test-report.xml'
+                }
             }
         }
 
+        // ── 5. Build Angular (vérification production) ────────────────────────
+        stage('Build Frontend') {
+            steps {
+                dir('frontend-web') {
+                    sh 'npx ng build --configuration=production'
+                    echo 'Build Angular production réussi.'
+                }
+            }
+        }
+
+        // ── 6. Analyse SonarQube ──────────────────────────────────────────────
         stage('Analyse SonarQube') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh 'sonar-scanner'
+                    sh '''
+                        sonar-scanner \
+                            -Dsonar.branch.name=${BRANCH_NAME}
+                    '''
                 }
-                echo 'Analyse SonarQube lancée.'
+                echo 'Analyse SonarQube soumise.'
             }
         }
 
-        stage('Build Docker') {
+        // ── 7. Quality Gate ───────────────────────────────────────────────────
+        stage('Quality Gate') {
             steps {
-                sh 'docker-compose build --no-cache'
+                // Attendre le résultat de l'analyse SonarQube (max 5 min)
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        // ── 8. Build Docker ───────────────────────────────────────────────────
+        stage('Build Docker') {
+            when {
+                // Ne builder les images que sur la branche principale
+                branch 'main'
+            }
+            steps {
+                sh 'docker compose build --no-cache'
                 echo 'Images Docker construites.'
             }
         }
@@ -61,10 +116,17 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline exécuté avec succès.'
+            echo "Pipeline réussi sur ${env.BRANCH_NAME}."
         }
         failure {
-            echo 'Échec du pipeline. Vérifier les logs ci-dessus.'
+            echo "Pipeline échoué — consulter les logs ci-dessus."
+        }
+        always {
+            // Nettoyer le .env de travail généré pour les tests
+            dir('backend') {
+                sh 'rm -f .env test-output.log || true'
+            }
+            cleanWs()
         }
     }
 }
