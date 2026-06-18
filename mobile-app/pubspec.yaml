@@ -1,0 +1,28 @@
+name: agri_platform_mobile
+description: "Plateforme de Gestion Intégrée de l'Approvisionnement Agricole — Application Mobile"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  # État
+  provider: ^6.1.4
+  # Réseau
+  http: ^1.2.2
+  # Stockage local (token, préférences)
+  shared_preferences: ^2.3.4
+  # Formatage des dates
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
