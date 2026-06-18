@@ -1,6 +1,29 @@
 version: '3.9'
 
 services:
+
+  # ── Base de données PostgreSQL ───────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: agri_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_DATABASE:-agri_platform}
+      POSTGRES_USER:     ${DB_USERNAME:-agri_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - agri_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - agri_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-agri_user} -d ${DB_DATABASE:-agri_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend Laravel (PHP-FPM) ────────────────────────────────────────────────
   app:
     build:
       context: ./backend
@@ -9,14 +32,15 @@ services:
     restart: unless-stopped
     working_dir: /var/www
     volumes:
+      # Montage complet du backend (inclut .env s'il existe)
       - ./backend:/var/www
-      - ./backend/.env:/var/www/.env
     networks:
       - agri_network
     depends_on:
       db:
         condition: service_healthy
 
+  # ── Serveur web Nginx ────────────────────────────────────────────────────────
   webserver:
     image: nginx:stable-alpine
     container_name: agri_webserver
@@ -31,26 +55,7 @@ services:
     depends_on:
       - app
 
-  db:
-    image: postgres:16-alpine
-    container_name: agri_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_DATABASE:-agri_platform}
-      POSTGRES_USER: ${DB_USERNAME:-agri_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
-    volumes:
-      - agri_pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - agri_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-agri_user} -d ${DB_DATABASE:-agri_platform}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+  # ── Frontend Angular (dev server) ────────────────────────────────────────────
   frontend:
     image: node:lts-alpine
     container_name: agri_frontend
@@ -59,7 +64,10 @@ services:
       - ./frontend-web:/app
     ports:
       - "4200:4200"
-    command: sh -c "npm install && npm run start -- --host 0.0.0.0 --poll 500"
+    # npm ci installe depuis package-lock.json (reproductible), puis ng serve
+    command: >
+      sh -c "npm ci --prefer-offline 2>/dev/null || npm install
+      && npx ng serve --host 0.0.0.0 --poll 500 --disable-host-check"
     networks:
       - agri_network
 
