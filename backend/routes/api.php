@@ -30,6 +30,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stocks/alertes',           [\App\Http\Controllers\Api\StockController::class, 'alertes']);
         Route::get('/stocks/rapport',           [\App\Http\Controllers\Api\StockController::class, 'rapport']);
         Route::put('/commandes/{id}/confirmer', [\App\Http\Controllers\Api\CommandeController::class, 'confirmer']);
+        // Option B : création explicite de livraison après confirmation de commande
+        Route::post('/livraisons',              [\App\Http\Controllers\Api\LivraisonController::class, 'store']);
     });
 
     // ── Module Acheteur en gros ───────────────────────────────────────────────
