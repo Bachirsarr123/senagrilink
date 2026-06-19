@@ -1,1 +1,118 @@
-/* You can add global styles to this file, and also import other style files */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  color: #1f2937;
+  background: #f9fafb;
+}
+
+/* Évite le débordement horizontal sur mobile */
+body { overflow-x: hidden; }
+
+/* Pages avec routeur Angular */
+app-root { display: block; min-height: 100vh; }
+
+/* Classes utilitaires partagées entre features */
+.page {
+  padding: 1.5rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  h1 { margin: 0; font-size: 1.5rem; color: #1b4332; }
+}
+
+.card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  margin-bottom: 1.25rem;
+}
+
+.btn-primary {
+  padding: .55rem 1.2rem;
+  background: #2d6a4f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s;
+  &:hover:not(:disabled) { background: #1b4332; }
+  &:disabled { opacity: .6; cursor: not-allowed; }
+}
+
+.btn-secondary {
+  padding: .5rem 1rem;
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: .9rem;
+  cursor: pointer;
+  transition: background .2s;
+  &:hover { background: #f3f4f6; }
+}
+
+.btn-danger {
+  padding: .5rem 1rem;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: .9rem;
+  cursor: pointer;
+  &:hover { background: #b91c1c; }
+}
+
+.badge {
+  display: inline-block;
+  padding: .2rem .6rem;
+  border-radius: 12px;
+  font-size: .75rem;
+  font-weight: 600;
+}
+
+.badge-success  { background: #d1fae5; color: #065f46; }
+.badge-warning  { background: #fef3c7; color: #92400e; }
+.badge-danger   { background: #fee2e2; color: #991b1b; }
+.badge-info     { background: #dbeafe; color: #1e40af; }
+.badge-neutral  { background: #f3f4f6; color: #374151; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+  th {
+    background: #f9fafb;
+    text-align: left;
+    padding: .65rem 1rem;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 2px solid #e5e7eb;
+  }
+  td {
+    padding: .65rem 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    color: #1f2937;
+  }
+  tr:hover td { background: #fafafa; }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #9ca3af;
+  p { margin: .5rem 0 0; font-size: .9rem; }
+}
