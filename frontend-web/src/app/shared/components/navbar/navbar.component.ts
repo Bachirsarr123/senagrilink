@@ -9,7 +9,7 @@ import { AuthService } from '../../../core/auth/auth.service';
   template: `
     <nav class="navbar">
       <div class="navbar-brand">
-        <span class="logo">🌾 AgriPlatform</span>
+        <span class="logo">🌾 SenAgriLink</span>
       </div>
       <ul class="navbar-links">
         @if (role() === 'producteur') {

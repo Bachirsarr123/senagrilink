@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "agri-platform-web": {
+    "sen-agri-link": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -64,10 +64,10 @@
           },
           "configurations": {
             "production": {
-              "buildTarget": "agri-platform-web:build:production"
+              "buildTarget": "sen-agri-link:build:production"
             },
             "development": {
-              "buildTarget": "agri-platform-web:build:development"
+              "buildTarget": "sen-agri-link:build:development"
             }
           },
           "defaultConfiguration": "development"

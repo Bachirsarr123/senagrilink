@@ -11,7 +11,7 @@ import { AuthService } from '../../../core/auth/auth.service';
     <div class="auth-page">
       <div class="auth-card">
         <div class="auth-header">
-          <h1>🌾 AgriPlatform</h1>
+          <h1>🌾 SenAgriLink</h1>
           <p>Plateforme de gestion agricole</p>
         </div>
         <h2>Connexion</h2>

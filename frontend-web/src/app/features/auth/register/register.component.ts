@@ -12,7 +12,7 @@ import { Role } from '../../../core/auth/auth.model';
     <div class="auth-page">
       <div class="auth-card auth-card--wide">
         <div class="auth-header">
-          <h1>🌾 AgriPlatform</h1>
+          <h1>🌾 SenAgriLink</h1>
         </div>
         <h2>Créer un compte</h2>
 
