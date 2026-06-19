@@ -1,12 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { DatePipe, DecimalPipe, NgClass } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 
 @Component({
   selector: 'app-productions',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, NgClass],
+  imports: [ReactiveFormsModule, DatePipe, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">

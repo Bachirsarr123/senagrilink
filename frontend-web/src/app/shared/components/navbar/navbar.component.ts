@@ -1,4 +1,4 @@
-import { Component, computed } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 
@@ -66,20 +66,22 @@ import { AuthService } from '../../../core/auth/auth.service';
   `],
 })
 export class NavbarComponent {
-  constructor(private auth: AuthService) {}
+  private auth = inject(AuthService);
 
-  role    = this.auth.role;
+  role     = this.auth.role;
   userName = computed(() => {
     const u = this.auth.utilisateur();
     return u ? `${u.prenom} ${u.nom}` : '';
   });
-  roleFr = computed(() => ({
+
+  private readonly ROLES_FR: Record<string, string> = {
     producteur:            'Producteur',
     gestionnaire_entrepot: 'Gestionnaire',
     acheteur_gros:         'Acheteur',
     transporteur:          'Transporteur',
     administrateur:        'Admin',
-  }[this.role() ?? ''] ?? ''));
+  };
+  roleFr = computed(() => this.ROLES_FR[this.role() ?? ''] ?? '');
 
   logout(): void { this.auth.logout(); }
 }

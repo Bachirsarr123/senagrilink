@@ -71,10 +71,10 @@ services:
       - ./frontend-web:/app
     ports:
       - "4200:4200"
-    # npm ci installe depuis package-lock.json (reproductible), puis ng serve
+    # npm install réutilise node_modules existant, puis ng serve
     command: >
-      sh -c "npm ci --prefer-offline 2>/dev/null || npm install
-      && npx ng serve --host 0.0.0.0 --poll 500 --disable-host-check"
+      sh -c "npm install --prefer-offline
+      && npx ng serve --host 0.0.0.0 --port 4200 --poll 500"
     networks:
       - agri_network
 
