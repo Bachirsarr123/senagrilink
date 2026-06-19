@@ -95,7 +95,7 @@ import { Role } from '../../../core/auth/auth.model';
           </div>
 
           <button type="submit" class="btn-primary" [disabled]="loading">
-            {{ loading ? 'Inscription...' : 'S\'inscrire' }}
+            {{ loading ? 'Inscription...' : "S'inscrire" }}
           </button>
         </form>
 

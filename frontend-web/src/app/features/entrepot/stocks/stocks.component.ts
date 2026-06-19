@@ -51,7 +51,7 @@ import { ApiService } from '../../../core/services/api.service';
               </div>
             </div>
             <button type="submit" class="btn-primary" [disabled]="loading()">
-              {{ loading() ? 'Enregistrement...' : 'Enregistrer l\'entrée' }}
+              {{ loading() ? 'Enregistrement...' : "Enregistrer l'entrée" }}
             </button>
           </form>
         </div>
