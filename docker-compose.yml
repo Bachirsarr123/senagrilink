@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
 
   # ── Base de données PostgreSQL ───────────────────────────────────────────────
@@ -31,6 +29,15 @@ services:
     container_name: agri_app
     restart: unless-stopped
     working_dir: /var/www
+    environment:
+      DB_CONNECTION:  pgsql
+      DB_HOST:        db
+      DB_PORT:        "5432"
+      DB_DATABASE:    ${DB_DATABASE:-agri_platform}
+      DB_USERNAME:    ${DB_USERNAME:-agri_user}
+      DB_PASSWORD:    ${DB_PASSWORD:-secret}
+      CACHE_STORE:    file
+      SESSION_DRIVER: file
     volumes:
       # Montage complet du backend (inclut .env s'il existe)
       - ./backend:/var/www

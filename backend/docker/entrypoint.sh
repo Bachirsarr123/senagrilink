@@ -33,7 +33,8 @@ mkdir -p /var/www/storage/framework/cache \
          /var/www/storage/logs \
          /var/www/bootstrap/cache
 
-chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+# 777 requis car PHP-FPM tourne en www-data (other) et le volume est root:root
+chmod -R 777 /var/www/storage /var/www/bootstrap/cache
 
 # ── 4. Clé d'application ──────────────────────────────────────────────────────
 if grep -q "^APP_KEY=$" /var/www/.env 2>/dev/null || ! grep -q "^APP_KEY=" /var/www/.env 2>/dev/null; then
@@ -44,7 +45,9 @@ else
 fi
 
 # ── 5. Migrations ─────────────────────────────────────────────────────────────
-echo "[5/5] Exécution des migrations..."
+echo "[5/5] Nettoyage du cache et migrations..."
+php /var/www/artisan config:clear --quiet 2>/dev/null || true
+php /var/www/artisan cache:clear --quiet 2>/dev/null || true
 php /var/www/artisan migrate --force --no-interaction \
     && echo "      Migrations appliquées." \
     || echo "      Migrations ignorées (DB peut-être indisponible — relancer le conteneur)."
