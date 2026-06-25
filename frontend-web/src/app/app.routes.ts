@@ -6,7 +6,7 @@ import { LayoutComponent } from './shared/components/layout/layout.component';
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
 
-  // ── Pages publiques ──────────────────────────────────────────────────────
+  // Pages publiques
   {
     path: 'login',
     loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent),
@@ -16,14 +16,26 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/register/register.component').then(m => m.RegisterComponent),
   },
 
-  // ── Pages protégées (layout commun avec navbar) ──────────────────────────
+  // Pages protégées (layout commun avec navbar)
   {
     path: '',
     component: LayoutComponent,
     canActivate: [authGuard],
     children: [
 
-      // ── Producteur ────────────────────────────────────────────────────────
+      // Traçabilité — accessible à tous les rôles authentifiés
+      {
+        path: 'tracabilite',
+        loadComponent: () => import('./features/shared/tracabilite/tracabilite.component').then(m => m.TracabiliteComponent),
+      },
+
+      // Profil — accessible à tous les rôles authentifiés
+      {
+        path: 'profil',
+        loadComponent: () => import('./features/shared/profil/profil.component').then(m => m.ProfilComponent),
+      },
+
+      // Producteur
       {
         path: 'producteur',
         canActivate: [roleGuard],
@@ -38,10 +50,14 @@ export const routes: Routes = [
             path: 'commandes-disponibles',
             loadComponent: () => import('./features/producteur/commandes-disponibles/commandes-disponibles.component').then(m => m.CommandesDisponiblesComponent),
           },
+          {
+            path: 'planifier-ventes',
+            loadComponent: () => import('./features/producteur/planifier-ventes/planifier-ventes.component').then(m => m.PlanifierVentesComponent),
+          },
         ],
       },
 
-      // ── Gestionnaire d'entrepôt ────────────────────────────────────────────
+      // Gestionnaire d'entrepôt
       {
         path: 'entrepot',
         canActivate: [roleGuard],
@@ -60,10 +76,14 @@ export const routes: Routes = [
             path: 'rapport',
             loadComponent: () => import('./features/entrepot/rapport/rapport.component').then(m => m.RapportComponent),
           },
+          {
+            path: 'commandes',
+            loadComponent: () => import('./features/entrepot/commandes-entrepot/commandes-entrepot.component').then(m => m.CommandesEntrepotComponent),
+          },
         ],
       },
 
-      // ── Acheteur en gros ──────────────────────────────────────────────────
+      // Acheteur en gros
       {
         path: 'acheteur',
         canActivate: [roleGuard],
@@ -81,7 +101,7 @@ export const routes: Routes = [
         ],
       },
 
-      // ── Administrateur ────────────────────────────────────────────────────
+      // Administrateur
       {
         path: 'admin',
         canActivate: [roleGuard],
@@ -101,7 +121,7 @@ export const routes: Routes = [
     ],
   },
 
-  // ── Fallback ──────────────────────────────────────────────────────────────
+  // Fallback
   { path: 'unauthorized', loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent) },
   { path: '**', redirectTo: 'login' },
 ];
