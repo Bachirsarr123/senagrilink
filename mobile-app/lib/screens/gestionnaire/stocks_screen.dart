@@ -6,6 +6,8 @@ import '../../services/auth_provider.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
+import '../shared/tracabilite_screen.dart';
+import '../shared/profil_screen.dart';
 
 class StocksScreen extends StatefulWidget {
   const StocksScreen({super.key});
@@ -14,7 +16,7 @@ class StocksScreen extends StatefulWidget {
 }
 
 class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderStateMixin {
-  List<Stock> _stocks = [];
+  List<Stock> _stocks  = [];
   List<Stock> _alertes = [];
   bool _loading = true;
   String? _erreur;
@@ -54,10 +56,22 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
       appBar: AppBar(
         title: Text('Stocks — ${auth.utilisateur?.prenom ?? ''}'),
         actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: () async {
-            await auth.logout();
-            if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
-          }),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner_outlined),
+            tooltip: 'Traçabilité',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TracabiliteScreen())),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) {
+              if (v == 'profil') Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilScreen()));
+              if (v == 'logout') { auth.logout(); Navigator.pushReplacementNamed(context, '/login'); }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'profil', child: ListTile(leading: Icon(Icons.person_outline), title: Text('Mon profil'), dense: true)),
+              const PopupMenuItem(value: 'logout', child: ListTile(leading: Icon(Icons.logout), title: Text('Déconnexion'), dense: true)),
+            ],
+          ),
         ],
         bottom: TabBar(
           controller: _tabs,
@@ -75,7 +89,6 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
           : _erreur != null
               ? ErrorState(message: _erreur!, onRetry: _charger)
               : Column(children: [
-                  // Résumé
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Row(children: [
@@ -130,7 +143,12 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
   }
 
   Widget _buildAlertsList() {
-    if (_alertes.isEmpty) return const EmptyState(message: '✅ Tous les stocks sont au-dessus de leur seuil.', icon: Icons.check_circle_outline);
+    if (_alertes.isEmpty) {
+      return const EmptyState(
+        message: 'Tous les stocks sont au-dessus de leur seuil.',
+        icon: Icons.check_circle_outline,
+      );
+    }
     return ListView.builder(
       itemCount: _alertes.length,
       itemBuilder: (_, i) {
@@ -139,10 +157,14 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
         return Card(
           color: Colors.red.shade50,
           child: ListTile(
-            leading: const CircleAvatar(backgroundColor: Color(0xFFFEE2E2), child: Icon(Icons.warning_amber, color: AppTheme.rouge)),
+            leading: const CircleAvatar(
+              backgroundColor: Color(0xFFFEE2E2),
+              child: Icon(Icons.warning_amber, color: AppTheme.rouge),
+            ),
             title: Text(s.produit, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Quantité actuelle : ${s.quantite.toStringAsFixed(0)} kg', style: const TextStyle(color: AppTheme.rouge)),
+              Text('Quantité actuelle : ${s.quantite.toStringAsFixed(0)} kg',
+                  style: const TextStyle(color: AppTheme.rouge)),
               Text('Seuil : ${s.seuilAlerte!.toStringAsFixed(0)} kg — Déficit : ${deficit.toStringAsFixed(0)} kg'),
             ]),
           ),

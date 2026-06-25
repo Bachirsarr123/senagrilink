@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_provider.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
 import 'screens/home_router.dart';
+import 'screens/shared/profil_screen.dart';
+import 'screens/shared/tracabilite_screen.dart';
 import 'widgets/app_theme.dart';
 
 void main() async {
@@ -21,13 +24,16 @@ class AgriPlatformApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLoggedIn = context.watch<AuthProvider>().isLoggedIn;
     return MaterialApp(
-      title: 'AgriPlatform',
+      title: 'SenAgriLink',
       theme: AppTheme.theme,
       debugShowCheckedModeBanner: false,
       home: isLoggedIn ? const HomeRouter() : const LoginScreen(),
       routes: {
-        '/login':  (_) => const LoginScreen(),
-        '/home':   (_) => const HomeRouter(),
+        '/login':       (_) => const LoginScreen(),
+        '/register':    (_) => const RegisterScreen(),
+        '/home':        (_) => const HomeRouter(),
+        '/profil':      (_) => const ProfilScreen(),
+        '/tracabilite': (_) => const TracabiliteScreen(),
       },
     );
   }

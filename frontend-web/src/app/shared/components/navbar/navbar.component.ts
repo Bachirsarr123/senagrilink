@@ -14,10 +14,12 @@ import { AuthService } from '../../../core/auth/auth.service';
       <ul class="navbar-links">
         @if (role() === 'producteur') {
           <li><a routerLink="/producteur/productions" routerLinkActive="active">Mes productions</a></li>
-          <li><a routerLink="/producteur/commandes-disponibles" routerLinkActive="active">Commandes disponibles</a></li>
+          <li><a routerLink="/producteur/planifier-ventes" routerLinkActive="active">Planifier ventes</a></li>
+          <li><a routerLink="/producteur/commandes-disponibles" routerLinkActive="active">Demandes</a></li>
         }
         @if (role() === 'gestionnaire_entrepot') {
           <li><a routerLink="/entrepot/stocks" routerLinkActive="active">Stocks</a></li>
+          <li><a routerLink="/entrepot/commandes" routerLinkActive="active">Commandes</a></li>
           <li><a routerLink="/entrepot/alertes" routerLinkActive="active">Alertes</a></li>
           <li><a routerLink="/entrepot/rapport" routerLinkActive="active">Rapport</a></li>
         }
@@ -29,9 +31,11 @@ import { AuthService } from '../../../core/auth/auth.service';
           <li><a routerLink="/admin/dashboard" routerLinkActive="active">Tableau de bord</a></li>
           <li><a routerLink="/admin/utilisateurs" routerLinkActive="active">Utilisateurs</a></li>
         }
+        <!-- Traçabilité : tous les rôles -->
+        <li><a routerLink="/tracabilite" routerLinkActive="active">Traçabilité</a></li>
       </ul>
       <div class="navbar-user">
-        <span class="user-name">{{ userName() }}</span>
+        <a routerLink="/profil" class="user-name user-profil-link">{{ userName() }}</a>
         <span class="role-badge role-{{ role() }}">{{ roleFr() }}</span>
         <button class="btn-logout" (click)="logout()">Déconnexion</button>
       </div>
@@ -53,6 +57,11 @@ import { AuthService } from '../../../core/auth/auth.service';
     .navbar-links a:hover, .navbar-links a.active { background: rgba(255,255,255,.2); color: white; }
     .navbar-user { display: flex; align-items: center; gap: .75rem; }
     .user-name { font-weight: 600; font-size: .9rem; }
+    .user-profil-link {
+      color: white; text-decoration: none;
+      padding: .25rem .5rem; border-radius: 4px; transition: background .2s;
+    }
+    .user-profil-link:hover { background: rgba(255,255,255,.2); }
     .role-badge {
       font-size: .75rem; padding: .2rem .6rem; border-radius: 12px;
       background: rgba(255,255,255,.25); white-space: nowrap;

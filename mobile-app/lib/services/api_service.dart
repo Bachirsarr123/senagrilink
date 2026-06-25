@@ -86,6 +86,7 @@ class ApiService {
   // ── Productions ──────────────────────────────────────────────────────────
   static Future<dynamic> getProductions() => get('/productions');
   static Future<dynamic> storeProduction(Map<String, dynamic> data) => post('/productions', data);
+  static Future<dynamic> updateProduction(int id, Map<String, dynamic> data) => put('/productions/$id', data);
   static Future<dynamic> getCommandesDisponibles() => get('/commandes/disponibles');
 
   // ── Stocks ───────────────────────────────────────────────────────────────
@@ -94,6 +95,9 @@ class ApiService {
 
   // ── Commandes (Acheteur) ─────────────────────────────────────────────────
   static Future<dynamic> getCatalogue() => get('/catalogue');
+  static Future<dynamic> passerCommande(Map<String, dynamic> data) => post('/commandes', data);
+  static Future<dynamic> updateCommande(int id, Map<String, dynamic> data) => put('/commandes/$id', data);
+  static Future<dynamic> annulerCommande(int id) => delete('/commandes/$id');
   static Future<dynamic> getHistoriqueCommandes() => get('/commandes/historique');
 
   // ── Livraisons (Transporteur) ────────────────────────────────────────────
@@ -102,4 +106,10 @@ class ApiService {
       put('/livraisons/$id/statut', {'statut': statut});
   static Future<dynamic> signalerProbleme(int id) =>
       post('/livraisons/$id/probleme', {});
+
+  // ── Traçabilité ──────────────────────────────────────────────────────────
+  static Future<dynamic> getTracabilite(String code) => get('/tracabilite/$code');
+
+  // ── Profil ───────────────────────────────────────────────────────────────
+  static Future<dynamic> updateProfile(Map<String, dynamic> data) => put('/profile', data);
 }

@@ -5,6 +5,8 @@ import '../../services/auth_provider.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/info_card.dart';
 import 'mes_commandes_screen.dart';
+import '../shared/tracabilite_screen.dart';
+import '../shared/profil_screen.dart';
 
 class CatalogueScreen extends StatefulWidget {
   const CatalogueScreen({super.key});
@@ -45,10 +47,22 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
             tooltip: 'Mes commandes',
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MesCommandesScreen())),
           ),
-          IconButton(icon: const Icon(Icons.logout), onPressed: () async {
-            await auth.logout();
-            if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
-          }),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner_outlined),
+            tooltip: 'Traçabilité',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TracabiliteScreen())),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) {
+              if (v == 'profil') Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilScreen()));
+              if (v == 'logout') { auth.logout(); Navigator.pushReplacementNamed(context, '/login'); }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'profil', child: ListTile(leading: Icon(Icons.person_outline), title: Text('Mon profil'), dense: true)),
+              const PopupMenuItem(value: 'logout', child: ListTile(leading: Icon(Icons.logout), title: Text('Déconnexion'), dense: true)),
+            ],
+          ),
         ],
       ),
       body: _loading

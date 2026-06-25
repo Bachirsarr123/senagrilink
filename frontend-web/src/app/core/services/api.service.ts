@@ -36,6 +36,9 @@ export class ApiService {
   updateStatutLivraison(id: number, statut: string): Observable<any> { return this.http.put(`${this.base}/livraisons/${id}/statut`, { statut }); }
   signalerProbleme(id: number): Observable<any> { return this.http.post(`${this.base}/livraisons/${id}/probleme`, {}); }
 
+  // ── Commandes (Gestionnaire) ──────────────────────────────────────────────
+  getCommandesPourConfirmation(): Observable<any> { return this.http.get(`${this.base}/commandes?statut=en_attente`); }
+
   // ── Admin ──────────────────────────────────────────────────────────────────
   getDashboard(): Observable<any> { return this.http.get(`${this.base}/admin/dashboard`); }
   getUtilisateurs(params?: any): Observable<any> { return this.http.get(`${this.base}/admin/utilisateurs`, { params }); }

@@ -7,6 +7,8 @@ import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
 import 'detail_livraison_screen.dart';
+import '../shared/tracabilite_screen.dart';
+import '../shared/profil_screen.dart';
 
 class LivraisonsScreen extends StatefulWidget {
   const LivraisonsScreen({super.key});
@@ -53,11 +55,20 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
         title: Text('Missions — ${auth.utilisateur?.prenom ?? ''}'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await auth.logout();
-              if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
+            icon: const Icon(Icons.qr_code_scanner_outlined),
+            tooltip: 'Traçabilité',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TracabiliteScreen())),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) {
+              if (v == 'profil') Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilScreen()));
+              if (v == 'logout') { auth.logout(); Navigator.pushReplacementNamed(context, '/login'); }
             },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'profil', child: ListTile(leading: Icon(Icons.person_outline), title: Text('Mon profil'), dense: true)),
+              const PopupMenuItem(value: 'logout', child: ListTile(leading: Icon(Icons.logout), title: Text('Déconnexion'), dense: true)),
+            ],
           ),
         ],
       ),
@@ -66,7 +77,6 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
           : _erreur != null
               ? ErrorState(message: _erreur!, onRetry: _charger)
               : Column(children: [
-                  // Résumé rapide
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Row(children: [
