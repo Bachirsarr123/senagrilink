@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class AcheteurGros extends Model
 {
+    protected $table = 'acheteurs_gros';
+
     public $timestamps = false;
 
     protected $fillable = ['utilisateur_id', 'type_activite', 'volume_achat_mensuel'];
