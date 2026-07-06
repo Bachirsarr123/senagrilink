@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/livraison.dart';
 import '../../services/api_service.dart';
+import '../../services/position_tracking_service.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 
@@ -15,15 +16,38 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
   bool _loading = false;
   String? _erreur;
   late String _statut;
+  final _tracking = PositionTrackingService();
 
   @override
-  void initState() { super.initState(); _statut = widget.livraison.statut; }
+  void initState() {
+    super.initState();
+    _statut = widget.livraison.statut;
+    if (_statut == 'en_cours') _tracking.demarrer();
+  }
+
+  @override
+  void dispose() {
+    _tracking.arreter();
+    super.dispose();
+  }
 
   Future<void> _updateStatut(String nouveau) async {
     setState(() { _loading = true; _erreur = null; });
     try {
       await ApiService.updateStatutLivraison(widget.livraison.id, nouveau);
       setState(() { _statut = nouveau; _loading = false; });
+
+      if (nouveau == 'en_cours') {
+        final ok = await _tracking.demarrer();
+        if (!ok && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Position GPS indisponible : activez la localisation pour partager votre trajet.'),
+            backgroundColor: AppTheme.orange));
+        }
+      } else {
+        _tracking.arreter();
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Statut mis à jour : $nouveau'), backgroundColor: AppTheme.vert));
@@ -53,6 +77,7 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
     setState(() { _loading = true; _erreur = null; });
     try {
       await ApiService.signalerProbleme(widget.livraison.id);
+      _tracking.arreter();
       setState(() { _statut = 'probleme'; _loading = false; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -92,6 +117,21 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
               StatusBadge(_statut),
             ]),
           )),
+
+          if (_statut == 'en_cours')
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(color: AppTheme.vertClair, borderRadius: BorderRadius.circular(8)),
+              child: const Row(children: [
+                Icon(Icons.gps_fixed, size: 18, color: AppTheme.vertFonce),
+                SizedBox(width: 8),
+                Expanded(child: Text(
+                  'Partage de votre position en direct avec le producteur et l\'acheteur.',
+                  style: TextStyle(color: AppTheme.vertFonce, fontSize: 13),
+                )),
+              ]),
+            ),
 
           if (_erreur != null)
             Container(

@@ -110,6 +110,12 @@ class ApiService {
   // ── Traçabilité ──────────────────────────────────────────────────────────
   static Future<dynamic> getTracabilite(String code) => get('/tracabilite/$code');
 
+  // ── Suivi GPS (Transporteur) ──────────────────────────────────────────────
+  static Future<dynamic> envoyerPosition(double latitude, double longitude) =>
+      post('/transporteur/position', {'latitude': latitude, 'longitude': longitude});
+  static Future<dynamic> getPositionLivraison(int livraisonId) =>
+      get('/livraisons/$livraisonId/position');
+
   // ── Profil ───────────────────────────────────────────────────────────────
   static Future<dynamic> updateProfile(Map<String, dynamic> data) => put('/profile', data);
 }

@@ -1,12 +1,13 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 
 @Component({
   selector: 'app-mes-commandes',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe],
+  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, RouterLink],
   template: `
     <div class="page">
       <div class="page-header"><h1>Mes commandes</h1></div>
@@ -44,6 +45,11 @@ import { ApiService } from '../../../core/services/api.service';
                   <td>
                     @if (c.livraison) {
                       <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut }}</span>
+                      @if (c.livraison.statut === 'en_cours') {
+                        <a [routerLink]="['/suivi-livraison', c.livraison.id]" class="btn-secondary btn-sm" style="margin-left:.4rem">
+                          📍 Suivre
+                        </a>
+                      }
                     } @else {
                       <span class="text-muted">—</span>
                     }

@@ -55,6 +55,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/livraisons',                       [\App\Http\Controllers\Api\LivraisonController::class, 'index']);
         Route::put('/livraisons/{id}/statut',           [\App\Http\Controllers\Api\LivraisonController::class, 'updateStatut']);
         Route::post('/livraisons/{id}/probleme',        [\App\Http\Controllers\Api\LivraisonController::class, 'signalerProbleme']);
+
+        // Suivi GPS temps réel
+        Route::post('/transporteur/position',           [\App\Http\Controllers\Api\PositionGpsController::class, 'store']);
     });
 
     // ── Module Administrateur ─────────────────────────────────────────────────
@@ -68,6 +71,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Module Traçabilité (tous les rôles authentifiés) ──────────────────────
     Route::get('/tracabilite/{code_tracabilite}', [\App\Http\Controllers\Api\TracabiliteController::class, 'show']);
+
+    // ── Suivi GPS (producteur/acheteur concernés + admin, filtré dans le contrôleur) ──
+    Route::get('/livraisons/{id}/position', [\App\Http\Controllers\Api\PositionGpsController::class, 'showForLivraison']);
 
     // ── Réservations (lecture commune, filtrée par rôle dans le contrôleur) ───
     Route::get('/reservations', [\App\Http\Controllers\Api\ReservationController::class, 'index']);

@@ -35,6 +35,14 @@ export const routes: Routes = [
         loadComponent: () => import('./features/shared/profil/profil.component').then(m => m.ProfilComponent),
       },
 
+      // Suivi GPS d'une livraison — producteur et acheteur concernés
+      {
+        path: 'suivi-livraison/:id',
+        canActivate: [roleGuard],
+        data: { roles: ['producteur', 'acheteur_gros'] },
+        loadComponent: () => import('./features/shared/suivi-livraison/suivi-livraison.component').then(m => m.SuiviLivraisonComponent),
+      },
+
       // Producteur
       {
         path: 'producteur',

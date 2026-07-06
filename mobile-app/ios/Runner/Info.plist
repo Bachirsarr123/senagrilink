@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SenAgriLink a besoin de votre position pour partager votre trajet en temps réel avec le producteur et l'acheteur pendant une livraison en cours.</string>
 </dict>
 </plist>

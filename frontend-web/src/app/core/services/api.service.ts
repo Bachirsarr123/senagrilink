@@ -49,6 +49,9 @@ export class ApiService {
   // ── Traçabilité ────────────────────────────────────────────────────────────
   getTracabilite(code: string): Observable<any> { return this.http.get(`${this.base}/tracabilite/${code}`); }
 
+  // ── Suivi GPS ──────────────────────────────────────────────────────────────
+  getPositionLivraison(id: number): Observable<any> { return this.http.get(`${this.base}/livraisons/${id}/position`); }
+
   // ── Profil ─────────────────────────────────────────────────────────────────
   updateProfile(data: any): Observable<any> { return this.http.put(`${this.base}/profile`, data); }
 }

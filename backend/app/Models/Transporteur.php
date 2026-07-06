@@ -19,4 +19,9 @@ class Transporteur extends Model
     {
         return $this->hasMany(Livraison::class, 'transporteur_id');
     }
+
+    public function positionsGps()
+    {
+        return $this->hasMany(PositionGps::class, 'transporteur_id');
+    }
 }
