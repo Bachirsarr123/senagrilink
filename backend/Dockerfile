@@ -35,10 +35,10 @@ RUN composer install \
 
 COPY . .
 
-RUN composer dump-autoload --optimize \
-    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache \
-    && chmod +x start.sh
+    && chmod +x start.sh \
+    && composer dump-autoload --optimize
 
 EXPOSE 8000
 CMD ["./start.sh"]
