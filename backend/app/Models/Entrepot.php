@@ -19,4 +19,9 @@ class Entrepot extends Model
     {
         return $this->hasMany(Stock::class, 'entrepot_id');
     }
+
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class, 'entrepot_id');
+    }
 }

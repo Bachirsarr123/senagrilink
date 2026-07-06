@@ -20,6 +20,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/productions',             [\App\Http\Controllers\Api\ProductionController::class, 'store']);
         Route::put('/productions/{id}',         [\App\Http\Controllers\Api\ProductionController::class, 'update']);
         Route::get('/commandes/disponibles',    [\App\Http\Controllers\Api\ProductionController::class, 'commandesDisponibles']);
+
+        // Réservation d'entrepôt
+        Route::get('/entrepots/disponibles',    [\App\Http\Controllers\Api\ReservationController::class, 'entrepotsDisponibles']);
+        Route::post('/reservations',            [\App\Http\Controllers\Api\ReservationController::class, 'store']);
     });
 
     // ── Module Gestionnaire d'entrepôt ────────────────────────────────────────
@@ -32,6 +36,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/commandes/{id}/confirmer', [\App\Http\Controllers\Api\CommandeController::class, 'confirmer']);
         // Option B : création explicite de livraison après confirmation de commande
         Route::post('/livraisons',              [\App\Http\Controllers\Api\LivraisonController::class, 'store']);
+
+        // Réservation d'entrepôt
+        Route::put('/reservations/{id}/confirmer', [\App\Http\Controllers\Api\ReservationController::class, 'confirmer']);
     });
 
     // ── Module Acheteur en gros ───────────────────────────────────────────────
@@ -61,4 +68,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Module Traçabilité (tous les rôles authentifiés) ──────────────────────
     Route::get('/tracabilite/{code_tracabilite}', [\App\Http\Controllers\Api\TracabiliteController::class, 'show']);
+
+    // ── Réservations (lecture commune, filtrée par rôle dans le contrôleur) ───
+    Route::get('/reservations', [\App\Http\Controllers\Api\ReservationController::class, 'index']);
+
+    // ── Notifications (communes à tous les rôles authentifiés) ────────────────
+    Route::get('/notifications',            [\App\Http\Controllers\Api\NotificationController::class, 'index']);
+    Route::put('/notifications/{id}/lue',   [\App\Http\Controllers\Api\NotificationController::class, 'marquerLue']);
 });

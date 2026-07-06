@@ -19,4 +19,9 @@ class Producteur extends Model
     {
         return $this->hasMany(Production::class, 'producteur_id');
     }
+
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class, 'producteur_id');
+    }
 }
