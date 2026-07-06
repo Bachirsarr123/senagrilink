@@ -45,12 +45,14 @@ class LivraisonController extends Controller
         }
 
         $livraison = Livraison::create([
-            'commande_id'     => $commande->id,
-            'transporteur_id' => $request->transporteur_id,
-            'origine'         => $request->origine,
-            'destination'     => $request->destination,
-            'date_depart'     => $request->date_depart,
-            'statut'          => 'en_attente',
+            'commande_id'            => $commande->id,
+            'transporteur_id'        => $request->transporteur_id,
+            'origine'                => $request->origine,
+            'destination'            => $request->destination,
+            'destination_latitude'   => $request->destination_latitude,
+            'destination_longitude'  => $request->destination_longitude,
+            'date_depart'            => $request->date_depart,
+            'statut'                 => 'en_attente',
         ]);
 
         return response()->json([

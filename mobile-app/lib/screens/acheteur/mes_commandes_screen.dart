@@ -4,6 +4,7 @@ import '../../services/api_service.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
+import 'suivi_livraison_screen.dart';
 
 class MesCommandesScreen extends StatefulWidget {
   const MesCommandesScreen({super.key});
@@ -163,6 +164,17 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
                                   const Icon(Icons.local_shipping_outlined, size: 14, color: Colors.grey),
                                   const SizedBox(width: 4),
                                   StatusBadge(c.livraison!['statut'] ?? ''),
+                                  if (c.livraison!['statut'] == 'en_cours') ...[
+                                    const SizedBox(width: 8),
+                                    TextButton.icon(
+                                      icon: const Icon(Icons.map_outlined, size: 16),
+                                      label: const Text('Suivre en direct'),
+                                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                                      onPressed: () => Navigator.push(context, MaterialPageRoute(
+                                        builder: (_) => SuiviLivraisonScreen(livraisonId: c.livraison!['id']),
+                                      )),
+                                    ),
+                                  ],
                                 ]),
                               ],
 

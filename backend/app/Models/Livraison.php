@@ -15,6 +15,8 @@ class Livraison extends Model
         'transporteur_id',
         'origine',
         'destination',
+        'destination_latitude',
+        'destination_longitude',
         'date_depart',
         'date_livraison',
         'statut',

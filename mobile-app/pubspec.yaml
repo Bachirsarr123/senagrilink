@@ -20,6 +20,9 @@ dependencies:
   intl: ^0.19.0
   # Géolocalisation (suivi GPS transporteur)
   geolocator: ^13.0.2
+  # Carte de suivi de livraison (acheteur)
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:

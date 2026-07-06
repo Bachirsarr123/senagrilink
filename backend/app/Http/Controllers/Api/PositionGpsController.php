@@ -61,6 +61,7 @@ class PositionGpsController extends Controller
         $livraison = Livraison::with([
             'commande.acheteur',
             'commande.stock.production.producteur',
+            'commande.stock.entrepot',
         ])->find($id);
 
         if (! $livraison) {
@@ -83,10 +84,22 @@ class PositionGpsController extends Controller
             return response()->json(['message' => 'Aucune position disponible pour cette livraison.'], 404);
         }
 
+        $entrepot = $livraison->commande?->stock?->entrepot;
+
         return response()->json([
             'livraison_id'     => $livraison->id,
             'statut_livraison' => $livraison->statut,
-            'position'         => $position,
+            'origine'          => [
+                'nom'       => $entrepot?->nom_entrepot,
+                'latitude'  => $entrepot?->latitude,
+                'longitude' => $entrepot?->longitude,
+            ],
+            'destination' => [
+                'adresse'   => $livraison->destination,
+                'latitude'  => $livraison->destination_latitude,
+                'longitude' => $livraison->destination_longitude,
+            ],
+            'position' => $position,
         ]);
     }
 

@@ -33,6 +33,8 @@ class UpdateProfileRequest extends FormRequest
             'nom_entrepot' => ['nullable', 'string', 'max:150'],
             'capacite'     => ['nullable', 'numeric'],
             'localisation' => ['nullable', 'string', 'max:255'],
+            'latitude'     => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude'    => ['nullable', 'numeric', 'between:-180,180'],
 
             // Profil Acheteur en gros
             'type_activite'        => ['nullable', 'string', 'max:150'],

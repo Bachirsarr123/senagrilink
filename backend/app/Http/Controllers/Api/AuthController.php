@@ -128,7 +128,7 @@ class AuthController extends Controller
     {
         match ($utilisateur->role) {
             'producteur' => $utilisateur->producteur?->update($request->only(['superficie', 'types_cultures', 'region'])),
-            'gestionnaire_entrepot' => $utilisateur->entrepot?->update($request->only(['nom_entrepot', 'capacite', 'localisation'])),
+            'gestionnaire_entrepot' => $utilisateur->entrepot?->update($request->only(['nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude'])),
             'acheteur_gros' => $utilisateur->acheteurGros?->update($request->only(['type_activite', 'volume_achat_mensuel'])),
             'transporteur' => $utilisateur->transporteur?->update($request->only(['type_vehicule', 'capacite_charge', 'zone'])),
             default => null,

@@ -18,6 +18,8 @@ class StoreLivraisonRequest extends FormRequest
             'transporteur_id'=> ['nullable', 'integer', 'exists:transporteurs,id'],
             'origine'        => ['required', 'string', 'max:255'],
             'destination'    => ['required', 'string', 'max:255'],
+            'destination_latitude'  => ['nullable', 'numeric', 'between:-90,90'],
+            'destination_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'date_depart'    => ['nullable', 'date'],
         ];
     }

@@ -8,7 +8,7 @@ class Entrepot extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['utilisateur_id', 'nom_entrepot', 'capacite', 'localisation'];
+    protected $fillable = ['utilisateur_id', 'nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude'];
 
     public function utilisateur()
     {
