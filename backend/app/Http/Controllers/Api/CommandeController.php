@@ -7,6 +7,8 @@ use App\Http\Requests\StoreCommandeRequest;
 use App\Http\Requests\UpdateCommandeRequest;
 use App\Models\Commande;
 use App\Models\Stock;
+use App\Notifications\CommandeConfirmeeNotification;
+use App\Notifications\NouvelleCommandeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +83,19 @@ class CommandeController extends Controller
             'date_commande'  => now(),
             'statut'         => 'en_attente',
         ]);
+
+        // Notifie le producteur du lot (s'il existe) et le gestionnaire de l'entrepôt
+        $stock->loadMissing(['production.producteur.utilisateur', 'entrepot.utilisateur']);
+
+        $producteurUtilisateur = $stock->production?->producteur?->utilisateur;
+        if ($producteurUtilisateur) {
+            $producteurUtilisateur->notify(new NouvelleCommandeNotification($commande));
+        }
+
+        $gestionnaireUtilisateur = $stock->entrepot?->utilisateur;
+        if ($gestionnaireUtilisateur) {
+            $gestionnaireUtilisateur->notify(new NouvelleCommandeNotification($commande));
+        }
 
         return response()->json([
             'message'  => 'Commande passée avec succès.',
@@ -198,7 +213,7 @@ class CommandeController extends Controller
      */
     public function confirmer(Request $request, int $id): JsonResponse
     {
-        $commande = Commande::with('stock')->findOrFail($id);
+        $commande = Commande::with(['stock', 'acheteur.utilisateur'])->findOrFail($id);
 
         if ($commande->statut !== 'en_attente') {
             return response()->json([
@@ -238,6 +253,8 @@ class CommandeController extends Controller
 
             $stock->save();
         });
+
+        $commande->acheteur?->utilisateur?->notify(new CommandeConfirmeeNotification($commande));
 
         return response()->json([
             'message'       => 'Commande confirmée. Stock mis à jour.',

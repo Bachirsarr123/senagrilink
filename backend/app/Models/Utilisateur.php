@@ -61,4 +61,11 @@ class Utilisateur extends Authenticatable
     {
         return $this->hasOne(Transporteur::class, 'utilisateur_id');
     }
+
+    // Canal privé sur lequel cet utilisateur reçoit ses notifications broadcast
+    // (voir routes/channels.php), plus lisible que le nom de classe par défaut.
+    public function receivesBroadcastNotificationsOn(): string
+    {
+        return 'utilisateur.' . $this->id;
+    }
 }

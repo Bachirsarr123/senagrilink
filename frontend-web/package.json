@@ -19,7 +19,9 @@
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
     "@types/leaflet": "^1.9.21",
+    "laravel-echo": "^2.3.7",
     "leaflet": "^1.9.4",
+    "pusher-js": "^8.5.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

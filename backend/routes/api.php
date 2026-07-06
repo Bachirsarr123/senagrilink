@@ -1,7 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
+
+// ─── Authentification broadcasting (canaux privés Reverb, via Sanctum) ───────
+// Pas de 'prefix' ici : ce fichier est déjà préfixé par /api (voir bootstrap/app.php).
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
 // ─── Authentification (public) ───────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);

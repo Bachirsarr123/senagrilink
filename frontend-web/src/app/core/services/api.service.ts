@@ -52,6 +52,10 @@ export class ApiService {
   // ── Suivi GPS ──────────────────────────────────────────────────────────────
   getPositionLivraison(id: number): Observable<any> { return this.http.get(`${this.base}/livraisons/${id}/position`); }
 
+  // ── Notifications ──────────────────────────────────────────────────────────
+  getNotifications(): Observable<any> { return this.http.get(`${this.base}/notifications`); }
+  marquerNotificationLue(id: string): Observable<any> { return this.http.put(`${this.base}/notifications/${id}/lue`, {}); }
+
   // ── Profil ─────────────────────────────────────────────────────────────────
   updateProfile(data: any): Observable<any> { return this.http.put(`${this.base}/profile`, data); }
 }

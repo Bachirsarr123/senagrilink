@@ -7,6 +7,9 @@ use App\Http\Requests\StoreLivraisonRequest;
 use App\Http\Requests\UpdateStatutLivraisonRequest;
 use App\Models\Commande;
 use App\Models\Livraison;
+use App\Models\PositionGps;
+use App\Notifications\LivraisonEnCoursNotification;
+use App\Notifications\LivraisonTermineeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -136,10 +139,40 @@ class LivraisonController extends Controller
 
         $livraison->save();
 
+        $this->notifierChangementStatut($livraison, $nouveauStatut);
+
         return response()->json([
             'message'   => 'Statut mis à jour.',
             'livraison' => $livraison->fresh(),
         ]);
+    }
+
+    /**
+     * Notifie l'acheteur (en_cours, avec la dernière position GPS si disponible)
+     * et, à la livraison terminée, l'acheteur ainsi que le producteur du lot.
+     */
+    private function notifierChangementStatut(Livraison $livraison, string $nouveauStatut): void
+    {
+        $livraison->loadMissing([
+            'commande.acheteur.utilisateur',
+            'commande.stock.production.producteur.utilisateur',
+        ]);
+
+        $acheteurUtilisateur   = $livraison->commande?->acheteur?->utilisateur;
+        $producteurUtilisateur = $livraison->commande?->stock?->production?->producteur?->utilisateur;
+
+        if ($nouveauStatut === 'en_cours') {
+            $position = PositionGps::where('transporteur_id', $livraison->transporteur_id)
+                ->orderByDesc('timestamp')
+                ->first();
+
+            $acheteurUtilisateur?->notify(new LivraisonEnCoursNotification($livraison, $position));
+        }
+
+        if ($nouveauStatut === 'livree') {
+            $acheteurUtilisateur?->notify(new LivraisonTermineeNotification($livraison));
+            $producteurUtilisateur?->notify(new LivraisonTermineeNotification($livraison));
+        }
     }
 
     /**

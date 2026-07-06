@@ -118,4 +118,7 @@ class ApiService {
 
   // ── Profil ───────────────────────────────────────────────────────────────
   static Future<dynamic> updateProfile(Map<String, dynamic> data) => put('/profile', data);
+
+  // ── Notifications ────────────────────────────────────────────────────────
+  static Future<dynamic> getNotifications() => get('/notifications');
 }

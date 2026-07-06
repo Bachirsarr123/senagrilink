@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Reservation;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
 class ReservationConfirmeeNotification extends Notification
@@ -13,7 +14,7 @@ class ReservationConfirmeeNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['database', 'broadcast'];
     }
 
     public function toDatabase(object $notifiable): array
@@ -30,5 +31,10 @@ class ReservationConfirmeeNotification extends Notification
                 $this->reservation->entrepot?->nom_entrepot ?? ''
             ),
         ];
+    }
+
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage($this->toDatabase($notifiable));
     }
 }
