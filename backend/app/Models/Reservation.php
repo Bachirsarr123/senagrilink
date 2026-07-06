@@ -14,6 +14,7 @@ class Reservation extends Model
         'entrepot_id',
         'producteur_id',
         'production_id',
+        'transporteur_id',
         'produit',
         'quantite_reservee',
         'date_debut',
@@ -44,5 +45,10 @@ class Reservation extends Model
     public function production()
     {
         return $this->belongsTo(Production::class, 'production_id');
+    }
+
+    public function transporteur()
+    {
+        return $this->belongsTo(Transporteur::class, 'transporteur_id');
     }
 }

@@ -16,6 +16,7 @@ class Stock extends Model
         'date_entree',
         'date_sortie',
         'seuil_alerte',
+        'observation',
         'statut',
     ];
 
