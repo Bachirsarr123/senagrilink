@@ -1,0 +1,97 @@
+databases:
+  - name: senagrilink-db
+    databaseName: agri_platform
+    user: agri_user
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+
+services:
+  # ── Backend Laravel (API) ────────────────────────────────────────────────────
+  - type: web
+    name: senagrilink-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /up
+    envVars:
+      - key: APP_NAME
+        value: SenAgriLink
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        value: https://senagrilink-backend.onrender.com
+      - key: APP_LOCALE
+        value: en
+      - key: APP_FALLBACK_LOCALE
+        value: en
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: error
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: senagrilink-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: senagrilink-db
+          property: port
+      - key: DB_DATABASE
+        fromDatabase:
+          name: senagrilink-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: senagrilink-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: senagrilink-db
+          property: password
+      - key: DB_SSLMODE
+        value: require
+      - key: CACHE_STORE
+        value: file
+      - key: FILESYSTEM_DISK
+        value: local
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: SESSION_DRIVER
+        value: file
+      - key: SESSION_LIFETIME
+        value: "120"
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: FRONTEND_URL
+        value: https://senagrilink-frontend.onrender.com
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: senagrilink-frontend.onrender.com
+      - key: MAIL_MAILER
+        value: log
+
+  # ── Frontend Angular (site statique) ─────────────────────────────────────────
+  - type: web
+    name: senagrilink-frontend
+    runtime: static
+    buildCommand: cd frontend-web && npm ci && npm run build -- --configuration production
+    staticPublishPath: ./frontend-web/dist/sen-agri-link/browser
+    envVars:
+      - key: API_URL
+        value: https://senagrilink-backend.onrender.com/api
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN

@@ -11,12 +11,13 @@ return [
 
     /*
      * En développement, on autorise localhost:4200 (Angular) et localhost:8000 (API).
-     * En production, remplacer par les domaines réels.
+     * En production, FRONTEND_URL pointe vers le domaine réel du frontend déployé.
      */
-    'allowed_origins' => [
+    'allowed_origins' => array_filter([
         'http://localhost:4200',
         'http://127.0.0.1:4200',
-    ],
+        env('FRONTEND_URL'),
+    ]),
 
     'allowed_origins_patterns' => [],
 
