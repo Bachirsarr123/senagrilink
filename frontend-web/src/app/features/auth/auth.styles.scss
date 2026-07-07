@@ -32,6 +32,12 @@ h2 { margin-bottom: 1.25rem; color: #1b4332; font-size: 1.2rem; }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
+@media (max-width: 480px) {
+  .auth-page { padding: 1rem; }
+  .auth-card { padding: 1.5rem; }
+  .form-row { grid-template-columns: 1fr; }
+}
+
 .form-group {
   display: flex; flex-direction: column; margin-bottom: 1rem;
 

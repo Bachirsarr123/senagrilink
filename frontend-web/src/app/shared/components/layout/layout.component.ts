@@ -14,6 +14,9 @@ import { NavbarComponent } from '../navbar/navbar.component';
   `,
   styles: [`
     .main-content { padding: 1.5rem 2rem; max-width: 1200px; margin: 0 auto; }
+    @media (max-width: 640px) {
+      .main-content { padding: 1rem; }
+    }
   `],
 })
 export class LayoutComponent {}

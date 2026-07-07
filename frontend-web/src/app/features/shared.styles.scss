@@ -94,7 +94,11 @@ $gris-bord:      #e5e7eb;
 .commande-form { border-top: 1px solid $gris-bord; padding-top: .75rem; }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
+// Défilement horizontal sur petits écrans plutôt que colonnes illisibles.
 .table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   width: 100%; border-collapse: collapse; font-size: .9rem;
 
   th {
@@ -126,7 +130,7 @@ $gris-bord:      #e5e7eb;
 
 // ── Filters ───────────────────────────────────────────────────────────────────
 .filters {
-  display: flex; gap: .75rem; margin-bottom: 1rem;
+  display: flex; gap: .75rem; margin-bottom: 1rem; flex-wrap: wrap;
   select { padding: .45rem .7rem; border: 1px solid $gris-bord; border-radius: 6px; font-size: .85rem; }
 }
 
@@ -175,3 +179,10 @@ $gris-bord:      #e5e7eb;
 .alert-success { background: #d1fae5; color: #065f46; border-left: 3px solid #059669; }
 
 code.code-lot { background: $vert-clair; color: $vert-fonce; padding: .15rem .4rem; border-radius: 4px; font-size: .8rem; }
+
+// ── Petits écrans ─────────────────────────────────────────────────────────────
+@media (max-width: 640px) {
+  .card { padding: 1rem; }
+  .btn-group { flex-wrap: wrap; }
+  .stat-value { font-size: 1.5rem; }
+}

@@ -116,3 +116,28 @@ table {
   color: #9ca3af;
   p { margin: .5rem 0 0; font-size: .9rem; }
 }
+
+/* Tableaux : défilement horizontal plutôt que compression illisible des colonnes */
+table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 640px) {
+  html, body { font-size: 15px; }
+
+  .page {
+    padding: 1rem;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .5rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+}
