@@ -5,7 +5,7 @@
 **Projet de fin de cycle — Licence 3 Génie Logiciel — ISI Sénégal**
 **Étudiant :** Souleye Bachir Aliou Sarr
 **Encadreur :** Mr. Matar Thioye
-**Document destiné à :** Claude Code (agent de développement)
+**Document destiné à :** l'agent de développement
 
 -----
 
@@ -15,7 +15,7 @@ Ce document est le cahier des charges technique complet du projet de mémoire. I
 
 L’implémentation doit rester strictement fidèle aux diagrammes UML déjà conçus (diagramme de classe, diagrammes de cas d’utilisation) fournis dans ce document. Ne pas ajouter de fonctionnalités non prévues. Ne pas simplifier les modules sans en informer l’utilisateur au préalable.
 
-**Note importante :** les maquettes Figma ne sont pas encore réalisées au moment de la rédaction de ce document. Claude Code peut commencer le développement des interfaces avec une UI fonctionnelle simple basée sur les cas d’utilisation ci-dessous, mais doit prévoir que l’apparence visuelle (couleurs, mise en page détaillée) sera ajustée une fois les maquettes Figma disponibles.
+**Note importante :** les maquettes Figma ne sont pas encore réalisées au moment de la rédaction de ce document. L'agent de développement peut commencer le développement des interfaces avec une UI fonctionnelle simple basée sur les cas d’utilisation ci-dessous, mais doit prévoir que l’apparence visuelle (couleurs, mise en page détaillée) sera ajustée une fois les maquettes Figma disponibles.
 
 -----
 
@@ -32,7 +32,7 @@ L’implémentation doit rester strictement fidèle aux diagrammes UML déjà co
 |Qualité de code   |SonarQube     |Community Edition, dernière version    |
 |Versioning        |Git / GitHub  |—                                      |
 
-Note pour Claude Code : vérifie les versions stables actuellement disponibles au moment de l’installation plutôt que de te fier à un numéro figé dans ce document, et signale à l’utilisateur la version exacte choisie pour qu’il la documente dans le mémoire (section 2.4.1.3).
+Note pour l'agent de développement : vérifie les versions stables actuellement disponibles au moment de l’installation plutôt que de te fier à un numéro figé dans ce document, et signale à l’utilisateur la version exacte choisie pour qu’il la documente dans le mémoire (section 2.4.1.3).
 
 Architecture : trois tiers (Présentation / Traitement métier / Accès aux données), communication via API REST en HTTPS.
 
@@ -60,7 +60,7 @@ Conformément aux enquêtes de terrain (les producteurs et transporteurs travail
 |Transporteur           |Non                             |Oui — usage principal    |
 |Administrateur         |Oui — usage principal uniquement|Non                      |
 
-Cette répartition est une proposition par défaut. Si elle ne correspond pas à ce qui a été validé avec l’encadreur, l’utilisateur doit la corriger avant que Claude Code ne commence le développement des interfaces.
+Cette répartition est une proposition par défaut. Si elle ne correspond pas à ce qui a été validé avec l’encadreur, l’utilisateur doit la corriger avant que l'agent de développement ne commence le développement des interfaces.
 
 -----
 
@@ -358,7 +358,7 @@ Le `Jenkinsfile` doit inclure au minimum les étapes :
 
 -----
 
-## 12. Instruction finale pour Claude Code
+## 12. Instruction finale pour l'agent de développement
 
 Tu es chargé de l’implémentation complète de ce projet à partir de ce cahier des charges. Procède module par module dans l’ordre recommandé en section 10. Avant chaque module, confirme avec l’utilisateur la compréhension du périmètre. Ne saute aucune étape. Signale toute incohérence ou question avant de coder. Documente chaque commande exécutée et chaque fichier créé.
 
