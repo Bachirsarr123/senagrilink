@@ -77,6 +77,7 @@ class TracabiliteController extends Controller
                 'statut'      => $stock->statut,
                 'commandes'   => $stock->commandes->map(fn ($commande) => [
                     'numero_commande' => $commande->numero_commande,
+                    'produit'         => $commande->produit,
                     'quantite'        => $commande->quantite,
                     'prix'            => $commande->prix,
                     'date_commande'   => $commande->date_commande,
@@ -87,6 +88,7 @@ class TracabiliteController extends Controller
                         'type_activite'=> $commande->acheteur->type_activite,
                     ] : null,
                     'livraison'       => $commande->livraison ? [
+                        'id'               => $commande->livraison->id,
                         'numero_livraison' => $commande->livraison->numero_livraison,
                         'origine'          => $commande->livraison->origine,
                         'destination'      => $commande->livraison->destination,
