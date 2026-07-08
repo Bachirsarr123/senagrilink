@@ -22,6 +22,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscure2     = true;
   String _roleChoisi = 'producteur';
 
+  // Producteur
+  final _regionCtl = TextEditingController();
+  final _culturesCtl = TextEditingController();
+  final _superficieCtl = TextEditingController();
+  // Gestionnaire
+  final _nomEntrepotCtl = TextEditingController();
+  final _localisationCtl = TextEditingController();
+  final _capaciteCtl = TextEditingController();
+  // Acheteur
+  final _typeActiviteCtl = TextEditingController();
+  final _volumeAchatCtl = TextEditingController();
+  // Transporteur
+  final _typeVehiculeCtl = TextEditingController();
+  final _capaciteChargeCtl = TextEditingController();
+  final _zoneCtl = TextEditingController();
+
   static const _roles = [
     ('producteur',            'Producteur'),
     ('gestionnaire_entrepot', 'Gestionnaire d\'entrepôt'),
@@ -29,10 +45,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     ('transporteur',          'Transporteur'),
   ];
 
+  String? _requisPourRole(String? v, List<String> roles) {
+    if (!roles.contains(_roleChoisi)) return null;
+    return (v == null || v.trim().isEmpty) ? 'Requis' : null;
+  }
+
   @override
   void dispose() {
     _prenomCtl.dispose(); _nomCtl.dispose(); _emailCtl.dispose();
     _telCtl.dispose(); _mdpCtl.dispose(); _mdpConfCtl.dispose();
+    _regionCtl.dispose(); _culturesCtl.dispose(); _superficieCtl.dispose();
+    _nomEntrepotCtl.dispose(); _localisationCtl.dispose(); _capaciteCtl.dispose();
+    _typeActiviteCtl.dispose(); _volumeAchatCtl.dispose();
+    _typeVehiculeCtl.dispose(); _capaciteChargeCtl.dispose(); _zoneCtl.dispose();
     super.dispose();
   }
 
@@ -44,7 +69,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     final auth = context.read<AuthProvider>();
-    final ok = await auth.register({
+    final data = <String, dynamic>{
       'prenom':       _prenomCtl.text.trim(),
       'nom':          _nomCtl.text.trim(),
       'email':        _emailCtl.text.trim(),
@@ -52,11 +77,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'mot_de_passe': _mdpCtl.text,
       'mot_de_passe_confirmation': _mdpConfCtl.text,
       'role':         _roleChoisi,
-    });
+    };
+
+    switch (_roleChoisi) {
+      case 'producteur':
+        data.addAll({
+          'region': _regionCtl.text.trim(),
+          'types_cultures': _culturesCtl.text.trim(),
+          'superficie': double.tryParse(_superficieCtl.text.trim()),
+        });
+        break;
+      case 'gestionnaire_entrepot':
+        data.addAll({
+          'nom_entrepot': _nomEntrepotCtl.text.trim(),
+          'localisation': _localisationCtl.text.trim(),
+          'capacite': double.tryParse(_capaciteCtl.text.trim()),
+        });
+        break;
+      case 'acheteur_gros':
+        data.addAll({
+          'type_activite': _typeActiviteCtl.text.trim(),
+          'volume_achat_mensuel': double.tryParse(_volumeAchatCtl.text.trim()),
+        });
+        break;
+      case 'transporteur':
+        data.addAll({
+          'type_vehicule': _typeVehiculeCtl.text.trim(),
+          'capacite_charge': double.tryParse(_capaciteChargeCtl.text.trim()),
+          'zone': _zoneCtl.text.trim(),
+        });
+        break;
+    }
+
+    final ok = await auth.register(data);
     if (ok && mounted) {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeRouter()));
     }
   }
+
+  Widget _champ(TextEditingController ctl, String label, {
+    List<String> requisPour = const [],
+    TextInputType? type,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextFormField(
+      controller: ctl,
+      keyboardType: type,
+      decoration: InputDecoration(labelText: requisPour.isEmpty ? label : '$label *'),
+      validator: (v) => _requisPourRole(v, requisPour),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -128,12 +198,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      value: _roleChoisi,
+                      initialValue: _roleChoisi,
                       decoration: const InputDecoration(labelText: 'Rôle *', prefixIcon: Icon(Icons.badge_outlined)),
                       items: _roles.map((r) => DropdownMenuItem(value: r.$1, child: Text(r.$2))).toList(),
                       onChanged: (v) => setState(() => _roleChoisi = v ?? 'producteur'),
                     ),
                     const SizedBox(height: 12),
+
+                    if (_roleChoisi == 'producteur') ...[
+                      _champ(_regionCtl, 'Région', requisPour: const ['producteur']),
+                      _champ(_culturesCtl, 'Types de cultures', requisPour: const ['producteur']),
+                      _champ(_superficieCtl, 'Superficie exploitée (hectares)',
+                          requisPour: const ['producteur'], type: TextInputType.number),
+                    ],
+
+                    if (_roleChoisi == 'gestionnaire_entrepot') ...[
+                      _champ(_nomEntrepotCtl, 'Nom de l\'entrepôt', requisPour: const ['gestionnaire_entrepot']),
+                      _champ(_localisationCtl, 'Localisation', requisPour: const ['gestionnaire_entrepot']),
+                      _champ(_capaciteCtl, 'Capacité de stockage (kg)',
+                          requisPour: const ['gestionnaire_entrepot'], type: TextInputType.number),
+                    ],
+
+                    if (_roleChoisi == 'acheteur_gros') ...[
+                      _champ(_typeActiviteCtl, 'Type d\'activité', requisPour: const ['acheteur_gros']),
+                      _champ(_volumeAchatCtl, 'Volume d\'achat mensuel (kg)',
+                          requisPour: const ['acheteur_gros'], type: TextInputType.number),
+                    ],
+
+                    if (_roleChoisi == 'transporteur') ...[
+                      _champ(_typeVehiculeCtl, 'Type de véhicule', requisPour: const ['transporteur']),
+                      _champ(_capaciteChargeCtl, 'Capacité de charge (kg)',
+                          requisPour: const ['transporteur'], type: TextInputType.number),
+                      _champ(_zoneCtl, 'Zone de couverture', requisPour: const ['transporteur']),
+                    ],
 
                     TextFormField(
                       controller: _mdpCtl,

@@ -10,7 +10,7 @@ export interface Utilisateur {
   statut: 'actif' | 'bloque';
   producteur?: any;
   entrepot?: any;
-  acheteurGros?: any;
+  acheteur_gros?: any;
   transporteur?: any;
 }
 
@@ -53,4 +53,8 @@ export interface RegisterPayload {
   // Profil acheteur
   type_activite?: string;
   volume_achat_mensuel?: number;
+  // Profil transporteur
+  type_vehicule?: string;
+  capacite_charge?: number;
+  zone?: string;
 }

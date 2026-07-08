@@ -48,8 +48,17 @@ export class AuthService {
       gestionnaire_entrepot: '/entrepot/stocks',
       acheteur_gros:         '/acheteur/catalogue',
       administrateur:        '/admin/dashboard',
+      // Le transporteur n'a pas d'espace dédié côté web (utilise l'app mobile) :
+      // on l'amène sur son profil plutôt que de le renvoyer vers /login.
+      transporteur:          '/profil',
     };
     this.router.navigate([routes[role ?? ''] ?? '/login']);
+  }
+
+  /** Met à jour l'utilisateur en mémoire et en local storage sans re-authentifier. */
+  mettreAJourUtilisateur(utilisateur: Utilisateur): void {
+    localStorage.setItem(this.USER_KEY, JSON.stringify(utilisateur));
+    this._utilisateur.set(utilisateur);
   }
 
   private persistSession(res: AuthResponse): void {

@@ -70,6 +70,96 @@ import { AuthService } from '../../../core/auth/auth.service';
             <input type="text" formControlName="adresse" placeholder="Votre adresse" />
           </div>
 
+          <!-- Profil Producteur -->
+          @if (role() === 'producteur') {
+            <div style="border-top:1px solid #e5e7eb;padding-top:1rem;margin-top:.5rem">
+              <h3 style="font-size:1rem;margin-bottom:.75rem;color:#374151">Profil producteur</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Région</label>
+                  <input type="text" formControlName="region" placeholder="Thiès" />
+                </div>
+                <div class="form-group">
+                  <label>Types de cultures</label>
+                  <input type="text" formControlName="types_cultures" placeholder="Mil, Arachide" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Superficie exploitée (hectares)</label>
+                <input type="number" formControlName="superficie" min="0" step="0.01" />
+              </div>
+            </div>
+          }
+
+          <!-- Profil Gestionnaire -->
+          @if (role() === 'gestionnaire_entrepot') {
+            <div style="border-top:1px solid #e5e7eb;padding-top:1rem;margin-top:.5rem">
+              <h3 style="font-size:1rem;margin-bottom:.75rem;color:#374151">Profil entrepôt</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nom de l'entrepôt</label>
+                  <input type="text" formControlName="nom_entrepot" placeholder="Entrepôt Central" />
+                </div>
+                <div class="form-group">
+                  <label>Capacité de stockage (kg)</label>
+                  <input type="number" formControlName="capacite" min="0" step="0.01" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Localisation</label>
+                <input type="text" formControlName="localisation" placeholder="Dakar, Sénégal" />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Latitude (pour la carte de suivi)</label>
+                  <input type="number" formControlName="latitude" step="0.0000001" placeholder="ex : 14.7167" />
+                </div>
+                <div class="form-group">
+                  <label>Longitude (pour la carte de suivi)</label>
+                  <input type="number" formControlName="longitude" step="0.0000001" placeholder="ex : -17.4677" />
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Profil Acheteur -->
+          @if (role() === 'acheteur_gros') {
+            <div style="border-top:1px solid #e5e7eb;padding-top:1rem;margin-top:.5rem">
+              <h3 style="font-size:1rem;margin-bottom:.75rem;color:#374151">Profil acheteur</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Type d'activité</label>
+                  <input type="text" formControlName="type_activite" placeholder="Commerce, Restauration..." />
+                </div>
+                <div class="form-group">
+                  <label>Volume d'achat mensuel (kg)</label>
+                  <input type="number" formControlName="volume_achat_mensuel" min="0" step="0.01" />
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Profil Transporteur -->
+          @if (role() === 'transporteur') {
+            <div style="border-top:1px solid #e5e7eb;padding-top:1rem;margin-top:.5rem">
+              <h3 style="font-size:1rem;margin-bottom:.75rem;color:#374151">Profil transporteur</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Type de véhicule</label>
+                  <input type="text" formControlName="type_vehicule" placeholder="Camion, Camionnette..." />
+                </div>
+                <div class="form-group">
+                  <label>Capacité de charge (kg)</label>
+                  <input type="number" formControlName="capacite_charge" min="0" step="0.01" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Zone de couverture</label>
+                <input type="text" formControlName="zone" placeholder="Dakar et environs" />
+              </div>
+            </div>
+          }
+
           <div style="border-top:1px solid #e5e7eb;padding-top:1rem;margin-top:.5rem">
             <h3 style="font-size:1rem;margin-bottom:.75rem;color:#374151">
               Changer de mot de passe (laisser vide pour ne pas modifier)
@@ -101,6 +191,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 export class ProfilComponent implements OnInit {
   private auth = inject(AuthService);
   utilisateur  = this.auth.utilisateur;
+  role         = this.auth.role;
 
   form!: FormGroup;
   loading  = signal(false);
@@ -122,6 +213,11 @@ export class ProfilComponent implements OnInit {
 
   ngOnInit(): void {
     const u = this.utilisateur();
+    const producteur = u?.producteur;
+    const entrepot = u?.entrepot;
+    const acheteur = u?.acheteur_gros;
+    const transporteur = u?.transporteur;
+
     this.form = this.fb.group({
       prenom:                   [u?.prenom ?? '',  Validators.required],
       nom:                      [u?.nom    ?? '',  Validators.required],
@@ -130,6 +226,23 @@ export class ProfilComponent implements OnInit {
       adresse:                  [''],
       mot_de_passe:             [''],
       mot_de_passe_confirmation:[''],
+
+      region:         [producteur?.region ?? ''],
+      types_cultures: [producteur?.types_cultures ?? ''],
+      superficie:     [producteur?.superficie ?? null],
+
+      nom_entrepot:   [entrepot?.nom_entrepot ?? ''],
+      capacite:       [entrepot?.capacite ?? null],
+      localisation:   [entrepot?.localisation ?? ''],
+      latitude:       [entrepot?.latitude ?? null],
+      longitude:      [entrepot?.longitude ?? null],
+
+      type_activite:         [acheteur?.type_activite ?? ''],
+      volume_achat_mensuel:  [acheteur?.volume_achat_mensuel ?? null],
+
+      type_vehicule:    [transporteur?.type_vehicule ?? ''],
+      capacite_charge:  [transporteur?.capacite_charge ?? null],
+      zone:             [transporteur?.zone ?? ''],
     });
   }
 
@@ -156,15 +269,48 @@ export class ProfilComponent implements OnInit {
       data.mot_de_passe_confirmation = conf;
     }
 
+    switch (this.role()) {
+      case 'producteur':
+        Object.assign(data, {
+          region: this.form.value.region,
+          types_cultures: this.form.value.types_cultures,
+          superficie: this.form.value.superficie,
+        });
+        break;
+      case 'gestionnaire_entrepot':
+        Object.assign(data, {
+          nom_entrepot: this.form.value.nom_entrepot,
+          capacite: this.form.value.capacite,
+          localisation: this.form.value.localisation,
+          latitude: this.form.value.latitude,
+          longitude: this.form.value.longitude,
+        });
+        break;
+      case 'acheteur_gros':
+        Object.assign(data, {
+          type_activite: this.form.value.type_activite,
+          volume_achat_mensuel: this.form.value.volume_achat_mensuel,
+        });
+        break;
+      case 'transporteur':
+        Object.assign(data, {
+          type_vehicule: this.form.value.type_vehicule,
+          capacite_charge: this.form.value.capacite_charge,
+          zone: this.form.value.zone,
+        });
+        break;
+    }
+
     this.loading.set(true);
     this.erreur.set(null);
 
     this.api.updateProfile(data).subscribe({
-      next: () => {
+      next: res => {
         this.message.set('Profil mis à jour avec succès.');
         this.loading.set(false);
         this.form.get('mot_de_passe')?.reset('');
         this.form.get('mot_de_passe_confirmation')?.reset('');
+        this.auth.mettreAJourUtilisateur(res.utilisateur);
         setTimeout(() => this.message.set(null), 4000);
       },
       error: err => {
