@@ -7,6 +7,7 @@ import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
 import 'detail_livraison_screen.dart';
+import 'reservations_screen.dart';
 import '../shared/tracabilite_screen.dart';
 import '../shared/profil_screen.dart';
 
@@ -54,6 +55,11 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
       appBar: AppBar(
         title: Text('Missions — ${auth.utilisateur?.prenom ?? ''}'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.warehouse_outlined),
+            tooltip: 'Réservations entrepôt',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReservationsScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner_outlined),
             tooltip: 'Traçabilité',

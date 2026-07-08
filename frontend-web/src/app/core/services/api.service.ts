@@ -56,6 +56,15 @@ export class ApiService {
   getNotifications(): Observable<any> { return this.http.get(`${this.base}/notifications`); }
   marquerNotificationLue(id: string): Observable<any> { return this.http.put(`${this.base}/notifications/${id}/lue`, {}); }
 
+  // ── Réservations d'entrepôt ────────────────────────────────────────────────
+  getEntrepotsDisponibles(): Observable<any> { return this.http.get(`${this.base}/entrepots/disponibles`); }
+  getReservations(): Observable<any> { return this.http.get(`${this.base}/reservations`); }
+  storeReservation(data: any): Observable<any> { return this.http.post(`${this.base}/reservations`, data); }
+  confirmerReservation(id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/confirmer`, {}); }
+  assignerTransporteur(id: number, transporteur_id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/assigner-transporteur`, { transporteur_id }); }
+  validerMarchandise(id: number, data: any): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/valider`, data); }
+  getTransporteurs(): Observable<any> { return this.http.get(`${this.base}/transporteurs`); }
+
   // ── Profil ─────────────────────────────────────────────────────────────────
   updateProfile(data: any): Observable<any> { return this.http.put(`${this.base}/profile`, data); }
 }

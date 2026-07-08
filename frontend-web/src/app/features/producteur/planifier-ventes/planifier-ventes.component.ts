@@ -1,32 +1,32 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 
 @Component({
   selector: 'app-planifier-ventes',
   standalone: true,
-  imports: [DatePipe, DecimalPipe],
+  imports: [DatePipe, DecimalPipe, RouterLink],
   template: `
     <div class="page">
       <div class="page-header">
         <h1>Planifier mes ventes</h1>
-        <span class="subtitle">Mettez vos récoltes en vente et consultez les demandes d'acheteurs</span>
+        <span class="subtitle">Suivez vos récoltes et consultez les demandes d'acheteurs</span>
       </div>
 
-      @if (message()) { <div class="alert alert-success">{{ message() }}</div> }
-      @if (erreur())  { <div class="alert alert-error">{{ erreur() }}</div> }
-
-      <!-- Productions à mettre en vente -->
+      <!-- Récoltes en attente -->
       <div class="card">
         <h2>Mes récoltes en attente</h2>
         <p style="color:#6b7280;font-size:.85rem;margin-bottom:1rem">
-          Marquez vos productions comme "disponibles" pour que les acheteurs puissent passer commande.
+          Une récolte n'apparaît dans le catalogue des acheteurs qu'une fois réceptionnée et
+          validée en entrepôt. <a routerLink="/producteur/reservations">Réservez de la place en entrepôt</a>
+          pour lancer le processus.
         </p>
 
         @if (chargement()) {
           <p class="loading">Chargement...</p>
         } @else if (enAttente().length === 0) {
-          <p class="empty">Aucune production en attente — toutes sont déjà publiées ou livrées.</p>
+          <p class="empty">Aucune récolte en attente — toutes sont déjà en entrepôt.</p>
         } @else {
           <div class="cards-grid">
             @for (p of enAttente(); track p.id) {
@@ -55,22 +55,20 @@ import { ApiService } from '../../../core/services/api.service';
                     </div>
                   }
                 </div>
-                <button class="btn-primary btn-full"
-                        [disabled]="actionEnCours() === p.id"
-                        (click)="mettreEnVente(p.id)">
-                  {{ actionEnCours() === p.id ? 'Mise en vente...' : 'Mettre en vente' }}
-                </button>
+                <a class="btn-primary btn-full" routerLink="/producteur/reservations">
+                  Réserver un entrepôt
+                </a>
               </div>
             }
           </div>
         }
       </div>
 
-      <!-- Productions déjà disponibles -->
+      <!-- Productions déjà en stock -->
       <div class="card">
-        <h2>Mes productions disponibles</h2>
+        <h2>Mes productions en entrepôt</h2>
         @if (disponibles().length === 0) {
-          <p class="empty">Aucune production disponible pour l'instant.</p>
+          <p class="empty">Aucune production en entrepôt pour l'instant.</p>
         } @else {
           <table class="table">
             <thead>
@@ -134,9 +132,6 @@ export class PlanifierVentesComponent implements OnInit {
   demandes         = signal<any[]>([]);
   chargement       = signal(true);
   chargementDemandes = signal(true);
-  actionEnCours    = signal<number | null>(null);
-  message          = signal<string | null>(null);
-  erreur           = signal<string | null>(null);
 
   constructor(private api: ApiService) {}
 
@@ -166,20 +161,4 @@ export class PlanifierVentesComponent implements OnInit {
     });
   }
 
-  mettreEnVente(id: number): void {
-    this.actionEnCours.set(id);
-    this.erreur.set(null);
-    this.api.updateProduction(id, { statut: 'disponible' }).subscribe({
-      next: () => {
-        this.message.set('Production mise en vente avec succès.');
-        this.actionEnCours.set(null);
-        this.chargerProductions();
-        setTimeout(() => this.message.set(null), 4000);
-      },
-      error: err => {
-        this.erreur.set(err.error?.message ?? 'Erreur lors de la mise en vente.');
-        this.actionEnCours.set(null);
-      },
-    });
-  }
 }

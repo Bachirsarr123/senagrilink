@@ -21,11 +21,13 @@ import { EchoService } from '../../../core/services/echo.service';
         <ul class="navbar-links" (click)="fermerMenuMobile()">
           @if (role() === 'producteur') {
             <li><a routerLink="/producteur/productions" routerLinkActive="active">Mes productions</a></li>
+            <li><a routerLink="/producteur/reservations" routerLinkActive="active">Réserver un entrepôt</a></li>
             <li><a routerLink="/producteur/planifier-ventes" routerLinkActive="active">Planifier ventes</a></li>
             <li><a routerLink="/producteur/commandes-disponibles" routerLinkActive="active">Demandes</a></li>
           }
           @if (role() === 'gestionnaire_entrepot') {
             <li><a routerLink="/entrepot/stocks" routerLinkActive="active">Stocks</a></li>
+            <li><a routerLink="/entrepot/reservations" routerLinkActive="active">Réservations</a></li>
             <li><a routerLink="/entrepot/commandes" routerLinkActive="active">Commandes</a></li>
             <li><a routerLink="/entrepot/alertes" routerLinkActive="active">Alertes</a></li>
             <li><a routerLink="/entrepot/rapport" routerLinkActive="active">Rapport</a></li>

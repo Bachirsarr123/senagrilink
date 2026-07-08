@@ -167,6 +167,9 @@ $gris-bord:      #e5e7eb;
   &-actif        { background: #d1fae5; color: #065f46; }
   &-bloque       { background: #fee2e2; color: #991b1b; }
   &-role         { background: #f0fdf4; color: $vert-fonce; border: 1px solid $vert-clair; }
+  &-arrivee_entrepot { background: #dbeafe; color: #1e40af; }
+  &-enregistree      { background: #d1fae5; color: #065f46; }
+  &-refusee          { background: #fee2e2; color: #991b1b; }
 }
 
 // ── Misc ──────────────────────────────────────────────────────────────────────

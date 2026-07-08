@@ -62,6 +62,10 @@ export const routes: Routes = [
             path: 'planifier-ventes',
             loadComponent: () => import('./features/producteur/planifier-ventes/planifier-ventes.component').then(m => m.PlanifierVentesComponent),
           },
+          {
+            path: 'reservations',
+            loadComponent: () => import('./features/producteur/reservations/reservations.component').then(m => m.ProducteurReservationsComponent),
+          },
         ],
       },
 
@@ -87,6 +91,10 @@ export const routes: Routes = [
           {
             path: 'commandes',
             loadComponent: () => import('./features/entrepot/commandes-entrepot/commandes-entrepot.component').then(m => m.CommandesEntrepotComponent),
+          },
+          {
+            path: 'reservations',
+            loadComponent: () => import('./features/entrepot/reservations/reservations.component').then(m => m.EntrepotReservationsComponent),
           },
         ],
       },

@@ -46,6 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/reservations/{id}/confirmer',              [\App\Http\Controllers\Api\ReservationController::class, 'confirmer']);
         Route::put('/reservations/{id}/assigner-transporteur',  [\App\Http\Controllers\Api\ReservationController::class, 'assignerTransporteur']);
         Route::put('/reservations/{id}/valider',                [\App\Http\Controllers\Api\ReservationController::class, 'validerMarchandise']);
+        Route::get('/transporteurs',                            [\App\Http\Controllers\Api\TransporteurController::class, 'index']);
     });
 
     // ── Module Acheteur en gros ───────────────────────────────────────────────

@@ -185,6 +185,9 @@ class ReservationController extends Controller
             $reservation->statut = 'enregistree';
             $reservation->save();
 
+            // La récolte liée est désormais physiquement en entrepôt.
+            $reservation->production?->update(['statut' => 'disponible']);
+
             return $stock;
         });
 

@@ -121,4 +121,9 @@ class ApiService {
 
   // ── Notifications ────────────────────────────────────────────────────────
   static Future<dynamic> getNotifications() => get('/notifications');
+
+  // ── Réservations d'entrepôt (Transporteur) ──────────────────────────────
+  static Future<dynamic> getReservations() => get('/reservations');
+  static Future<dynamic> marquerArriveeReservation(int id) =>
+      put('/reservations/$id/arrivee', {});
 }

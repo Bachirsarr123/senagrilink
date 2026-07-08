@@ -25,6 +25,9 @@ class StatusBadge extends StatelessWidget {
     'epuise'      => (const Color(0xFFF3F4F6), const Color(0xFF6B7280), 'Épuisé'),
     'actif'       => (const Color(0xFFD1FAE5), const Color(0xFF065F46), 'Actif'),
     'bloque'      => (const Color(0xFFFEE2E2), const Color(0xFF991B1B), 'Bloqué'),
+    'arrivee_entrepot' => (const Color(0xFFDBEAFE), const Color(0xFF1E40AF), 'Arrivée entrepôt'),
+    'enregistree'      => (const Color(0xFFD1FAE5), const Color(0xFF065F46), 'Enregistrée'),
+    'refusee'          => (const Color(0xFFFEE2E2), const Color(0xFF991B1B), 'Refusée'),
     _             => (const Color(0xFFF3F4F6), const Color(0xFF6B7280), s),
   };
 }
