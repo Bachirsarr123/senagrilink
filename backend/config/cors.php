@@ -16,7 +16,10 @@ return [
     'allowed_origins' => array_filter([
         'http://localhost:4200',
         'http://127.0.0.1:4200',
+        // Test depuis un autre appareil du réseau local (ex. téléphone) :
+        // ajouter ici l'IP LAN affichée par `ipconfig`, ex. http://192.168.1.3:4200
         env('FRONTEND_URL'),
+        env('LAN_FRONTEND_URL'),
     ]),
 
     'allowed_origins_patterns' => [],
