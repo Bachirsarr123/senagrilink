@@ -11,9 +11,14 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  static const String _baseUrl = 'http://10.0.2.2:8000/api';
-  // 10.0.2.2 = localhost de la machine hôte depuis l'émulateur Android.
-  // Sur appareil physique, remplacer par l'IP LAN de la machine.
+  // Pointe vers le backend public par défaut, pour pouvoir tester depuis
+  // n'importe quel réseau (build GitHub Actions incluse). Pour tester contre
+  // un backend local, surcharger au build :
+  // flutter run --dart-define=API_URL=http://<IP_LAN>:8000/api
+  static const String _baseUrl = String.fromEnvironment(
+    'API_URL',
+    defaultValue: 'https://senagrilink-backend.onrender.com/api',
+  );
 
   // ── Token ────────────────────────────────────────────────────────────────
   static Future<String?> getToken() async {
