@@ -76,6 +76,34 @@ import { ApiService } from '../../../core/services/api.service';
         }
       </div>
 
+      <!-- Confirmées, transporteur déjà assigné -->
+      <div class="card">
+        <h2>En cours d'acheminement</h2>
+        @if (enTransit().length === 0) {
+          <p class="empty">Aucune réservation en cours d'acheminement.</p>
+        } @else {
+          <table class="table">
+            <thead>
+              <tr><th>Numéro</th><th>Producteur</th><th>Produit</th><th>Quantité</th><th>Transporteur</th></tr>
+            </thead>
+            <tbody>
+              @for (r of enTransit(); track r.id) {
+                <tr>
+                  <td><code class="code-lot">{{ r.numero_reservation }}</code></td>
+                  <td>{{ r.producteur?.utilisateur?.prenom }} {{ r.producteur?.utilisateur?.nom }}</td>
+                  <td>{{ r.produit }}</td>
+                  <td>{{ r.quantite_reservee | number }} kg</td>
+                  <td>
+                    {{ r.transporteur?.utilisateur?.prenom }} {{ r.transporteur?.utilisateur?.nom }}
+                    {{ r.transporteur?.type_vehicule ? '(' + r.transporteur.type_vehicule + ')' : '' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
       <!-- Arrivées à l'entrepôt, à valider -->
       <div class="card">
         <h2>Marchandises arrivées — à valider</h2>
@@ -124,6 +152,9 @@ import { ApiService } from '../../../core/services/api.service';
                     </option>
                   }
                 </select>
+                @if (formAssignation.get('transporteur_id')?.invalid && formAssignation.get('transporteur_id')?.touched) {
+                  <span class="field-error">Choisis un transporteur.</span>
+                }
               </div>
               <div class="btn-group">
                 <button type="submit" class="btn-primary" [disabled]="loadingModal()">
@@ -181,6 +212,9 @@ import { ApiService } from '../../../core/services/api.service';
       padding:.55rem .8rem;border:1px solid #e5e7eb;border-radius:6px;
       font-size:.9rem;width:100%;font-family:inherit;
     }
+    .field-error {
+      display:block;color:#dc2626;font-size:.8rem;margin-top:.3rem;
+    }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })
@@ -215,7 +249,8 @@ export class EntrepotReservationsComponent implements OnInit {
   }
 
   enAttente = () => this.toutes().filter(r => r.statut === 'en_attente');
-  confirmees = () => this.toutes().filter(r => r.statut === 'confirmee');
+  confirmees = () => this.toutes().filter(r => r.statut === 'confirmee' && !r.transporteur_id);
+  enTransit = () => this.toutes().filter(r => r.statut === 'confirmee' && !!r.transporteur_id);
   arrivees = () => this.toutes().filter(r => r.statut === 'arrivee_entrepot');
 
   charger(): void {

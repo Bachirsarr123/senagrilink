@@ -246,6 +246,8 @@ class ReservationController extends Controller
             'entrepot:id,nom_entrepot,localisation',
             'producteur:id,utilisateur_id',
             'producteur.utilisateur:id,nom,prenom,telephone',
+            'transporteur:id,utilisateur_id,type_vehicule',
+            'transporteur.utilisateur:id,nom,prenom,telephone',
         ])->orderByDesc('date_reservation');
 
         if ($utilisateur->role === 'producteur') {
