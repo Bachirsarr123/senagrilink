@@ -9,6 +9,7 @@ class Commande {
   final bool alerteLivraison;
   final Map<String, dynamic>? livraison;
   final Map<String, dynamic>? stock;
+  final Map<String, dynamic>? acheteur;
 
   const Commande({
     required this.id,
@@ -21,6 +22,7 @@ class Commande {
     this.alerteLivraison = false,
     this.livraison,
     this.stock,
+    this.acheteur,
   });
 
   factory Commande.fromJson(Map<String, dynamic> j) => Commande(
@@ -34,5 +36,6 @@ class Commande {
         alerteLivraison: j['alerte_livraison'] == true,
         livraison: j['livraison'],
         stock: j['stock'],
+        acheteur: j['acheteur'],
       );
 }

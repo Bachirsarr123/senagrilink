@@ -45,7 +45,7 @@ class _CommandesDisponiblesScreenState extends State<CommandesDisponiblesScreen>
                       itemCount: _commandes.length,
                       itemBuilder: (_, i) {
                         final c = _commandes[i];
-                        final acheteur = c.commande?['acheteur']?['utilisateur'];
+                        final acheteur = c.acheteur?['utilisateur'];
                         return Card(
                           child: ListTile(
                             leading: const CircleAvatar(child: Icon(Icons.shopping_basket_outlined)),

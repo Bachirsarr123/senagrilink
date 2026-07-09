@@ -77,11 +77,11 @@ class ApiService {
   }
 
   // ── Auth ─────────────────────────────────────────────────────────────────
-  static Future<Map<String, dynamic>> login(String email, String password) =>
-      post('/login', {'email': email, 'mot_de_passe': password}, auth: false);
+  static Future<Map<String, dynamic>> login(String email, String password) async =>
+      await post('/login', {'email': email, 'mot_de_passe': password}, auth: false);
 
-  static Future<Map<String, dynamic>> register(Map<String, dynamic> data) =>
-      post('/register', data, auth: false);
+  static Future<Map<String, dynamic>> register(Map<String, dynamic> data) async =>
+      await post('/register', data, auth: false);
 
   static Future<void> logout() async {
     try { await post('/logout', {}); } catch (_) {}
