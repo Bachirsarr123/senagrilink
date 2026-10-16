@@ -52,10 +52,23 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.all(24),
               child: Form(
                 key: _formKey,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                // Défilable : sur petit écran ou clavier ouvert, le formulaire et ses
+                // messages (erreur, fin de session) ne débordent pas.
+                child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Text('Connexion',
                       style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 20),
+                  if (auth.messageSession != null && auth.erreur == null)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        border: Border.all(color: Colors.blue.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(auth.messageSession!, style: TextStyle(color: Colors.blue.shade900)),
+                    ),
                   if (auth.erreur != null)
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -99,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () => Navigator.pushNamed(context, '/register'),
                     child: const Text('Pas de compte ? S\'inscrire'),
                   ),
-                ]),
+                ])),
               ),
             ),
           ),
