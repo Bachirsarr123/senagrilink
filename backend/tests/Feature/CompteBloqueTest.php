@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Utilisateur;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Broadcast;
 use Tests\TestCase;
 
 /**
@@ -35,6 +36,36 @@ class CompteBloqueTest extends TestCase
         return $this->withToken($token);
     }
 
+    /**
+     * Diffuseur Reverb avec identifiants fictifs : la signature d'un canal privé
+     * est calculée localement (aucune connexion réseau), ce qui permet de tester
+     * l'autorisation réelle des canaux de routes/channels.php.
+     */
+    private function activerReverbFictif(): void
+    {
+        config([
+            'broadcasting.default'                       => 'reverb',
+            'broadcasting.connections.reverb.key'        => 'cle-fictive',
+            'broadcasting.connections.reverb.secret'     => 'secret-fictif',
+            'broadcasting.connections.reverb.app_id'     => 'id-fictif',
+            'broadcasting.connections.reverb.options.host'   => '127.0.0.1',
+            'broadcasting.connections.reverb.options.port'   => 9,
+            'broadcasting.connections.reverb.options.scheme' => 'http',
+            'broadcasting.connections.reverb.options.useTLS' => false,
+        ]);
+
+        Broadcast::purge('reverb');
+        require base_path('routes/channels.php'); // canaux déclarés sur le nouveau diffuseur
+    }
+
+    private function authCanal(string $token, int $utilisateurId)
+    {
+        return $this->avecJeton($token)->postJson('/api/broadcasting/auth', [
+            'channel_name' => "private-utilisateur.{$utilisateurId}",
+            'socket_id'    => '1234.5678',
+        ]);
+    }
+
     private function bloquer(Utilisateur $utilisateur): void
     {
         $this->avecJeton($this->tokenAdmin)
@@ -51,7 +82,29 @@ class CompteBloqueTest extends TestCase
         $this->avecJeton($token)->getJson('/api/me')->assertOk();
         $this->avecJeton($token)->getJson('/api/catalogue')->assertOk();
         $this->avecJeton($token)->putJson('/api/profile', ['nom' => 'Ndiaye'])->assertOk();
-        $this->avecJeton($token)->postJson('/api/broadcasting/auth')->assertStatus(200);
+
+        // Autorisation réelle du canal privé (et non plus le pilote null, qui accepte tout)
+        $this->activerReverbFictif();
+        $signature = $this->authCanal($token, $acheteur->id)->assertOk()->json('auth');
+        $this->assertStringStartsWith('cle-fictive:', $signature);
+        $this->authCanal($token, $this->admin()->id)->assertStatus(403); // canal d'autrui
+    }
+
+    public function test_diffusion_reelle_refusee_a_un_compte_bloque(): void
+    {
+        $acheteur = Utilisateur::factory()->acheteur()->create();
+        $token    = $acheteur->createToken('ancien')->plainTextToken;
+        $acheteur->forceFill(['statut' => 'bloque'])->save();
+
+        $this->activerReverbFictif();
+        $this->authCanal($token, $acheteur->id)
+             ->assertStatus(403)
+             ->assertJsonMissingPath('auth');
+    }
+
+    private function admin(): Utilisateur
+    {
+        return Utilisateur::where('role', 'administrateur')->first();
     }
 
     public function test_blocage_revoque_tous_les_jetons_du_compte(): void

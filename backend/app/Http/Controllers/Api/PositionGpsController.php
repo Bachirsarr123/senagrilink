@@ -76,6 +76,16 @@ class PositionGpsController extends Controller
             return response()->json(['message' => 'Aucun transporteur assigné à cette livraison.'], 404);
         }
 
+        // R5 — la position est celle du transporteur, pas de la livraison : hors
+        // livraison en cours (pas démarrée, terminée, en problème), on ne l'expose
+        // pas, sinon une ancienne livraison permettrait de suivre ses autres missions.
+        if ($livraison->statut !== 'en_cours') {
+            return response()->json([
+                'message'          => 'Suivi en direct disponible uniquement pendant la livraison en cours.',
+                'statut_livraison' => $livraison->statut,
+            ], 404);
+        }
+
         $position = PositionGps::where('transporteur_id', $livraison->transporteur_id)
             ->orderByDesc('timestamp')
             ->first();

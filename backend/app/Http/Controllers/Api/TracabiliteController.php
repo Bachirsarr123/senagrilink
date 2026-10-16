@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Commande;
 use App\Models\Production;
+use App\Models\Stock;
+use App\Models\Utilisateur;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TracabiliteController extends Controller
 {
@@ -14,9 +18,11 @@ class TracabiliteController extends Controller
      * Chaîne : Production → Producteur → Stocks (entrepôts, dates)
      *          → Commandes → Acheteurs → Livraisons → Transporteurs
      *
-     * Accessible à tous les utilisateurs authentifiés (tous rôles).
+     * Accessible à tous les utilisateurs authentifiés (tous rôles). R7 — le prix,
+     * l'identité de l'acheteur, l'adresse de livraison et l'identité du
+     * transporteur ne sont fournis qu'aux acteurs concernés (voir partieConcernee).
      */
-    public function show(string $code_tracabilite): JsonResponse
+    public function show(Request $request, string $code_tracabilite): JsonResponse
     {
         $production = Production::where('code_tracabilite', $code_tracabilite)
             ->with([
@@ -47,6 +53,10 @@ class TracabiliteController extends Controller
             ], 404);
         }
 
+        $lecteur        = $request->user();
+        $producteurDuLot = $lecteur->role === 'administrateur'
+            || ($lecteur->producteur !== null && (int) $lecteur->producteur->id === (int) $production->producteur_id);
+
         // Construction de la réponse structurée par étape de la chaîne
         $parcours = [
             'code_tracabilite' => $production->code_tracabilite,
@@ -58,54 +68,78 @@ class TracabiliteController extends Controller
                 'quantite_estimee' => $production->quantite_estimee,
                 'quantite_reelle'  => $production->quantite_reelle,
                 'statut'           => $production->statut,
-                'producteur'       => $production->producteur ? [
+                // Origine du lot : information de traçabilité publique
+                'producteur'       => $production->producteur?->utilisateur ? [
                     'nom'            => $production->producteur->utilisateur->nom,
                     'prenom'         => $production->producteur->utilisateur->prenom,
                     'region'         => $production->producteur->region,
                     'types_cultures' => $production->producteur->types_cultures,
                 ] : null,
             ],
-            'etapes_stockage'  => $production->stocks->map(fn ($stock) => [
+            'etapes_stockage'  => $production->stocks->map(fn (Stock $stock) => [
                 'entrepot'    => [
-                    'nom'         => $stock->entrepot->nom_entrepot,
-                    'localisation'=> $stock->entrepot->localisation,
+                    'nom'         => $stock->entrepot?->nom_entrepot,
+                    'localisation'=> $stock->entrepot?->localisation,
                 ],
                 'produit'     => $stock->produit,
                 'quantite'    => $stock->quantite,
                 'date_entree' => $stock->date_entree,
                 'date_sortie' => $stock->date_sortie,
                 'statut'      => $stock->statut,
-                'commandes'   => $stock->commandes->map(fn ($commande) => [
-                    'numero_commande' => $commande->numero_commande,
-                    'produit'         => $commande->produit,
-                    'quantite'        => $commande->quantite,
-                    'prix'            => $commande->prix,
-                    'date_commande'   => $commande->date_commande,
-                    'statut'          => $commande->statut,
-                    'acheteur'        => $commande->acheteur ? [
-                        'nom'          => $commande->acheteur->utilisateur->nom,
-                        'prenom'       => $commande->acheteur->utilisateur->prenom,
-                        'type_activite'=> $commande->acheteur->type_activite,
-                    ] : null,
-                    'livraison'       => $commande->livraison ? [
-                        'id'               => $commande->livraison->id,
-                        'numero_livraison' => $commande->livraison->numero_livraison,
-                        'origine'          => $commande->livraison->origine,
-                        'destination'      => $commande->livraison->destination,
-                        'date_depart'      => $commande->livraison->date_depart,
-                        'date_livraison'   => $commande->livraison->date_livraison,
-                        'statut'           => $commande->livraison->statut,
-                        'transporteur'     => $commande->livraison->transporteur ? [
-                            'nom'          => $commande->livraison->transporteur->utilisateur->nom,
-                            'prenom'       => $commande->livraison->transporteur->utilisateur->prenom,
-                            'type_vehicule'=> $commande->livraison->transporteur->type_vehicule,
-                            'zone'         => $commande->livraison->transporteur->zone,
-                        ] : null,
-                    ] : null,
-                ]),
+                'commandes'   => $stock->commandes->map(
+                    fn (Commande $commande) => $this->etapeCommande($commande, $stock, $lecteur, $producteurDuLot)
+                ),
             ]),
         ];
 
         return response()->json(['tracabilite' => $parcours]);
+    }
+
+    /**
+     * Données d'une commande dans le parcours. Le prix n'est donné qu'aux
+     * parties commerciales (admin, producteur du lot, gestionnaire de l'entrepôt,
+     * acheteur de la commande) ; l'identité de l'acheteur, la destination et
+     * l'identité du transporteur, qu'à ces parties et au transporteur de la livraison.
+     */
+    private function etapeCommande(Commande $commande, Stock $stock, Utilisateur $lecteur, bool $producteurDuLot): array
+    {
+        $livraison = $commande->livraison;
+
+        $partieCommerciale = $producteurDuLot
+            || ($lecteur->entrepot !== null && (int) $lecteur->entrepot->id === (int) $stock->entrepot_id)
+            || ($lecteur->acheteurGros !== null && (int) $lecteur->acheteurGros->id === (int) $commande->acheteur_id);
+
+        $partieConcernee = $partieCommerciale
+            || ($livraison && $lecteur->transporteur !== null && (int) $lecteur->transporteur->id === (int) $livraison->transporteur_id);
+
+        return [
+            'numero_commande'        => $commande->numero_commande,
+            'produit'                => $commande->produit,
+            'quantite'               => $commande->quantite,
+            'prix'                   => $partieCommerciale ? $commande->prix : null,
+            'date_commande'          => $commande->date_commande,
+            'statut'                 => $commande->statut,
+            'informations_masquees'  => ! $partieConcernee || ! $partieCommerciale,
+            'acheteur'               => $partieConcernee && $commande->acheteur?->utilisateur ? [
+                'nom'          => $commande->acheteur->utilisateur->nom,
+                'prenom'       => $commande->acheteur->utilisateur->prenom,
+                'type_activite'=> $commande->acheteur->type_activite,
+            ] : null,
+            'livraison'              => $livraison ? [
+                'id'               => $livraison->id,
+                'numero_livraison' => $livraison->numero_livraison,
+                'origine'          => $livraison->origine,
+                'destination'      => $partieConcernee ? $livraison->destination : null,
+                'date_depart'      => $livraison->date_depart,
+                'date_livraison'   => $livraison->date_livraison,
+                'statut'           => $livraison->statut,
+                'transporteur'     => $partieConcernee && $livraison->transporteur?->utilisateur ? [
+                    'nom'          => $livraison->transporteur->utilisateur->nom,
+                    'prenom'       => $livraison->transporteur->utilisateur->prenom,
+                    'type_vehicule'=> $livraison->transporteur->type_vehicule,
+                    'zone'         => $livraison->transporteur->zone,
+                ] : null,
+            ] : null,
+        ];
     }
 }

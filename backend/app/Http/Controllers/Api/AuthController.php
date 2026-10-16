@@ -39,6 +39,7 @@ class AuthController extends Controller
             'utilisateur'  => $utilisateur->load($this->relationProfil($utilisateur->role)),
             'access_token' => $token,
             'token_type'   => 'Bearer',
+            'expires_at'   => $this->expirationJeton(),
         ], 201);
     }
 
@@ -51,7 +52,10 @@ class AuthController extends Controller
         }
 
         if ($utilisateur->statut === 'bloque') {
-            return response()->json(['message' => 'Votre compte a été bloqué. Contactez l\'administrateur.'], 403);
+            return response()->json([
+                'message' => 'Votre compte a été bloqué. Contactez l\'administrateur.',
+                'code'    => 'compte_bloque',
+            ], 403);
         }
 
         $token = $utilisateur->createToken('auth_token')->plainTextToken;
@@ -61,6 +65,7 @@ class AuthController extends Controller
             'utilisateur'  => $utilisateur->load($this->relationProfil($utilisateur->role)),
             'access_token' => $token,
             'token_type'   => 'Bearer',
+            'expires_at'   => $this->expirationJeton(),
         ]);
     }
 
@@ -93,6 +98,14 @@ class AuthController extends Controller
     }
 
     // -------------------------------------------------------------------------
+
+    /** Date d'expiration du jeton qui vient d'être émis (config sanctum.expiration), ou null. */
+    private function expirationJeton(): ?string
+    {
+        $minutes = config('sanctum.expiration');
+
+        return $minutes ? now()->addMinutes($minutes)->toIso8601String() : null;
+    }
 
     private function creerProfil(Utilisateur $utilisateur, RegisterRequest $request): void
     {

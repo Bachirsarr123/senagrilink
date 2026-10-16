@@ -215,6 +215,11 @@ class CommandeController extends Controller
     {
         $commande = Commande::with(['stock', 'acheteur.utilisateur'])->findOrFail($id);
 
+        // Contrôle de périmètre avant toute autre vérification et toute écriture
+        if (! $commande->estGereePar($request->user())) {
+            return response()->json(['message' => 'Accès non autorisé à cette commande.'], 403);
+        }
+
         if ($commande->statut !== 'en_attente') {
             return response()->json([
                 'message'       => 'Seules les commandes en attente peuvent être confirmées.',
@@ -239,12 +244,33 @@ class CommandeController extends Controller
             ], 422);
         }
 
-        // Règle métier 2 — transaction atomique : confirmation + déduction stock
-        DB::transaction(function () use ($commande, $stock) {
-            $commande->statut = 'confirmee';
-            $commande->save();
+        // Règle métier 2 — transaction atomique : confirmation + déduction stock.
+        // Commande et stock sont verrouillés (FOR UPDATE) puis revérifiés : deux
+        // confirmations simultanées ne peuvent pas déduire deux fois la quantité.
+        $refus = DB::transaction(function () use ($commande, &$stock) {
+            $commandeVerrouillee = Commande::whereKey($commande->id)->lockForUpdate()->first();
 
-            $stock->quantite -= $commande->quantite;
+            if ($commandeVerrouillee->statut !== 'en_attente') {
+                return response()->json([
+                    'message'       => 'Seules les commandes en attente peuvent être confirmées.',
+                    'statut_actuel' => $commandeVerrouillee->statut,
+                ], 422);
+            }
+
+            $stock = Stock::whereKey($commandeVerrouillee->stock_id)->lockForUpdate()->first();
+
+            if (! $stock || $commandeVerrouillee->quantite > $stock->quantite) {
+                return response()->json([
+                    'message'             => 'Stock insuffisant pour confirmer cette commande.',
+                    'quantite_disponible' => $stock?->quantite,
+                    'quantite_demandee'   => $commandeVerrouillee->quantite,
+                ], 422);
+            }
+
+            $commandeVerrouillee->statut = 'confirmee';
+            $commandeVerrouillee->save();
+
+            $stock->quantite -= $commandeVerrouillee->quantite;
 
             if ($stock->quantite == 0) {
                 $stock->statut      = 'epuise';
@@ -252,7 +278,13 @@ class CommandeController extends Controller
             }
 
             $stock->save();
+
+            return null;
         });
+
+        if ($refus) {
+            return $refus;
+        }
 
         $commande->acheteur?->utilisateur?->notify(new CommandeConfirmeeNotification($commande));
 

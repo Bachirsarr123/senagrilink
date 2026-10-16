@@ -18,6 +18,8 @@ class EnsureCompteActif
         if ($request->user()?->statut === 'bloque') {
             return response()->json([
                 'message' => 'Votre compte a été bloqué. Contactez l\'administrateur.',
+                // Code stable : les clients distinguent ce cas d'un simple refus de permission
+                'code'    => 'compte_bloque',
             ], 403);
         }
 

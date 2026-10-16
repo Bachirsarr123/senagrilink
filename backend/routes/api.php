@@ -10,7 +10,7 @@ Broadcast::routes(['middleware' => ['auth:sanctum', 'compte.actif']]);
 
 // ─── Authentification (public) ───────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login',    [AuthController::class, 'login']);
+Route::post('/login',    [AuthController::class, 'login'])->middleware('throttle:login');
 
 // ─── Routes protégées (jeton valide + compte non bloqué) ─────────────────────
 Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {

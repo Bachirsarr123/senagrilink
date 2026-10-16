@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Production;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateProductionRequest extends FormRequest
 {
@@ -19,7 +21,18 @@ class UpdateProductionRequest extends FormRequest
             'date_recolte'     => ['sometimes', 'date'],
             'quantite_estimee' => ['sometimes', 'numeric', 'min:0'],
             'quantite_reelle'  => ['nullable', 'numeric', 'min:0'],
-            'statut'           => ['sometimes', 'string', 'max:30'],
+            // R2 — le producteur ne fixe pas le statut (réception par l'entrepôt) ;
+            // l'administrateur peut corriger, uniquement vers un statut connu.
+            'statut'           => $this->user()?->role === 'administrateur'
+                ? ['sometimes', Rule::in(Production::STATUTS)]
+                : ['prohibited'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'statut.prohibited' => 'Le statut est fixé par la plateforme : la récolte devient disponible après réception validée par l\'entrepôt.',
         ];
     }
 }
