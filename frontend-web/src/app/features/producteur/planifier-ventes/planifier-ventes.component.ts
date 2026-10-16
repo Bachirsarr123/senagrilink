@@ -100,6 +100,8 @@ import { ApiService } from '../../../core/services/api.service';
         </p>
         @if (chargementDemandes()) {
           <p class="loading">Chargement des demandes...</p>
+        } @else if (erreurDemandes()) {
+          <div class="alert alert-error">{{ erreurDemandes() }}</div>
         } @else if (demandes().length === 0) {
           <p class="empty">Aucune demande disponible pour le moment.</p>
         } @else {
@@ -132,6 +134,7 @@ export class PlanifierVentesComponent implements OnInit {
   demandes         = signal<any[]>([]);
   chargement       = signal(true);
   chargementDemandes = signal(true);
+  erreurDemandes   = signal<string | null>(null);
 
   constructor(private api: ApiService) {}
 
@@ -156,8 +159,12 @@ export class PlanifierVentesComponent implements OnInit {
   chargerDemandes(): void {
     this.chargementDemandes.set(true);
     this.api.getCommandesDisponibles().subscribe({
-      next: res => { this.demandes.set(res.commandes ?? []); this.chargementDemandes.set(false); },
-      error: () => this.chargementDemandes.set(false),
+      // Contrat de GET /api/commandes/disponibles : { commandes_disponibles: [...] }
+      next: res => { this.demandes.set(res.commandes_disponibles); this.chargementDemandes.set(false); },
+      error: err => {
+        this.erreurDemandes.set(err.error?.message ?? 'Impossible de charger les demandes des acheteurs.');
+        this.chargementDemandes.set(false);
+      },
     });
   }
 

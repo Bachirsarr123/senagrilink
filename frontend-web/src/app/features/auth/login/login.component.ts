@@ -1,6 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
@@ -16,6 +16,9 @@ import { AuthService } from '../../../core/auth/auth.service';
         </div>
         <h2>Connexion</h2>
 
+        @if (infoSession && !erreur) {
+          <div class="alert alert-info">{{ infoSession }}</div>
+        }
         @if (erreur) {
           <div class="alert alert-error">{{ erreur }}</div>
         }
@@ -52,6 +55,12 @@ export class LoginComponent {
   form: FormGroup;
   loading = false;
   erreur: string | null = null;
+
+  /** Message affiché après une fin de session imposée par l'API (voir authInterceptor). */
+  readonly infoSession: string | null = {
+    session_expiree: 'Votre session a expiré. Veuillez vous reconnecter.',
+    compte_bloque:   'Votre compte a été bloqué. Contactez l\'administrateur.',
+  }[inject(ActivatedRoute).snapshot.queryParamMap.get('raison') ?? ''] ?? null;
 
   constructor(private fb: FormBuilder, private auth: AuthService) {
     this.form = this.fb.group({

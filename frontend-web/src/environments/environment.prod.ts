@@ -5,6 +5,6 @@ export const environment = {
     key: 'agriplatform-key',
     host: '',
     port: 443,
-    scheme: 'https' as const,
+    scheme: 'https' as 'http' | 'https',
   },
 };

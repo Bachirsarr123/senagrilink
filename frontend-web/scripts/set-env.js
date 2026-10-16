@@ -19,7 +19,7 @@ const content = `export const environment = {
     key: '${reverbKey}',
     host: '${reverbHost}',
     port: ${reverbPort},
-    scheme: '${reverbScheme}' as const,
+    scheme: '${reverbScheme}' as 'http' | 'https',
   },
 };
 `;
