@@ -15,6 +15,7 @@ use App\Models\Transporteur;
 use App\Models\Utilisateur;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
@@ -82,8 +83,13 @@ class AdminController extends Controller
             return response()->json(['message' => 'Ce compte est déjà bloqué.'], 422);
         }
 
-        $utilisateur->statut = 'bloque';
-        $utilisateur->save();
+        // Bloquer le compte et révoquer tous ses jetons Sanctum (web, mobile...) :
+        // sans cela, les sessions déjà ouvertes restaient utilisables.
+        DB::transaction(function () use ($utilisateur) {
+            $utilisateur->statut = 'bloque';
+            $utilisateur->save();
+            $utilisateur->tokens()->delete();
+        });
 
         return response()->json([
             'message'     => 'Compte bloqué.',

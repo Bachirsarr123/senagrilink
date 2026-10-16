@@ -6,14 +6,14 @@ use Illuminate\Support\Facades\Route;
 
 // ─── Authentification broadcasting (canaux privés Reverb, via Sanctum) ───────
 // Pas de 'prefix' ici : ce fichier est déjà préfixé par /api (voir bootstrap/app.php).
-Broadcast::routes(['middleware' => ['auth:sanctum']]);
+Broadcast::routes(['middleware' => ['auth:sanctum', 'compte.actif']]);
 
 // ─── Authentification (public) ───────────────────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
 
-// ─── Routes protégées ────────────────────────────────────────────────────────
-Route::middleware('auth:sanctum')->group(function () {
+// ─── Routes protégées (jeton valide + compte non bloqué) ─────────────────────
+Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
 
     Route::post('/logout',    [AuthController::class, 'logout']);
     Route::get('/me',         [AuthController::class, 'me']);
