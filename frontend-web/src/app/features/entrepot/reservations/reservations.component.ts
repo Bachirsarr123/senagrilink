@@ -3,11 +3,13 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
 
 @Component({
   selector: 'app-entrepot-reservations',
   standalone: true,
-  imports: [TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -39,9 +41,12 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
                   <td>{{ r.quantite_reservee | number }} kg</td>
                   <td>{{ r.date_debut | date:'dd/MM/yyyy' }}</td>
                   <td>
-                    <button class="btn-success btn-sm" [disabled]="actionEnCours() === r.id" (click)="confirmer(r.id)">
-                      Confirmer
-                    </button>
+                    <div class="btn-group">
+                      <button class="btn-success btn-sm" [disabled]="actionEnCours() === r.id" (click)="confirmer(r.id)">
+                        Confirmer
+                      </button>
+                      <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === r.id" (click)="refuser(r)">Refuser</button>
+                    </div>
                   </td>
                 </tr>
               }
@@ -68,7 +73,10 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
                   <td>{{ r.produit }}</td>
                   <td>{{ r.quantite_reservee | number }} kg</td>
                   <td>
-                    <button class="btn-secondary btn-sm" (click)="ouvrirAssignation(r)">Assigner un transporteur</button>
+                    <div class="btn-group">
+                      <button class="btn-secondary btn-sm" [disabled]="actionEnCours() === r.id" (click)="ouvrirAssignation(r)">Assigner un transporteur</button>
+                      <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === r.id" (click)="remettreEnAttente(r)">Annuler la confirmation</button>
+                    </div>
                   </td>
                 </tr>
               }
@@ -85,7 +93,7 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
         } @else {
           <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
-              <tr><th>Numéro</th><th>Producteur</th><th>Produit</th><th>Quantité</th><th>Transporteur</th></tr>
+              <tr><th>Numéro</th><th>Producteur</th><th>Produit</th><th>Quantité</th><th>Transporteur</th><th>Corrections</th></tr>
             </thead>
             <tbody>
               @for (r of enTransit(); track r.id) {
@@ -97,6 +105,12 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
                   <td>
                     {{ r.transporteur?.utilisateur?.prenom }} {{ r.transporteur?.utilisateur?.nom }}
                     {{ r.transporteur?.type_vehicule ? '(' + r.transporteur.type_vehicule + ')' : '' }}
+                  </td>
+                  <td>
+                    <div class="btn-group">
+                      <button class="btn-secondary btn-sm" [disabled]="actionEnCours() === r.id" (click)="ouvrirAssignation(r)">Changer de transporteur</button>
+                      <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === r.id" (click)="retirerTransporteur(r)">Retirer la mission</button>
+                    </div>
                   </td>
                 </tr>
               }
@@ -132,11 +146,37 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
         }
       </div>
 
-      <!-- Modal assignation transporteur -->
+      <p class="note">Une fois la marchandise arrivée à l'entrepôt, le trajet est terminé : le transporteur ne peut plus être changé ni retiré.</p>
+
+      @if (closes().length > 0) {
+        <div class="card">
+          <h2>Refusées ou annulées</h2>
+          <ul class="liste-simple">
+            @for (r of closes(); track r.id) {
+              <li><code class="code-lot">{{ r.numero_reservation }}</code> {{ r.produit }} · {{ r.producteur?.utilisateur?.prenom }} {{ r.producteur?.utilisateur?.nom }}
+                <span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span></li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (historique().length > 0) {
+        <div class="card">
+          <h2>Dernières corrections</h2>
+          <ul class="liste-simple">
+            @for (h of historique(); track h.id) {
+              <li>{{ h.created_at | date:'dd/MM/yyyy HH:mm' }} — <code class="code-lot">{{ h.numero }}</code>
+                {{ libelleAction(h.action) }} par {{ h.utilisateur?.prenom }} {{ h.utilisateur?.nom }}@if (h.motif) { · « {{ h.motif }} » }</li>
+            }
+          </ul>
+        </div>
+      }
+
+      <!-- Modal assignation / réassignation transporteur -->
       @if (reservationAAssigner(); as r) {
-        <div class="modal-overlay" (click)="fermerModals()">
+        <div class="modal-overlay" (click)="demanderFermeture()">
           <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-            <h2>Assigner un transporteur</h2>
+            <h2>{{ r.transporteur_id ? 'Changer de transporteur' : 'Assigner un transporteur' }}</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
               Réservation <code class="code-lot">{{ r.numero_reservation }}</code>
             </p>
@@ -147,7 +187,7 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
                 <select formControlName="transporteur_id">
                   <option [ngValue]="null">— Choisir —</option>
                   @for (t of transporteurs(); track t.id) {
-                    <option [ngValue]="t.id">
+                    <option [ngValue]="t.id" [disabled]="t.id === r.transporteur_id">
                       {{ t.utilisateur?.prenom }} {{ t.utilisateur?.nom }}
                       {{ t.type_vehicule ? '(' + t.type_vehicule + ')' : '' }}
                     </option>
@@ -157,11 +197,18 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
                   <span class="field-error">Choisis un transporteur.</span>
                 }
               </div>
+              @if (r.transporteur_id) {
+                <p class="note">La mission sera retirée à {{ r.transporteur?.utilisateur?.prenom }} {{ r.transporteur?.utilisateur?.nom }}, qui en sera informé(e), et apparaîtra chez le nouveau transporteur.</p>
+                <div class="form-group">
+                  <label>Motif du changement (facultatif)</label>
+                  <textarea formControlName="motif" rows="2" maxlength="500"></textarea>
+                </div>
+              }
               <div class="btn-group">
                 <button type="submit" class="btn-primary" [disabled]="loadingModal()">
-                  {{ loadingModal() ? 'Envoi...' : 'Assigner' }}
+                  {{ loadingModal() ? 'Envoi...' : (r.transporteur_id ? 'Réassigner' : 'Assigner') }}
                 </button>
-                <button type="button" class="btn-ghost" (click)="fermerModals()">Annuler</button>
+                <button type="button" class="btn-ghost" (click)="demanderFermeture()">Annuler</button>
               </div>
             </form>
           </div>
@@ -170,7 +217,7 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
 
       <!-- Modal validation marchandise -->
       @if (reservationAValider(); as r) {
-        <div class="modal-overlay" (click)="fermerModals()">
+        <div class="modal-overlay" (click)="demanderFermeture()">
           <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
             <h2>Valider la marchandise</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
@@ -191,7 +238,7 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
                 <button type="submit" class="btn-primary" [disabled]="loadingModal()">
                   {{ loadingModal() ? 'Envoi...' : 'Valider et enregistrer en stock' }}
                 </button>
-                <button type="button" class="btn-ghost" (click)="fermerModals()">Annuler</button>
+                <button type="button" class="btn-ghost" (click)="demanderFermeture()">Annuler</button>
               </div>
             </form>
           </div>
@@ -205,6 +252,8 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
       padding:.55rem .8rem;border:1px solid #e5e7eb;border-radius:6px;
       font-size:.9rem;width:100%;font-family:inherit;
     }
+    .note { font-size:.85rem; color:#6b7280; margin:.25rem 0 1rem; }
+    .liste-simple { margin:0; padding-left:1.1rem; display:grid; gap:.4rem; font-size:.9rem; }
     .field-error {
       display:block;color:#dc2626;font-size:.8rem;margin-top:.3rem;
     }
@@ -228,7 +277,7 @@ export class EntrepotReservationsComponent implements OnInit {
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void {
-    this.formAssignation = this.fb.group({ transporteur_id: [null, Validators.required] });
+    this.formAssignation = this.fb.group({ transporteur_id: [null, Validators.required], motif: [''] });
     this.formValidation = this.fb.group({
       quantite_reelle: [null, [Validators.required, Validators.min(0.01)]],
       observation:     [''],
@@ -245,12 +294,31 @@ export class EntrepotReservationsComponent implements OnInit {
   confirmees = () => this.toutes().filter(r => r.statut === 'confirmee' && !r.transporteur_id);
   enTransit = () => this.toutes().filter(r => r.statut === 'confirmee' && !!r.transporteur_id);
   arrivees = () => this.toutes().filter(r => r.statut === 'arrivee_entrepot');
+  closes = () => this.toutes().filter(r => r.statut === 'refusee' || r.statut === 'annulee');
+  historique = () => this.toutes()
+    .flatMap(r => (r.historique ?? []).map((h: any) => ({ ...h, numero: r.numero_reservation })))
+    .sort((a, b) => b.id - a.id)
+    .slice(0, 10);
+
+  libelleAction(action: string): string {
+    return ({
+      assignation_transporteur:   'transporteur assigné',
+      reassignation_transporteur: 'transporteur changé',
+      retrait_transporteur:       'mission retirée au transporteur',
+      refus:                      'demande refusée',
+      retour_en_attente:          'confirmation annulée',
+      annulation:                 'annulée par le producteur',
+    } as Record<string, string>)[action] ?? action;
+  }
 
   charger(): void {
     this.chargement.set(true);
     this.api.getReservations().subscribe({
       next: res => { this.toutes.set(res.reservations ?? []); this.chargement.set(false); },
-      error: () => this.chargement.set(false),
+      error: err => {
+        this.chargement.set(false);
+        this.erreur.set(err.status === 0 ? 'Serveur injoignable. Vérifiez votre connexion.' : err.error?.message ?? 'Impossible de charger les réservations.');
+      },
     });
   }
 
@@ -283,6 +351,48 @@ export class EntrepotReservationsComponent implements OnInit {
     this.erreurModal.set(null);
   }
 
+  demanderFermeture(): void {
+    const form = this.reservationAAssigner() ? this.formAssignation : this.formValidation;
+    if (abandonConfirme(form)) this.fermerModals();
+  }
+
+  refuser(r: any): void {
+    const motif = demanderMotif(`Refuser la demande ${r.numero_reservation} ?\nLe producteur sera notifié avec le motif. Il devra faire une nouvelle demande.`, true);
+    if (motif === null) return;
+    this.action(r.id, this.api.refuserReservation(r.id, motif), 'Demande refusée. Le producteur a été notifié.');
+  }
+
+  remettreEnAttente(r: any): void {
+    const motif = demanderMotif(`Annuler la confirmation de ${r.numero_reservation} ?\nLa demande repassera « en attente » et le producteur sera notifié.`, false);
+    if (motif === null) return;
+    this.action(r.id, this.api.remettreReservationEnAttente(r.id, motif || undefined), 'Confirmation annulée : la demande est de nouveau en attente.');
+  }
+
+  retirerTransporteur(r: any): void {
+    const nom = `${r.transporteur?.utilisateur?.prenom ?? ''} ${r.transporteur?.utilisateur?.nom ?? ''}`.trim();
+    const motif = demanderMotif(`Retirer la mission ${r.numero_reservation} à ${nom} ?\nElle disparaîtra de son espace et il sera notifié. La réservation reviendra dans « À assigner ».`, false);
+    if (motif === null) return;
+    this.action(r.id, this.api.retirerTransporteur(r.id, motif || undefined), 'Mission retirée au transporteur.');
+  }
+
+  private action(id: number, requete: ReturnType<ApiService['getReservations']>, succes: string): void {
+    this.actionEnCours.set(id);
+    this.erreur.set(null);
+    requete.subscribe({
+      next: () => {
+        this.actionEnCours.set(null);
+        this.message.set(succes);
+        this.charger();
+        setTimeout(() => this.message.set(null), 4000);
+      },
+      error: err => {
+        this.actionEnCours.set(null);
+        this.erreur.set(err.status === 0 ? 'Serveur injoignable : action non enregistrée.' : err.error?.message ?? 'Action impossible.');
+        this.charger();
+      },
+    });
+  }
+
   fermerModals(): void {
     this.reservationAAssigner.set(null);
     this.reservationAValider.set(null);
@@ -294,11 +404,12 @@ export class EntrepotReservationsComponent implements OnInit {
     this.loadingModal.set(true);
     this.erreurModal.set(null);
 
-    this.api.assignerTransporteur(r.id, this.formAssignation.value.transporteur_id).subscribe({
-      next: () => {
+    const { transporteur_id, motif } = this.formAssignation.value;
+    this.api.assignerTransporteur(r.id, transporteur_id, motif || undefined).subscribe({
+      next: res => {
         this.loadingModal.set(false);
         this.fermerModals();
-        this.message.set('Transporteur assigné.');
+        this.message.set(res?.message ?? 'Transporteur assigné.');
         this.charger();
         setTimeout(() => this.message.set(null), 4000);
       },

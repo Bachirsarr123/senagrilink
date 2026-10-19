@@ -4,6 +4,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
 
 @Component({
   selector: 'app-productions',
@@ -93,7 +94,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
               <button type="submit" class="btn-primary" [disabled]="loadingEdition()">
                 {{ loadingEdition() ? 'Enregistrement...' : 'Sauvegarder' }}
               </button>
-              <button type="button" class="btn-ghost" (click)="annulerEdition()">Annuler</button>
+              <button type="button" class="btn-ghost" (click)="abandonnerEdition()">Annuler</button>
             </div>
           </form>
         </div>
@@ -101,6 +102,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
       <!-- Liste des productions -->
       <div class="card">
+        @if (erreurListe()) { <div class="alert alert-error" role="alert">{{ erreurListe() }}</div> }
         @if (chargement()) {
           <p class="loading">Chargement...</p>
         } @else if (productions().length === 0) {
@@ -128,9 +130,14 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   <td>{{ p.quantite_reelle ? (p.quantite_reelle | number) + ' kg' : '—' }}</td>
                   <td><span class="badge badge-{{ p.statut }}">{{ p.statut | libelleStatut }}</span></td>
                   <td>
-                    @if (p.statut === 'en_attente' || p.statut === 'disponible') {
-                      <button class="btn-secondary btn-sm" (click)="ouvrirEdition(p)">Modifier</button>
-                    }
+                    <div class="btn-group">
+                      @if (p.statut === 'en_attente' || p.statut === 'disponible') {
+                        <button class="btn-secondary btn-sm" (click)="ouvrirEdition(p)">Modifier</button>
+                      }
+                      @if (p.statut === 'en_attente') {
+                        <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === p.id" (click)="annulerRecolte(p)">Annuler la récolte</button>
+                      }
+                    </div>
                   </td>
                 </tr>
               }
@@ -152,6 +159,8 @@ export class ProductionsComponent implements OnInit {
   erreur            = signal<string | null>(null);
   succes            = signal<string | null>(null);
   erreurEdition     = signal<string | null>(null);
+  erreurListe       = signal<string | null>(null);
+  actionEnCours     = signal<number | null>(null);
   succesEdition     = signal<string | null>(null);
   formCreation!: FormGroup;
   formEdition!: FormGroup;
@@ -175,13 +184,41 @@ export class ProductionsComponent implements OnInit {
     });
     this.api.getProductions().subscribe({
       next: res => { this.productions.set(res.productions); this.chargement.set(false); },
-      error: () => this.chargement.set(false),
+      error: err => {
+        this.chargement.set(false);
+        this.erreurListe.set(err.status === 0 ? 'Serveur injoignable. Vérifiez votre connexion.' : 'Impossible de charger vos productions.');
+      },
     });
   }
 
   toggleFormCreation(): void {
+    // Fermeture du formulaire : confirmation si une saisie serait perdue.
+    if (this.showFormCreation() && !abandonConfirme(this.formCreation)) return;
+    if (!this.showFormCreation() && this.productionEnEdition() && !abandonConfirme(this.formEdition)) return;
+    if (this.showFormCreation()) this.formCreation.reset();
     this.showFormCreation.set(!this.showFormCreation());
     this.annulerEdition();
+  }
+
+  abandonnerEdition(): void {
+    if (abandonConfirme(this.formEdition)) this.annulerEdition();
+  }
+
+  annulerRecolte(p: any): void {
+    const motif = demanderMotif(`Annuler la récolte ${p.code_tracabilite} (${p.type_culture}) ?\nElle restera visible avec le statut « Annulée » mais ne pourra plus être modifiée ni réservée en entrepôt.`, false);
+    if (motif === null) return;
+    this.actionEnCours.set(p.id);
+    this.erreurListe.set(null);
+    this.api.annulerProduction(p.id, motif || undefined).subscribe({
+      next: res => {
+        this.productions.update(list => list.map(x => x.id === p.id ? { ...x, ...res.production } : x));
+        this.actionEnCours.set(null);
+      },
+      error: err => {
+        this.erreurListe.set(err.status === 0 ? 'Serveur injoignable : récolte non annulée.' : err.error?.message ?? 'Annulation impossible.');
+        this.actionEnCours.set(null);
+      },
+    });
   }
 
   soumettre(): void {
