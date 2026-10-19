@@ -29,6 +29,9 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> {
   String? _statutLivraison;
   String? _erreur;
   bool _premierChargement = true;
+  // Le MapController n'est utilisable qu'une fois la carte dessinée : avant,
+  // move() lève une exception (affichée à tort comme « position indisponible »).
+  bool _cartePrete = false;
 
   @override
   void initState() {
@@ -62,7 +65,7 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> {
         _premierChargement = false;
       });
 
-      if (_transporteur != null) {
+      if (_transporteur != null && _cartePrete) {
         _mapController.move(_transporteur!, _mapController.camera.zoom);
       }
     } on ApiException catch (e) {
@@ -115,7 +118,11 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> {
 
     return FlutterMap(
       mapController: _mapController,
-      options: MapOptions(initialCenter: _transporteur!, initialZoom: 13),
+      options: MapOptions(
+        initialCenter: _transporteur!,
+        initialZoom: 13,
+        onMapReady: () => _cartePrete = true,
+      ),
       children: [
         TileLayer(
           urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
