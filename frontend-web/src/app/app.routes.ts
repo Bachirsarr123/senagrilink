@@ -117,6 +117,20 @@ export const routes: Routes = [
         ],
       },
 
+      // Transporteur
+      {
+        path: 'transporteur',
+        canActivate: [roleGuard],
+        data: { roles: ['transporteur'] },
+        children: [
+          { path: '', redirectTo: 'missions', pathMatch: 'full' },
+          {
+            path: 'missions',
+            loadComponent: () => import('./features/transporteur/missions/missions.component').then(m => m.TransporteurMissionsComponent),
+          },
+        ],
+      },
+
       // Administrateur
       {
         path: 'admin',
