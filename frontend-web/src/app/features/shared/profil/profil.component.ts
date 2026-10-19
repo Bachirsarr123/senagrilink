@@ -2,11 +2,12 @@ import { Component, OnInit, signal, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/auth/auth.service';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-profil',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [LibelleStatutPipe, ReactiveFormsModule],
   template: `
     <div class="page">
       <div class="page-header">
@@ -26,7 +27,7 @@ import { AuthService } from '../../../core/auth/auth.service';
         </div>
         <div class="stat-row">
           <span style="color:#6b7280">Statut</span>
-          <span class="badge badge-{{ utilisateur()?.statut }}">{{ utilisateur()?.statut }}</span>
+          <span class="badge badge-{{ utilisateur()?.statut }}">{{ utilisateur()?.statut | libelleStatut }}</span>
         </div>
       </div>
 

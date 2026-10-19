@@ -1,5 +1,6 @@
 .auth-page {
   min-height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 50%, #40916c 100%);
   display: flex;
   align-items: center;
@@ -34,17 +35,24 @@ h2 { margin-bottom: 1.25rem; color: #1b4332; font-size: 1.2rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
 @media (max-width: 480px) {
-  .auth-page { padding: 1rem; }
-  .auth-card { padding: 1.5rem; }
-  .form-row { grid-template-columns: 1fr; }
+  .auth-page {
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+             max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  }
+  .auth-card { padding: 1.5rem 1.25rem; }
+  .auth-header h1 { font-size: 1.6rem; }
+  .form-row { grid-template-columns: 1fr; gap: 0; }
+  /* 16 px : pas de zoom automatique de Safari iOS à la saisie */
+  .form-group input, .form-group select { font-size: 1rem; }
 }
 
 .form-group {
-  display: flex; flex-direction: column; margin-bottom: 1rem;
+  display: flex; flex-direction: column; margin-bottom: 1rem; min-width: 0;
 
   label { font-size: .85rem; font-weight: 600; color: #374151; margin-bottom: .35rem; }
 
   input, select {
+    width: 100%; min-width: 0; font-family: inherit; background: white;
     padding: .6rem .85rem;
     border: 1px solid #d1d5db;
     border-radius: 6px;
@@ -77,6 +85,6 @@ h2 { margin-bottom: 1.25rem; color: #1b4332; font-size: 1.2rem; }
   text-align: center; margin-top: 1.25rem;
   font-size: .9rem; color: #6b7280;
 
-  a { color: #2d6a4f; font-weight: 600; text-decoration: none; }
+  a { color: #2d6a4f; font-weight: 600; text-decoration: none; display: inline-block; padding: .5rem .25rem; }
   a:hover { text-decoration: underline; }
 }

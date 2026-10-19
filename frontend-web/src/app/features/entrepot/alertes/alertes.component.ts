@@ -1,11 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 
 @Component({
   selector: 'app-alertes',
   standalone: true,
-  imports: [DecimalPipe],
+  imports: [TableauResponsiveDirective, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -21,7 +22,7 @@ import { ApiService } from '../../../core/services/api.service';
         @else if (alertes().length === 0) {
           <p class="empty" style="color:#059669">✅ Tous les stocks sont au-dessus de leur seuil d'alerte.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>#</th><th>Produit</th><th>Quantité actuelle</th><th>Seuil alerte</th><th>Déficit</th></tr>
             </thead>
@@ -36,7 +37,7 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>

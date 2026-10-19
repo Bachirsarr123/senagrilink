@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -13,11 +13,13 @@ import { EchoService } from '../../../core/services/echo.service';
     <nav class="navbar">
       <div class="navbar-brand">
         <span class="logo">🌾 SenAgriLink</span>
-        <button class="hamburger" (click)="basculerMenuMobile()" aria-label="Ouvrir le menu">
+        <button class="hamburger" type="button" (click)="basculerMenuMobile()"
+                [attr.aria-label]="menuMobileOuvert() ? 'Fermer le menu' : 'Ouvrir le menu'"
+                [attr.aria-expanded]="menuMobileOuvert()" aria-controls="navbar-menu">
           {{ menuMobileOuvert() ? '✕' : '☰' }}
         </button>
       </div>
-      <div class="navbar-collapsible" [class.open]="menuMobileOuvert()">
+      <div class="navbar-collapsible" id="navbar-menu" [class.open]="menuMobileOuvert()">
         <ul class="navbar-links" (click)="fermerMenuMobile()">
           @if (role() === 'producteur') {
             <li><a routerLink="/producteur/productions" routerLinkActive="active">Mes productions</a></li>
@@ -45,7 +47,8 @@ import { EchoService } from '../../../core/services/echo.service';
         </ul>
         <div class="navbar-user">
           <div class="notif-wrapper">
-            <button class="btn-notif" (click)="basculerMenu()" [attr.aria-label]="'Notifications'">
+            <button class="btn-notif" type="button" (click)="basculerMenu()" aria-label="Notifications"
+                    [attr.aria-expanded]="menuOuvert()">
               🔔
               @if (nonLues() > 0) {
                 <span class="notif-badge">{{ nonLues() }}</span>
@@ -67,9 +70,9 @@ import { EchoService } from '../../../core/services/echo.service';
               </div>
             }
           </div>
-          <a routerLink="/profil" class="user-name user-profil-link" (click)="fermerMenuMobile()">{{ userName() }}</a>
+          <a routerLink="/profil" class="user-name user-profil-link" [attr.title]="userName()" (click)="fermerMenuMobile()">{{ userName() }}</a>
           <span class="role-badge role-{{ role() }}">{{ roleFr() }}</span>
-          <button class="btn-logout" (click)="logout()">Déconnexion</button>
+          <button class="btn-logout" type="button" (click)="logout()">Déconnexion</button>
         </div>
       </div>
     </nav>
@@ -78,24 +81,32 @@ import { EchoService } from '../../../core/services/echo.service';
     .navbar {
       display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
       background: #2d6a4f; color: white;
-      padding: 0.75rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,.2);
+      padding: .75rem max(2rem, env(safe-area-inset-right)) .75rem max(2rem, env(safe-area-inset-left));
+      padding-top: max(.75rem, env(safe-area-inset-top));
+      box-shadow: 0 2px 4px rgba(0,0,0,.2);
     }
     .navbar-brand { display: flex; align-items: center; justify-content: space-between; }
-    .navbar-collapsible { display: flex; align-items: center; gap: 1rem; flex: 1; flex-wrap: wrap; }
-    .logo { font-size: 1.2rem; font-weight: 700; margin-right: 1rem; white-space: nowrap; }
+    .navbar-collapsible { display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0; }
+    .logo { font-size: 1.2rem; font-weight: 700; margin-right: .5rem; white-space: nowrap; }
     .hamburger {
-      display: none; background: none; border: none; color: white;
-      font-size: 1.4rem; cursor: pointer; padding: .25rem .5rem; line-height: 1;
+      display: none; background: none; border: none; color: white; border-radius: 6px;
+      font-size: 1.4rem; cursor: pointer; line-height: 1;
+      min-width: 44px; min-height: 44px; padding: .25rem .5rem;
     }
-    .navbar-links { display: flex; gap: 0.5rem; list-style: none; margin: 0; padding: 0; flex: 1; flex-wrap: wrap; }
+    .hamburger:hover { background: rgba(255,255,255,.15); }
+    .navbar-links { display: flex; gap: .25rem; list-style: none; margin: 0; padding: 0; flex: 1 0 auto; }
     .navbar-links a {
-      color: rgba(255,255,255,.85); text-decoration: none;
-      padding: 0.4rem 0.8rem; border-radius: 4px; font-size: .9rem;
+      color: rgba(255,255,255,.85); text-decoration: none; white-space: nowrap;
+      padding: .4rem .55rem; border-radius: 4px; font-size: .9rem;
       transition: background .2s;
     }
     .navbar-links a:hover, .navbar-links a.active { background: rgba(255,255,255,.2); color: white; }
-    .navbar-user { display: flex; align-items: center; gap: .75rem; }
-    .user-name { font-weight: 600; font-size: .9rem; }
+    .navbar-user { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+    /* Nom complet en infobulle : un nom très long ne repousse pas la barre sur deux lignes */
+    .user-name {
+      font-weight: 600; font-size: .9rem;
+      max-width: 11rem; min-width: 3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     .user-profil-link {
       color: white; text-decoration: none;
       padding: .25rem .5rem; border-radius: 4px; transition: background .2s;
@@ -116,7 +127,9 @@ import { EchoService } from '../../../core/services/echo.service';
     .btn-notif {
       position: relative; background: none; border: none; color: white;
       font-size: 1.2rem; cursor: pointer; padding: .25rem .4rem; line-height: 1;
+      min-width: 40px; min-height: 40px; border-radius: 6px;
     }
+    .btn-notif:hover { background: rgba(255,255,255,.15); }
     .notif-badge {
       position: absolute; top: -4px; right: -4px;
       background: #dc2626; color: white; font-size: .65rem; font-weight: 700;
@@ -124,7 +137,8 @@ import { EchoService } from '../../../core/services/echo.service';
     }
     .notif-panel {
       position: absolute; top: calc(100% + .5rem); right: 0; z-index: 1000;
-      background: white; color: #1f2937; width: min(320px, 90vw); max-height: 400px; overflow-y: auto;
+      background: white; color: #1f2937; width: min(320px, calc(100vw - 2rem));
+      max-height: min(400px, 70vh); overflow-y: auto; overscroll-behavior: contain;
       border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,.25);
     }
     .notif-panel-header { padding: .75rem 1rem; font-weight: 700; border-bottom: 1px solid #e5e7eb; }
@@ -138,9 +152,13 @@ import { EchoService } from '../../../core/services/echo.service';
     .notif-item.non-lue { background: #f0fdf4; font-weight: 600; }
     .notif-item small { color: #9ca3af; font-weight: 400; }
 
-    /* Menu hamburger sous 900px : liens + infos utilisateur repliés */
-    @media (max-width: 900px) {
-      .navbar { padding: .65rem 1rem; }
+    /* Menu hamburger sous 1200 px : au-delà, liens et infos utilisateur tiennent
+       sur une ligne pour tous les rôles (jusqu'à 5 liens + nom complet). */
+    @media (max-width: 1200px) {
+      .navbar {
+        padding: max(.5rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+                 .5rem max(1rem, env(safe-area-inset-left));
+      }
       .navbar-brand { width: 100%; }
       .hamburger { display: block; }
       .navbar-collapsible {
@@ -152,14 +170,20 @@ import { EchoService } from '../../../core/services/echo.service';
       }
       .navbar-collapsible.open { display: flex; }
       .navbar-links { flex-direction: column; gap: 0; width: 100%; }
-      .navbar-links a { display: block; padding: .6rem .5rem; }
+      .navbar-links a { display: block; padding: .75rem .5rem; font-size: 1rem; }
       .navbar-user {
         flex-direction: column; align-items: stretch; width: 100%;
         gap: .5rem; padding-top: .5rem; border-top: 1px solid rgba(255,255,255,.15);
       }
-      .notif-wrapper { align-self: flex-start; }
+      /* Dans le menu replié, le panneau s'ouvre dans le flux, sur toute la largeur
+         (ancré à droite d'un bouton aligné à gauche, il sortait de l'écran). */
+      .notif-wrapper { align-self: stretch; }
+      .notif-panel { position: static; width: 100%; margin-top: .5rem; max-height: 50vh; }
+      .user-name { max-width: none; white-space: normal; }
       .user-profil-link, .role-badge, .btn-logout { width: 100%; box-sizing: border-box; }
+      .user-profil-link { padding: .65rem .5rem; }
       .role-badge { text-align: center; }
+      .btn-logout { min-height: 44px; font-size: .95rem; }
     }
   `],
 })
@@ -167,6 +191,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private auth  = inject(AuthService);
   private api   = inject(ApiService);
   private echo  = inject(EchoService);
+  private hote  = inject<ElementRef<HTMLElement>>(ElementRef);
 
   role     = this.auth.role;
   userName = computed(() => {
@@ -207,6 +232,21 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.echo.deconnecter();
+  }
+
+  /** Échap ferme les menus ouverts (clavier). */
+  @HostListener('document:keydown.escape')
+  fermerMenus(): void {
+    this.menuOuvert.set(false);
+    this.menuMobileOuvert.set(false);
+  }
+
+  /** Un clic hors de la barre ferme le panneau de notifications. */
+  @HostListener('document:click', ['$event'])
+  clicExterieur(event: MouseEvent): void {
+    if (this.menuOuvert() && !this.hote.nativeElement.contains(event.target as Node)) {
+      this.menuOuvert.set(false);
+    }
   }
 
   basculerMenu(): void {

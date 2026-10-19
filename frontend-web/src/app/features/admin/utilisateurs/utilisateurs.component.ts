@@ -1,11 +1,13 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-utilisateurs',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule],
   template: `
     <div class="page">
       <div class="page-header">
@@ -96,7 +98,7 @@ import { ApiService } from '../../../core/services/api.service';
         } @else if (utilisateurs().length === 0) {
           <p class="empty">Aucun utilisateur.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Rôle</th><th>Statut</th><th>Actions</th></tr>
             </thead>
@@ -106,8 +108,8 @@ import { ApiService } from '../../../core/services/api.service';
                   <td><strong>{{ u.prenom }} {{ u.nom }}</strong></td>
                   <td>{{ u.email }}</td>
                   <td>{{ u.telephone ?? '—' }}</td>
-                  <td><span class="badge badge-role">{{ u.role }}</span></td>
-                  <td><span class="badge badge-{{ u.statut }}">{{ u.statut }}</span></td>
+                  <td><span class="badge badge-role">{{ u.role | libelleStatut }}</span></td>
+                  <td><span class="badge badge-{{ u.statut }}">{{ u.statut | libelleStatut }}</span></td>
                   <td>
                     @if (u.statut === 'actif') {
                       <button class="btn-danger btn-sm" (click)="bloquer(u)">Bloquer</button>
@@ -118,7 +120,7 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>

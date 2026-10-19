@@ -2,11 +2,13 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-stocks',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -83,7 +85,7 @@ import { ApiService } from '../../../core/services/api.service';
         @if (chargement()) { <p class="loading">Chargement...</p> }
         @else if (stocks().length === 0) { <p class="empty">Aucun stock enregistré.</p> }
         @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr>
                 <th>#</th><th>Produit</th><th>Quantité</th>
@@ -98,11 +100,11 @@ import { ApiService } from '../../../core/services/api.service';
                   <td>{{ s.quantite | number }} kg</td>
                   <td>{{ s.seuil_alerte ? (s.seuil_alerte | number) + ' kg' : '—' }}</td>
                   <td>{{ s.date_entree | date:'dd/MM/yyyy' }}</td>
-                  <td><span class="badge badge-{{ s.statut }}">{{ s.statut }}</span></td>
+                  <td><span class="badge badge-{{ s.statut }}">{{ s.statut | libelleStatut }}</span></td>
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>

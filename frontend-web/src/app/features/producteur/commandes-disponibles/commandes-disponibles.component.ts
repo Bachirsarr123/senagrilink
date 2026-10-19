@@ -1,11 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 
 @Component({
   selector: 'app-commandes-disponibles',
   standalone: true,
-  imports: [DatePipe, DecimalPipe],
+  imports: [TableauResponsiveDirective, DatePipe, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -18,7 +19,7 @@ import { ApiService } from '../../../core/services/api.service';
         } @else if (commandes().length === 0) {
           <p class="empty">Aucune commande en attente pour le moment.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr>
                 <th>Produit</th><th>Quantité demandée</th>
@@ -36,7 +37,7 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>

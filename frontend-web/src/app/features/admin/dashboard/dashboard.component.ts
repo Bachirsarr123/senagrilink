@@ -1,11 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { DecimalPipe, KeyValuePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [DecimalPipe, KeyValuePipe],
+  imports: [LibelleStatutPipe, DecimalPipe, KeyValuePipe],
   template: `
     <div class="page">
       <div class="page-header"><h1>Tableau de bord</h1></div>
@@ -64,7 +65,7 @@ import { ApiService } from '../../../core/services/api.service';
             <h2>Commandes par statut</h2>
             @for (entry of stats().commandes.par_statut | keyvalue; track entry.key) {
               <div class="stat-row">
-                <span class="badge badge-{{ entry.key }}">{{ entry.key }}</span>
+                <span class="badge badge-{{ entry.key }}">{{ entry.key | libelleStatut }}</span>
                 <strong>{{ entry.value }}</strong>
               </div>
             }
@@ -73,7 +74,7 @@ import { ApiService } from '../../../core/services/api.service';
             <h2>Livraisons par statut</h2>
             @for (entry of stats().livraisons.par_statut | keyvalue; track entry.key) {
               <div class="stat-row">
-                <span class="badge badge-{{ entry.key }}">{{ entry.key }}</span>
+                <span class="badge badge-{{ entry.key }}">{{ entry.key | libelleStatut }}</span>
                 <strong>{{ entry.value }}</strong>
               </div>
             }
@@ -82,7 +83,7 @@ import { ApiService } from '../../../core/services/api.service';
             <h2>Utilisateurs par rôle</h2>
             @for (entry of stats().utilisateurs.par_role | keyvalue; track entry.key) {
               <div class="stat-row">
-                <span>{{ entry.key }}</span>
+                <span>{{ entry.key | libelleStatut }}</span>
                 <strong>{{ entry.value }}</strong>
               </div>
             }

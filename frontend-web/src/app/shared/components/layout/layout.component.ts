@@ -13,9 +13,15 @@ import { NavbarComponent } from '../navbar/navbar.component';
     </main>
   `,
   styles: [`
-    .main-content { padding: 1.5rem 2rem; max-width: 1200px; margin: 0 auto; }
+    /* Zones de sécurité (encoche, barre d'accueil) prises en compte en paysage */
+    .main-content {
+      display: block; min-width: 0; max-width: 1200px; margin: 0 auto;
+      padding: 1.5rem max(2rem, env(safe-area-inset-right)) max(2rem, env(safe-area-inset-bottom)) max(2rem, env(safe-area-inset-left));
+    }
     @media (max-width: 640px) {
-      .main-content { padding: 1rem; }
+      .main-content {
+        padding: 1rem max(1rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+      }
     }
   `],
 })
