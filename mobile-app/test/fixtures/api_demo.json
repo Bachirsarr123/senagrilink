@@ -618,7 +618,16 @@
    "latitude": 14.75,
    "longitude": -17,
    "timestamp": "2026-10-19T11:30:24.000000Z"
-  }
+  },
+  "livraison": {
+   "numero_livraison": "LIV-20261019-ZLEH",
+   "produit": "oignon",
+   "quantite": 75,
+   "date_depart": "2026-10-19 11:30:24",
+   "date_livraison": null,
+   "code_tracabilite": "LOT-2026-49RTEX"
+  },
+  "genere_le": "2026-10-19T11:30:24.000000Z"
  },
  "/notifications": {
   "notifications": [],

@@ -2,12 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
+import '../../utils/chronologie.dart';
+import '../../utils/geo.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../acheteur/suivi_livraison_screen.dart';
 
+/// Traçabilité d'un lot : résumé (produit, origine, état, dernier lieu
+/// enregistré) puis chronologie des étapes réellement enregistrées.
 class TracabiliteScreen extends StatefulWidget {
-  const TracabiliteScreen({super.key});
+  /// Code ouvert directement (depuis la carte de suivi).
+  final String? codeInitial;
+  const TracabiliteScreen({super.key, this.codeInitial});
+
   @override
   State<TracabiliteScreen> createState() => _TracabiliteScreenState();
 }
@@ -19,6 +26,15 @@ class _TracabiliteScreenState extends State<TracabiliteScreen> {
   Map<String, dynamic>? _resultat;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.codeInitial != null) {
+      _codeCtl.text = widget.codeInitial!;
+      _rechercher();
+    }
+  }
+
+  @override
   void dispose() { _codeCtl.dispose(); super.dispose(); }
 
   Future<void> _rechercher() async {
@@ -27,9 +43,14 @@ class _TracabiliteScreenState extends State<TracabiliteScreen> {
     setState(() { _loading = true; _erreur = null; _resultat = null; });
     try {
       final res = await ApiService.getTracabilite(code);
+      if (!mounted) return;
       setState(() { _resultat = res['tracabilite'] as Map<String, dynamic>; _loading = false; });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() { _erreur = e.message; _loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _erreur = 'Serveur injoignable. Vérifiez votre connexion puis réessayez.'; _loading = false; });
     }
   }
 
@@ -41,253 +62,253 @@ class _TracabiliteScreenState extends State<TracabiliteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final production = _resultat?['etape_production'] as Map<String, dynamic>?;
-    final producteur = production?['producteur'] as Map<String, dynamic>?;
-    final etapesStockage = (_resultat?['etapes_stockage'] as List?) ?? [];
-
+    final etapes = construireChronologie(_resultat);
     return Scaffold(
-    appBar: AppBar(title: const Text('Traçabilité d\'un lot')),
-    body: SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Barre de recherche
-        Row(children: [
-          Expanded(
-            child: TextField(
-              controller: _codeCtl,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'Code de traçabilité',
-                hintText: 'ex : LOT-2026-00001',
-                prefixIcon: Icon(Icons.qr_code_scanner_outlined),
-              ),
-              onSubmitted: (_) => _rechercher(),
-            ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton(
-            onPressed: _loading ? null : _rechercher,
-            child: _loading
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Text('Chercher'),
-          ),
-        ]),
-
-        if (_erreur != null) ...[
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppTheme.rouge)),
-            child: Row(children: [
-              const Icon(Icons.error_outline, color: AppTheme.rouge, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Text(_erreur!, style: const TextStyle(color: AppTheme.rouge))),
+      appBar: AppBar(title: const Text('Traçabilité d\'un lot')),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: ListView(padding: const EdgeInsets.all(16), children: [
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _codeCtl,
+                    textCapitalization: TextCapitalization.characters,
+                    textInputAction: TextInputAction.search,
+                    decoration: const InputDecoration(
+                      labelText: 'Code de traçabilité',
+                      hintText: 'ex : LOT-2026-00001',
+                      prefixIcon: Icon(Icons.qr_code_scanner_outlined),
+                    ),
+                    onSubmitted: (_) => _rechercher(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14)),
+                  onPressed: _loading ? null : _rechercher,
+                  child: _loading
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Chercher'),
+                ),
+              ]),
+              if (_erreur != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppTheme.rouge)),
+                  child: Row(children: [
+                    const Icon(Icons.error_outline, color: AppTheme.rouge, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_erreur!, style: const TextStyle(color: AppTheme.rouge))),
+                  ]),
+                ),
+              ],
+              if (_resultat != null) ...[
+                const SizedBox(height: 16),
+                _Resume(resultat: _resultat!, etapes: etapes, peutSuivre: _peutSuivreEnDirect, ouvrirCarte: _ouvrirCarte),
+                const SizedBox(height: 16),
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Chronologie', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: AppTheme.vertFonce)),
+                      const SizedBox(height: 14),
+                      for (var i = 0; i < etapes.length; i++)
+                        _Etape(etape: etapes[i], derniere: i == etapes.length - 1,
+                            suivantePrevue: i + 1 < etapes.length && etapes[i + 1].etat == EtatEtape.prevu,
+                            peutSuivre: _peutSuivreEnDirect, ouvrirCarte: _ouvrirCarte),
+                      if ((_resultat!['etapes_stockage'] as List?)?.isEmpty ?? true)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: Text('Ce lot n’a pas encore été réceptionné en entrepôt.', style: TextStyle(color: Colors.grey)),
+                        ),
+                    ]),
+                  ),
+                ),
+              ],
             ]),
           ),
-        ],
-
-        if (production != null) ...[
-          const SizedBox(height: 20),
-
-          // Production
-          _SectionCard(
-            icon: Icons.agriculture,
-            color: AppTheme.vert,
-            title: 'Production',
-            children: [
-              _InfoRow('Code', _resultat!['code_tracabilite'], monospace: true),
-              if (producteur != null) ...[
-                _InfoRow('Producteur', '${producteur['prenom']} ${producteur['nom']}'),
-                _InfoRow('Région', producteur['region']),
-              ],
-              _InfoRow('Culture', production['type_culture']),
-              _InfoRow('Date récolte', production['date_recolte']),
-              _InfoRow('Qté estimée', _fmt(production['quantite_estimee'], 'kg')),
-              _InfoRow('Qté réelle', _fmt(production['quantite_reelle'], 'kg')),
-              _InfoRowBadge('Statut', production['statut']),
-            ],
-          ),
-
-          // Une section par entrepôt où le lot est passé
-          if (etapesStockage.isEmpty) ...[
-            const SizedBox(height: 12),
-            _EmptyStep(icon: Icons.warehouse_outlined, label: 'Pas encore en entrepôt'),
-          ] else ...[
-            for (final etape in etapesStockage) ...[
-              const SizedBox(height: 12),
-              _buildStockage(etape as Map<String, dynamic>),
-              ..._buildCommandes((etape['commandes'] as List?) ?? []),
-            ],
-          ],
-        ],
-      ]),
-    ),
+        ),
+      ),
     );
   }
 
-  Widget _buildStockage(Map<String, dynamic> etape) {
-    final entrepot = etape['entrepot'] as Map<String, dynamic>?;
-    return _SectionCard(
-      icon: Icons.warehouse_outlined,
-      color: AppTheme.orange,
-      title: 'Stockage en entrepôt',
-      children: [
-        if (entrepot != null) ...[
-          _InfoRow('Entrepôt', entrepot['nom']),
-          _InfoRow('Localisation', entrepot['localisation']),
-        ],
-        _InfoRow('Produit', etape['produit']),
-        _InfoRow('Quantité', _fmt(etape['quantite'], 'kg')),
-        _InfoRow('Date entrée', etape['date_entree']),
-        _InfoRowBadge('Statut', etape['statut']),
-      ],
-    );
-  }
-
-  List<Widget> _buildCommandes(List commandes) {
-    if (commandes.isEmpty) {
-      return [const SizedBox(height: 12), _EmptyStep(icon: Icons.shopping_cart_outlined, label: 'Aucune commande liée')];
-    }
-
-    final widgets = <Widget>[];
-    for (final c in commandes) {
-      final commande = c as Map<String, dynamic>;
-      final acheteur = commande['acheteur'] as Map<String, dynamic>?;
-      final livraison = commande['livraison'] as Map<String, dynamic>?;
-
-      widgets.add(const SizedBox(height: 12));
-      widgets.add(_SectionCard(
-        icon: Icons.shopping_cart_outlined,
-        color: Colors.blue,
-        title: 'Commande',
-        children: [
-          _InfoRow('Numéro', commande['numero_commande'], monospace: true),
-          if (acheteur != null) _InfoRow('Acheteur', '${acheteur['prenom']} ${acheteur['nom']}'),
-          _InfoRow('Produit', commande['produit']),
-          _InfoRow('Quantité', _fmt(commande['quantite'], 'kg')),
-          _InfoRow('Prix', _fmt(commande['prix'], 'FCFA')),
-          _InfoRowBadge('Statut', commande['statut']),
-        ],
+  void _ouvrirCarte(int livraisonId) => Navigator.push(context, MaterialPageRoute(
+        builder: (_) => SuiviLivraisonScreen(livraisonId: livraisonId),
       ));
-
-      widgets.add(const SizedBox(height: 12));
-      if (livraison == null) {
-        widgets.add(_EmptyStep(icon: Icons.local_shipping_outlined, label: 'Livraison pas encore créée'));
-      } else {
-        final transporteur = livraison['transporteur'] as Map<String, dynamic>?;
-        widgets.add(_SectionCard(
-          icon: Icons.local_shipping_outlined,
-          color: Colors.purple,
-          title: 'Livraison',
-          children: [
-            _InfoRow('Numéro', livraison['numero_livraison'], monospace: true),
-            _InfoRow('Origine', livraison['origine']),
-            _InfoRow('Destination', livraison['destination']),
-            _InfoRow('Date départ', livraison['date_depart']),
-            _InfoRow('Date livraison', livraison['date_livraison']),
-            _InfoRowBadge('Statut', livraison['statut']),
-            if (transporteur != null) ...[
-              _InfoRow('Transporteur', '${transporteur['prenom']} ${transporteur['nom']}'),
-              _InfoRow('Véhicule', transporteur['type_vehicule']),
-              _InfoRow('Zone', transporteur['zone']),
-            ] else
-              _InfoRow('Transporteur', 'Pas encore assigné'),
-            if (livraison['statut'] == 'en_cours' && _peutSuivreEnDirect) ...[
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.map_outlined, size: 16),
-                label: const Text('Suivre en direct'),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => SuiviLivraisonScreen(livraisonId: livraison['id']),
-                )),
-              ),
-            ],
-          ],
-        ));
-      }
-    }
-    return widgets;
-  }
-
-  String _fmt(dynamic val, String unit) {
-    if (val == null) return '—';
-    return '${val is double ? val.toStringAsFixed(0) : val} $unit';
-  }
 }
 
-class _SectionCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final List<Widget> children;
-  const _SectionCard({required this.icon, required this.color, required this.title, required this.children});
+class _Resume extends StatelessWidget {
+  final Map<String, dynamic> resultat;
+  final List<EtapeChronologie> etapes;
+  final bool peutSuivre;
+  final void Function(int) ouvrirCarte;
+  const _Resume({required this.resultat, required this.etapes, required this.peutSuivre, required this.ouvrirCarte});
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
+  Widget build(BuildContext context) {
+    final prod = resultat['etape_production'] as Map?;
+    final producteur = prod?['producteur'] as Map?;
+    final enregistrees = etapes.where((e) => e.etat != EtatEtape.prevu).toList();
+    final actuelle = etapes.where((e) => e.etat == EtatEtape.actuel || e.etat == EtatEtape.alerte).firstOrNull;
+    final dernierLieu = enregistrees.reversed.where((e) => e.lieu != null).firstOrNull?.lieu;
+    final enCours = etapes.where((e) => e.livraisonId != null).firstOrNull?.livraisonId;
+    final nomProducteur = producteur == null ? null : '${producteur['prenom'] ?? ''} ${producteur['nom'] ?? ''}'.trim();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white, borderRadius: BorderRadius.circular(14),
+        border: const Border(top: BorderSide(color: AppTheme.vert, width: 4)),
+        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 6, offset: Offset(0, 2))],
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          CircleAvatar(backgroundColor: color.withAlpha(30), child: Icon(icon, color: color, size: 20)),
-          const SizedBox(width: 10),
-          Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+        Text('Lot ${resultat['code_tracabilite'] ?? ''}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text(prod?['type_culture'] ?? 'Produit non renseigné',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.vertFonce)),
+        if (nomProducteur != null && nomProducteur.isNotEmpty)
+          Text('Produit par $nomProducteur${producteur?['region'] != null ? ' · ${producteur!['region']}' : ''}'),
+        if (actuelle != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: AppTheme.vertClair, borderRadius: BorderRadius.circular(20)),
+            child: Text(actuelle.titre, style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.vertFonce)),
+          ),
+        ],
+        const SizedBox(height: 12),
+        _Fait('Dernier lieu enregistré', dernierLieu ?? 'Aucun lieu enregistré'),
+        const SizedBox(height: 6),
+        const Text('Lieux déclarés lors de chaque opération, et non une position GPS.',
+            style: TextStyle(fontSize: 12, color: Colors.grey)),
+        if (enCours != null && peutSuivre) ...[
+          const SizedBox(height: 12),
+          SizedBox(width: double.infinity, child: ElevatedButton.icon(
+            icon: const Icon(Icons.map_outlined),
+            label: const Text('Suivre la livraison sur la carte'),
+            onPressed: () => ouvrirCarte(enCours),
+          )),
+        ],
+      ]),
+    );
+  }
+}
+
+class _Fait extends StatelessWidget {
+  final String libelle, valeur;
+  const _Fait(this.libelle, this.valeur);
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(10)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(libelle.toUpperCase(), style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(valeur, style: const TextStyle(fontWeight: FontWeight.w600)),
         ]),
-        const Divider(height: 20),
-        ...children,
-      ]),
-    ),
-  );
+      );
 }
 
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final dynamic value;
-  final bool monospace;
-  const _InfoRow(this.label, this.value, {this.monospace = false});
+class _Etape extends StatelessWidget {
+  final EtapeChronologie etape;
+  final bool derniere, suivantePrevue, peutSuivre;
+  final void Function(int) ouvrirCarte;
+  const _Etape({required this.etape, required this.derniere, required this.suivantePrevue, required this.peutSuivre, required this.ouvrirCarte});
+
+  static const _icones = {
+    'recolte': Icons.eco, 'entree': Icons.warehouse, 'sortie': Icons.output, 'commande': Icons.shopping_cart,
+    'depart': Icons.local_shipping, 'livree': Icons.check_circle, 'planifiee': Icons.event, 'probleme': Icons.warning_amber_rounded,
+  };
+
+  String _date() {
+    final d = lireDate(etape.date);
+    if (d == null) return etape.etat == EtatEtape.prevu ? 'Date de départ non encore fixée' : 'Date non enregistrée';
+    String p(int n) => n.toString().padLeft(2, '0');
+    final jour = '${p(d.day)}/${p(d.month)}/${d.year}';
+    return RegExp(r'\d{2}:\d{2}').hasMatch(etape.date!) ? '$jour à ${p(d.hour)}:${p(d.minute)}' : jour;
+  }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(width: 110, child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13))),
-      Expanded(child: Text(
-        value?.toString() ?? '—',
-        style: TextStyle(fontWeight: FontWeight.w500, fontFamily: monospace ? 'monospace' : null),
-      )),
-    ]),
-  );
+  Widget build(BuildContext context) {
+    final (fond, couleur) = switch (etape.etat) {
+      EtatEtape.actuel => (AppTheme.vert, Colors.white),
+      EtatEtape.prevu => (Colors.white, Colors.grey),
+      EtatEtape.alerte => (const Color(0xFFFEE2E2), AppTheme.rouge),
+      EtatEtape.termine => (AppTheme.vertClair, AppTheme.vertFonce),
+    };
+    return Semantics(
+      label: etape.etat == EtatEtape.actuel ? 'Étape actuelle' : null,
+      child: IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Column(children: [
+            Container(
+              width: 38, height: 38,
+              decoration: BoxDecoration(color: fond, shape: BoxShape.circle,
+                  border: Border.all(color: etape.etat == EtatEtape.prevu ? Colors.grey.shade400 : const Color(0xFFB7E4C7), width: 2)),
+              child: Icon(_icones[etape.type], size: 19, color: couleur),
+            ),
+            if (!derniere)
+              Expanded(child: Container(width: 3, margin: const EdgeInsets.symmetric(vertical: 2),
+                  color: suivantePrevue ? Colors.grey.shade300 : const Color(0xFFB7E4C7))),
+          ]),
+          const SizedBox(width: 12),
+          Expanded(child: Padding(
+            padding: EdgeInsets.only(top: 6, bottom: derniere ? 8 : 18),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                Text(etape.titre, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15,
+                    color: etape.etat == EtatEtape.prevu ? Colors.grey : (etape.etat == EtatEtape.alerte ? AppTheme.rouge : AppTheme.vertFonce))),
+                if (etape.etat == EtatEtape.actuel) const _Marque('Étape actuelle', AppTheme.vert, Colors.white),
+                if (etape.etat == EtatEtape.prevu) _Marque('Prévue', Colors.grey.shade100, Colors.grey.shade700),
+              ]),
+              const SizedBox(height: 2),
+              Text(_date(), style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              if (etape.lieu != null) ...[
+                const SizedBox(height: 4),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.place_outlined, size: 15, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(etape.lieu!, style: const TextStyle(fontSize: 13))),
+                ]),
+              ],
+              if (etape.detail != null) ...[
+                const SizedBox(height: 4),
+                Text(etape.detail!, style: const TextStyle(fontSize: 13)),
+              ],
+              if (etape.statut != null && etape.type != 'depart' && etape.type != 'livree') ...[
+                const SizedBox(height: 6),
+                StatusBadge(etape.statut!),
+              ],
+              if (etape.livraisonId != null && peutSuivre) ...[
+                const SizedBox(height: 6),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('Voir sur la carte'),
+                  onPressed: () => ouvrirCarte(etape.livraisonId!),
+                ),
+              ],
+            ]),
+          )),
+        ]),
+      ),
+    );
+  }
 }
 
-class _InfoRowBadge extends StatelessWidget {
-  final String label;
-  final String? value;
-  const _InfoRowBadge(this.label, this.value);
-
+class _Marque extends StatelessWidget {
+  final String texte;
+  final Color fond, couleur;
+  const _Marque(this.texte, this.fond, this.couleur);
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(children: [
-      SizedBox(width: 110, child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13))),
-      Flexible(child: value != null ? StatusBadge(value!) : const Text('—')),
-    ]),
-  );
-}
-
-class _EmptyStep extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _EmptyStep({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) => Card(
-    color: Colors.grey.shade50,
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(children: [
-        Icon(icon, color: Colors.grey, size: 20),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label, style: const TextStyle(color: Colors.grey))),
-      ]),
-    ),
-  );
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(color: fond, borderRadius: BorderRadius.circular(10)),
+        child: Text(texte, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: couleur)),
+      );
 }
