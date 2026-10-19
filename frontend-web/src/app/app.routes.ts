@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { roleGuard } from './core/guards/role.guard';
+import { inviteGuard } from './core/guards/invite.guard';
 import { LayoutComponent } from './shared/components/layout/layout.component';
 
 export const routes: Routes = [
@@ -9,10 +10,12 @@ export const routes: Routes = [
   // Pages publiques
   {
     path: 'login',
+    canActivate: [inviteGuard],
     loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent),
   },
   {
     path: 'register',
+    canActivate: [inviteGuard],
     loadComponent: () => import('./features/auth/register/register.component').then(m => m.RegisterComponent),
   },
 
