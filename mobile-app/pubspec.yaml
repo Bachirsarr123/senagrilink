@@ -14,8 +14,10 @@ dependencies:
   provider: ^6.1.4
   # Réseau
   http: ^1.2.2
-  # Stockage local (token, préférences)
+  # Stockage local (préférences, profil affiché hors ligne)
   shared_preferences: ^2.3.4
+  # Stockage chiffré du jeton de session (Keychain iOS, Keystore Android)
+  flutter_secure_storage: ^10.0.0
   # Formatage des dates
   intl: ^0.19.0
   # Géolocalisation (suivi GPS transporteur)

@@ -36,10 +36,16 @@ class AuthProvider extends ChangeNotifier {
     apresFinSession?.call();
   }
 
-  // ── Initialisation depuis SharedPreferences ──────────────────────────────
+  // ── Restauration de la session au démarrage ──────────────────────────────
+  // Sans appel réseau : l'utilisateur retrouve sa session même hors connexion ;
+  // un jeton révoqué entre-temps sera refusé (401) au premier appel de l'API.
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('agri_user');
+    if (raw != null && await ApiService.getToken() == null) {
+      await prefs.remove('agri_user'); // profil orphelin : pas de session sans jeton
+      return;
+    }
     if (raw != null) {
       try {
         _utilisateur = Utilisateur.fromJson(jsonDecode(raw));
