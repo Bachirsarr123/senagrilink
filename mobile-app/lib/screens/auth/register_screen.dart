@@ -198,9 +198,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: _roleChoisi,
                       decoration: const InputDecoration(labelText: 'Rôle *', prefixIcon: Icon(Icons.badge_outlined)),
-                      items: _roles.map((r) => DropdownMenuItem(value: r.$1, child: Text(r.$2))).toList(),
+                      items: _roles.map((r) => DropdownMenuItem(value: r.$1, child: Text(r.$2, overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (v) => setState(() => _roleChoisi = v ?? 'producteur'),
                     ),
                     const SizedBox(height: 12),

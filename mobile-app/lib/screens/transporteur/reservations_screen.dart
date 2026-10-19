@@ -81,8 +81,9 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                             padding: const EdgeInsets.all(12),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                Text(r['numero_reservation'] ?? '',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+                                Expanded(child: Text(r['numero_reservation'] ?? '',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
+                                const SizedBox(width: 8),
                                 StatusBadge(statut),
                               ]),
                               const SizedBox(height: 6),

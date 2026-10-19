@@ -85,7 +85,8 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                               padding: const EdgeInsets.all(12),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                  Text(p['produit'] ?? '—', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                  Expanded(child: Text(p['produit'] ?? '—', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                                  const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(color: AppTheme.vertClair, borderRadius: BorderRadius.circular(12)),
@@ -97,12 +98,12 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                                   Row(children: [
                                     const Icon(Icons.warehouse_outlined, size: 14, color: Colors.grey),
                                     const SizedBox(width: 4),
-                                    Text(entrepot['nom_entrepot'] ?? '', style: const TextStyle(fontSize: 13)),
+                                    Expanded(child: Text(entrepot['nom_entrepot'] ?? '', style: const TextStyle(fontSize: 13))),
                                   ]),
                                   Row(children: [
                                     const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
                                     const SizedBox(width: 4),
-                                    Text(entrepot['localisation'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                    Expanded(child: Text(entrepot['localisation'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.grey))),
                                   ]),
                                 ],
                                 if (production != null) ...[
@@ -110,7 +111,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                                   Row(children: [
                                     const Icon(Icons.qr_code, size: 14, color: AppTheme.vert),
                                     const SizedBox(width: 4),
-                                    Text(production['code_tracabilite'] ?? '', style: const TextStyle(fontSize: 11, color: AppTheme.vert)),
+                                    Flexible(child: Text(production['code_tracabilite'] ?? '', style: const TextStyle(fontSize: 12, color: AppTheme.vert))),
                                   ]),
                                 ],
                               ]),

@@ -113,7 +113,7 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
           Card(child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Statut actuel', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Expanded(child: Text('Statut actuel', style: TextStyle(fontWeight: FontWeight.bold))),
               StatusBadge(_statut),
             ]),
           )),

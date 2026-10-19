@@ -230,7 +230,7 @@ class _SectionCard extends StatelessWidget {
         Row(children: [
           CircleAvatar(backgroundColor: color.withAlpha(30), child: Icon(icon, color: color, size: 20)),
           const SizedBox(width: 10),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
         ]),
         const Divider(height: 20),
         ...children,
@@ -268,7 +268,7 @@ class _InfoRowBadge extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: Row(children: [
       SizedBox(width: 110, child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13))),
-      if (value != null) StatusBadge(value!) else const Text('—'),
+      Flexible(child: value != null ? StatusBadge(value!) : const Text('—')),
     ]),
   );
 }
@@ -286,7 +286,7 @@ class _EmptyStep extends StatelessWidget {
       child: Row(children: [
         Icon(icon, color: Colors.grey, size: 20),
         const SizedBox(width: 10),
-        Text(label, style: const TextStyle(color: Colors.grey)),
+        Expanded(child: Text(label, style: const TextStyle(color: Colors.grey))),
       ]),
     ),
   );
