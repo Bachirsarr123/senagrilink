@@ -96,6 +96,30 @@ describe('authInterceptor (R4)', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { raison: 'compte_bloque' } });
   });
 
+  it('erreur réseau, délai dépassé ou erreur serveur : la session est conservée', () => {
+    connecter();
+    appeler(`${API}/me`);
+    appeler(`${API}/catalogue`);
+    appeler(`${API}/notifications`);
+    backend.expectOne(`${API}/me`).error(new ProgressEvent('error'));
+    backend.expectOne(`${API}/catalogue`).flush({}, { status: 503, statusText: 'Service Unavailable' });
+    backend.expectOne(`${API}/notifications`).flush({}, { status: 504, statusText: 'Gateway Timeout' });
+
+    expect(localStorage.getItem('agri_token')).toBe('jeton-fictif');
+    expect(localStorage.getItem('agri_user')).not.toBeNull();
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
+  it('401 tardif d\'un ancien jeton : la session ouverte depuis est conservée', () => {
+    connecter();
+    appeler(`${API}/me`);
+    localStorage.setItem('agri_token', 'nouveau-jeton');
+    backend.expectOne(`${API}/me`).flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    expect(localStorage.getItem('agri_token')).toBe('nouveau-jeton');
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
   it('401 sur la connexion (mauvais mot de passe) : pas d\'invalidation ni de redirection', () => {
     http.post(`${API}/login`, {}).subscribe({ error: () => {} });
     backend.expectOne(`${API}/login`).flush({ message: 'Identifiants incorrects.' }, { status: 401, statusText: 'Unauthorized' });

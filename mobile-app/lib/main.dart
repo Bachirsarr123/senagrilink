@@ -18,7 +18,7 @@ void brancherFinSession(AuthProvider auth) {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final auth = AuthProvider();
-  await auth.init(); // Charge le token/utilisateur depuis SharedPreferences
+  await auth.init(); // Restaure la session enregistrée (jeton chiffré + profil)
   brancherFinSession(auth);
   runApp(
     ChangeNotifierProvider.value(value: auth, child: const AgriPlatformApp()),

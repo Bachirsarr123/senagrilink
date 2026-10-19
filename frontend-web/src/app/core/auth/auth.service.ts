@@ -92,8 +92,14 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
+  /**
+   * Restaure la session au chargement (rechargement, réouverture du navigateur).
+   * Elle n'est valide que si le jeton est présent : un utilisateur sans jeton
+   * passerait la garde sans pouvoir appeler l'API.
+   */
   private loadUser(): Utilisateur | null {
     try {
+      if (!localStorage.getItem(this.TOKEN_KEY)) return null;
       const raw = localStorage.getItem(this.USER_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -33,19 +34,38 @@ class ApiService {
   );
 
   // ── Token ────────────────────────────────────────────────────────────────
+  // Le jeton de session est conservé dans le stockage chiffré du système
+  // (Keychain iOS, Keystore Android) jusqu'à la déconnexion volontaire ou un
+  // refus de l'API ; le profil affiché (agri_user, non secret) reste dans
+  // SharedPreferences.
+  static const _cleJeton = 'agri_token';
+  static const _stockage = FlutterSecureStorage();
+
   static Future<String?> getToken() async {
+    final jeton = await _stockage.read(key: _cleJeton);
+    if (jeton != null) return jeton;
+
+    // Migration des sessions ouvertes avec une version précédente, où le jeton
+    // était stocké en clair dans SharedPreferences : l'utilisateur reste connecté.
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('agri_token');
+    final ancien = prefs.getString(_cleJeton);
+    if (ancien != null) {
+      await _stockage.write(key: _cleJeton, value: ancien);
+      await prefs.remove(_cleJeton);
+    }
+    return ancien;
   }
 
   static Future<void> saveToken(String token) async {
+    await _stockage.write(key: _cleJeton, value: token);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('agri_token', token);
+    await prefs.remove(_cleJeton);
   }
 
   static Future<void> removeToken() async {
+    await _stockage.delete(key: _cleJeton);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('agri_token');
+    await prefs.remove(_cleJeton);
     await prefs.remove('agri_user');
   }
 
@@ -59,15 +79,21 @@ class ApiService {
     return h;
   }
 
-  static Future<dynamic> _parse(http.Response res, {required bool avecJeton}) async {
+  /// [jeton] : jeton envoyé avec la requête (null pour les routes publiques).
+  static Future<dynamic> _parse(http.Response res, {required String? jeton}) async {
     final body = jsonDecode(utf8.decode(res.bodyBytes));
     if (res.statusCode >= 200 && res.statusCode < 300) return body;
 
     // Session refusée sur une requête authentifiée : on efface la session locale.
     // Un 401 sur /login (mauvais mot de passe) n'est pas concerné, et un 403
     // ordinaire (permission insuffisante) ne déconnecte pas l'utilisateur.
+    // Le refus doit viser le jeton encore enregistré : la réponse tardive d'une
+    // requête émise avec un ancien jeton n'efface pas une session ouverte depuis.
+    // Erreur réseau (levée avant _parse), 5xx ou réponse inattendue : session conservée.
     final code = body is Map ? body['code'] : null;
-    if (avecJeton && (res.statusCode == 401 || (res.statusCode == 403 && code == 'compte_bloque'))) {
+    if (jeton != null &&
+        (res.statusCode == 401 || (res.statusCode == 403 && code == 'compte_bloque')) &&
+        jeton == await getToken()) {
       await removeToken();
       onSessionInvalide?.call(res.statusCode == 401 ? FinSession.expiree : FinSession.compteBloque);
     }
@@ -76,30 +102,30 @@ class ApiService {
     throw ApiException(msg, statusCode: res.statusCode, donnees: body is Map<String, dynamic> ? body : null);
   }
 
-  static bool _avecJeton(Map<String, String> h) => h.containsKey('Authorization');
+  static String? _jeton(Map<String, String> h) => h['Authorization']?.substring('Bearer '.length);
 
   static Future<dynamic> get(String path) async {
     final h = await _headers();
     final res = await client.get(Uri.parse('$_baseUrl$path'), headers: h);
-    return _parse(res, avecJeton: _avecJeton(h));
+    return _parse(res, jeton: _jeton(h));
   }
 
   static Future<dynamic> post(String path, Map<String, dynamic> data, {bool auth = true}) async {
     final h = await _headers(auth: auth);
     final res = await client.post(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data));
-    return _parse(res, avecJeton: _avecJeton(h));
+    return _parse(res, jeton: _jeton(h));
   }
 
   static Future<dynamic> put(String path, Map<String, dynamic> data) async {
     final h = await _headers();
     final res = await client.put(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data));
-    return _parse(res, avecJeton: _avecJeton(h));
+    return _parse(res, jeton: _jeton(h));
   }
 
   static Future<dynamic> delete(String path) async {
     final h = await _headers();
     final res = await client.delete(Uri.parse('$_baseUrl$path'), headers: h);
-    return _parse(res, avecJeton: _avecJeton(h));
+    return _parse(res, jeton: _jeton(h));
   }
 
   // ── Auth ─────────────────────────────────────────────────────────────────
