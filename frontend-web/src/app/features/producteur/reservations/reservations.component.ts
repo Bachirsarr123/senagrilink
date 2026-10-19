@@ -2,11 +2,13 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-producteur-reservations',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -45,7 +47,7 @@ import { ApiService } from '../../../core/services/api.service';
       <!-- Modal réservation -->
       @if (entrepotSelectionne(); as entrepot) {
         <div class="modal-overlay" (click)="fermerModal()">
-          <div class="modal-box" (click)="$event.stopPropagation()">
+          <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
             <h2>Réserver — {{ entrepot.nom_entrepot }}</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
               Capacité disponible : {{ entrepot.capacite_disponible | number }} kg
@@ -102,7 +104,7 @@ import { ApiService } from '../../../core/services/api.service';
         } @else if (reservations().length === 0) {
           <p class="empty">Aucune réservation pour l'instant.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr>
                 <th>Numéro</th><th>Entrepôt</th><th>Produit</th>
@@ -117,25 +119,17 @@ import { ApiService } from '../../../core/services/api.service';
                   <td>{{ r.produit }}</td>
                   <td>{{ r.quantite_reservee | number }} kg</td>
                   <td>{{ r.date_debut | date:'dd/MM/yyyy' }}</td>
-                  <td><span class="badge badge-{{ r.statut }}">{{ r.statut }}</span></td>
+                  <td><span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span></td>
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>
   `,
   styles: [`
-    .modal-overlay {
-      position:fixed;inset:0;background:rgba(0,0,0,.45);
-      display:flex;align-items:center;justify-content:center;z-index:1000;
-    }
-    .modal-box {
-      background:white;border-radius:10px;padding:2rem;
-      width:min(480px,94vw);max-height:90vh;overflow-y:auto;
-      box-shadow:0 20px 60px rgba(0,0,0,.25);
-    }
+    .modal-box { --modal-largeur: 480px; }
     select {
       padding:.55rem .8rem;border:1px solid #e5e7eb;border-radius:6px;
       font-size:.9rem;width:100%;

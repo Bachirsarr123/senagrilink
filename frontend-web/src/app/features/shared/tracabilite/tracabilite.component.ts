@@ -4,11 +4,12 @@ import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/auth/auth.service';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-tracabilite',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, RouterLink],
+  imports: [LibelleStatutPipe, ReactiveFormsModule, DatePipe, RouterLink],
   template: `
     <div class="page">
       <div class="page-header">
@@ -23,9 +24,9 @@ import { AuthService } from '../../../core/auth/auth.service';
               <label>Code de traçabilité *</label>
               <input type="text" formControlName="code"
                      placeholder="ex : LOT-2026-00001"
-                     style="font-family:monospace;text-transform:uppercase" />
+                     class="champ-code" />
             </div>
-            <div style="display:flex;align-items:flex-end;padding-bottom:.75rem">
+            <div class="action-recherche">
               <button type="submit" class="btn-primary" [disabled]="loading()">
                 {{ loading() ? 'Recherche...' : 'Rechercher' }}
               </button>
@@ -77,7 +78,7 @@ import { AuthService } from '../../../core/auth/auth.service';
           <div class="stat-row">
             <span>Statut</span>
             <span class="badge badge-{{ r.etape_production.statut }}">
-              {{ r.etape_production.statut }}
+              {{ r.etape_production.statut | libelleStatut }}
             </span>
           </div>
         </div>
@@ -125,7 +126,7 @@ import { AuthService } from '../../../core/auth/auth.service';
               }
               <div class="stat-row">
                 <span>Statut</span>
-                <span class="badge badge-{{ etape.statut }}">{{ etape.statut }}</span>
+                <span class="badge badge-{{ etape.statut }}">{{ etape.statut | libelleStatut }}</span>
               </div>
             </div>
 
@@ -167,7 +168,7 @@ import { AuthService } from '../../../core/auth/auth.service';
                   </div>
                   <div class="stat-row">
                     <span>Statut</span>
-                    <span class="badge badge-{{ commande.statut }}">{{ commande.statut }}</span>
+                    <span class="badge badge-{{ commande.statut }}">{{ commande.statut | libelleStatut }}</span>
                   </div>
                 </div>
 
@@ -207,7 +208,7 @@ import { AuthService } from '../../../core/auth/auth.service';
                     <div class="stat-row">
                       <span>Statut</span>
                       <span class="badge badge-{{ commande.livraison.statut }}">
-                        {{ commande.livraison.statut }}
+                        {{ commande.livraison.statut | libelleStatut }}
                       </span>
                     </div>
                     @if (commande.livraison.transporteur; as transporteur) {
@@ -244,6 +245,15 @@ import { AuthService } from '../../../core/auth/auth.service';
       }
     </div>
   `,
+  styles: [`
+    .champ-code { font-family: monospace; text-transform: uppercase; }
+    .champ-code::placeholder { text-transform: none; }
+    .action-recherche { display: flex; align-items: flex-end; padding-bottom: .75rem; }
+    @media (max-width: 640px) {
+      .action-recherche { padding-bottom: 0; margin-bottom: .75rem; }
+      .action-recherche .btn-primary { width: 100%; }
+    }
+  `],
   styleUrls: ['../../shared.styles.scss'],
 })
 export class TracabiliteComponent {

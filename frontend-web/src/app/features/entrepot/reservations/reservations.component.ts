@@ -2,11 +2,12 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 
 @Component({
   selector: 'app-entrepot-reservations',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe],
+  imports: [TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -25,7 +26,7 @@ import { ApiService } from '../../../core/services/api.service';
         } @else if (enAttente().length === 0) {
           <p class="empty">Aucune réservation en attente.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>Numéro</th><th>Producteur</th><th>Produit</th><th>Quantité</th><th>Date début</th><th>Actions</th></tr>
             </thead>
@@ -45,7 +46,7 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
 
@@ -55,7 +56,7 @@ import { ApiService } from '../../../core/services/api.service';
         @if (confirmees().length === 0) {
           <p class="empty">Aucune réservation à assigner.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>Numéro</th><th>Producteur</th><th>Produit</th><th>Quantité</th><th>Actions</th></tr>
             </thead>
@@ -72,7 +73,7 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
 
@@ -82,7 +83,7 @@ import { ApiService } from '../../../core/services/api.service';
         @if (enTransit().length === 0) {
           <p class="empty">Aucune réservation en cours d'acheminement.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>Numéro</th><th>Producteur</th><th>Produit</th><th>Quantité</th><th>Transporteur</th></tr>
             </thead>
@@ -100,7 +101,7 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
 
@@ -110,7 +111,7 @@ import { ApiService } from '../../../core/services/api.service';
         @if (arrivees().length === 0) {
           <p class="empty">Aucune marchandise en attente de validation.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>Numéro</th><th>Producteur</th><th>Produit</th><th>Qté réservée</th><th>Actions</th></tr>
             </thead>
@@ -127,14 +128,14 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
 
       <!-- Modal assignation transporteur -->
       @if (reservationAAssigner(); as r) {
         <div class="modal-overlay" (click)="fermerModals()">
-          <div class="modal-box" (click)="$event.stopPropagation()">
+          <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
             <h2>Assigner un transporteur</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
               Réservation <code class="code-lot">{{ r.numero_reservation }}</code>
@@ -170,7 +171,7 @@ import { ApiService } from '../../../core/services/api.service';
       <!-- Modal validation marchandise -->
       @if (reservationAValider(); as r) {
         <div class="modal-overlay" (click)="fermerModals()">
-          <div class="modal-box" (click)="$event.stopPropagation()">
+          <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
             <h2>Valider la marchandise</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
               Réservation <code class="code-lot">{{ r.numero_reservation }}</code> —
@@ -199,15 +200,7 @@ import { ApiService } from '../../../core/services/api.service';
     </div>
   `,
   styles: [`
-    .modal-overlay {
-      position:fixed;inset:0;background:rgba(0,0,0,.45);
-      display:flex;align-items:center;justify-content:center;z-index:1000;
-    }
-    .modal-box {
-      background:white;border-radius:10px;padding:2rem;
-      width:min(480px,94vw);max-height:90vh;overflow-y:auto;
-      box-shadow:0 20px 60px rgba(0,0,0,.25);
-    }
+    .modal-box { --modal-largeur: 480px; }
     select, textarea {
       padding:.55rem .8rem;border:1px solid #e5e7eb;border-radius:6px;
       font-size:.9rem;width:100%;font-family:inherit;

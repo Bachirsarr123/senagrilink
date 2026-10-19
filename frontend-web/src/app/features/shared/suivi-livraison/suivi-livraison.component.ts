@@ -3,6 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import * as L from 'leaflet';
 import { ApiService } from '../../../core/services/api.service';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 const INTERVALLE_RAFRAICHISSEMENT_MS = 10000;
 
@@ -14,7 +15,7 @@ interface PointCarte {
 @Component({
   selector: 'app-suivi-livraison',
   standalone: true,
-  imports: [DatePipe],
+  imports: [LibelleStatutPipe, DatePipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -30,7 +31,7 @@ interface PointCarte {
         <div class="card">
           <div class="stat-row">
             <span>Statut de la livraison</span>
-            <span class="badge badge-{{ statutLivraison() }}">{{ statutLivraison() }}</span>
+            <span class="badge badge-{{ statutLivraison() }}">{{ statutLivraison() | libelleStatut }}</span>
           </div>
           @if (derniereMiseAJour()) {
             <div class="stat-row">
@@ -45,7 +46,7 @@ interface PointCarte {
         @if (!position()) {
           <p class="empty">{{ erreur() ? 'Position indisponible.' : 'Chargement de la position...' }}</p>
         } @else {
-          <div id="suivi-map" style="height: 420px; border-radius: 8px;"></div>
+          <div id="suivi-map" class="carte-suivi"></div>
           <p class="legende">
             <span>🏭 Entrepôt</span>
             <span>🚚 Transporteur</span>
@@ -56,7 +57,10 @@ interface PointCarte {
     </div>
   `,
   styles: [`
-    .legende { display: flex; gap: 1.5rem; margin-top: .75rem; font-size: .85rem; color: #6b7280; }
+    .legende { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; margin: .75rem 0 0; font-size: .85rem; color: #6b7280; }
+    /* Carte à la mesure de l'écran : reste visible en entier sur un petit téléphone
+       et en paysage, sans dépasser 480 px sur ordinateur. */
+    .carte-suivi { height: clamp(240px, 55vh, 480px); border-radius: 8px; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })

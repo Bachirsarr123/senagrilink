@@ -2,11 +2,13 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-productions',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -104,7 +106,7 @@ import { ApiService } from '../../../core/services/api.service';
         } @else if (productions().length === 0) {
           <p class="empty">Aucune production enregistrée.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr>
                 <th>Code traçabilité</th>
@@ -124,7 +126,7 @@ import { ApiService } from '../../../core/services/api.service';
                   <td>{{ p.date_recolte | date:'dd/MM/yyyy' }}</td>
                   <td>{{ p.quantite_estimee | number }} kg</td>
                   <td>{{ p.quantite_reelle ? (p.quantite_reelle | number) + ' kg' : '—' }}</td>
-                  <td><span class="badge badge-{{ p.statut }}">{{ p.statut }}</span></td>
+                  <td><span class="badge badge-{{ p.statut }}">{{ p.statut | libelleStatut }}</span></td>
                   <td>
                     @if (p.statut === 'en_attente' || p.statut === 'disponible') {
                       <button class="btn-secondary btn-sm" (click)="ouvrirEdition(p)">Modifier</button>
@@ -133,7 +135,7 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>

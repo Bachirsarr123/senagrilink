@@ -1,11 +1,13 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-rapport',
   standalone: true,
-  imports: [DecimalPipe],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header"><h1>Rapport d'inventaire</h1></div>
@@ -46,7 +48,7 @@ import { ApiService } from '../../../core/services/api.service';
         <div class="card">
           <h2>Détail — {{ rapport().entrepot?.nom }}</h2>
           <p style="color:#6b7280;font-size:.85rem">📍 {{ rapport().entrepot?.localisation }}</p>
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>Produit</th><th>Quantité</th><th>Seuil alerte</th><th>Date entrée</th><th>Statut</th></tr>
             </thead>
@@ -57,11 +59,11 @@ import { ApiService } from '../../../core/services/api.service';
                   <td>{{ s.quantite | number }} kg</td>
                   <td>{{ s.seuil_alerte ? (s.seuil_alerte | number) + ' kg' : '—' }}</td>
                   <td>{{ s.date_entree }}</td>
-                  <td><span class="badge badge-{{ s.statut }}">{{ s.statut }}</span></td>
+                  <td><span class="badge badge-{{ s.statut }}">{{ s.statut | libelleStatut }}</span></td>
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         </div>
       }
     </div>

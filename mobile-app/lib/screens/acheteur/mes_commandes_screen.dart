@@ -135,8 +135,9 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
                             padding: const EdgeInsets.all(12),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                Text(c.numeroCommande,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+                                Expanded(child: Text(c.numeroCommande,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
+                                const SizedBox(width: 8),
                                 StatusBadge(c.statut),
                               ]),
                               const SizedBox(height: 6),
@@ -153,23 +154,24 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
                                   child: const Row(children: [
                                     Icon(Icons.warning_amber_outlined, color: AppTheme.rouge, size: 15),
                                     SizedBox(width: 6),
-                                    Text('Problème signalé sur la livraison',
-                                        style: TextStyle(color: AppTheme.rouge, fontSize: 12, fontWeight: FontWeight.w600)),
+                                    Expanded(child: Text('Problème signalé sur la livraison',
+                                        style: TextStyle(color: AppTheme.rouge, fontSize: 12, fontWeight: FontWeight.w600))),
                                   ]),
                                 ),
 
                               if (c.livraison != null) ...[
                                 const SizedBox(height: 6),
-                                Row(children: [
+                                // Wrap : le bouton passe à la ligne sur un écran étroit
+                                Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 4, children: [
                                   const Icon(Icons.local_shipping_outlined, size: 14, color: Colors.grey),
-                                  const SizedBox(width: 4),
                                   StatusBadge(c.livraison!['statut'] ?? ''),
                                   if (c.livraison!['statut'] == 'en_cours') ...[
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 4),
                                     TextButton.icon(
                                       icon: const Icon(Icons.map_outlined, size: 16),
                                       label: const Text('Suivre en direct'),
-                                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                                      // 40 px de haut : cible tactile confortable
+                                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: const Size(0, 40)),
                                       onPressed: () => Navigator.push(context, MaterialPageRoute(
                                         builder: (_) => SuiviLivraisonScreen(livraisonId: c.livraison!['id']),
                                       )),

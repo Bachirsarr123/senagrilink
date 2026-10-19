@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -16,11 +16,11 @@ import { AuthService } from '../../../core/auth/auth.service';
         </div>
         <h2>Connexion</h2>
 
-        @if (infoSession && !erreur) {
+        @if (infoSession && !erreur()) {
           <div class="alert alert-info">{{ infoSession }}</div>
         }
-        @if (erreur) {
-          <div class="alert alert-error">{{ erreur }}</div>
+        @if (erreur()) {
+          <div class="alert alert-error" role="alert">{{ erreur() }}</div>
         }
 
         <form [formGroup]="form" (ngSubmit)="onSubmit()">
@@ -40,8 +40,8 @@ import { AuthService } from '../../../core/auth/auth.service';
             }
           </div>
 
-          <button type="submit" class="btn-primary" [disabled]="loading">
-            {{ loading ? 'Connexion...' : 'Se connecter' }}
+          <button type="submit" class="btn-primary" [disabled]="loading()">
+            {{ loading() ? 'Connexion...' : 'Se connecter' }}
           </button>
         </form>
 
@@ -53,8 +53,10 @@ import { AuthService } from '../../../core/auth/auth.service';
 })
 export class LoginComponent {
   form: FormGroup;
-  loading = false;
-  erreur: string | null = null;
+  // Signaux : sans zone.js, l'affichage se met à jour dès la réponse de l'API
+  // (un simple champ n'était redessiné qu'à l'interaction suivante).
+  loading = signal(false);
+  erreur  = signal<string | null>(null);
 
   /** Message affiché après une fin de session imposée par l'API (voir authInterceptor). */
   readonly infoSession: string | null = {
@@ -71,14 +73,14 @@ export class LoginComponent {
 
   onSubmit(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
-    this.loading = true;
-    this.erreur  = null;
+    this.loading.set(true);
+    this.erreur.set(null);
 
     this.auth.login(this.form.value).subscribe({
       next: () => this.auth.redirectAfterLogin(),
       error: err => {
-        this.erreur  = err.error?.message ?? 'Erreur de connexion.';
-        this.loading = false;
+        this.erreur.set(err.error?.message ?? 'Erreur de connexion.');
+        this.loading.set(false);
       },
     });
   }

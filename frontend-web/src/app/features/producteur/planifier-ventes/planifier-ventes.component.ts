@@ -2,11 +2,13 @@ import { Component, OnInit, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-planifier-ventes',
   standalone: true,
-  imports: [DatePipe, DecimalPipe, RouterLink],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, DatePipe, DecimalPipe, RouterLink],
   template: `
     <div class="page">
       <div class="page-header">
@@ -33,7 +35,7 @@ import { ApiService } from '../../../core/services/api.service';
               <div class="product-card">
                 <div class="product-header">
                   <h3>{{ p.type_culture }}</h3>
-                  <span class="badge badge-en_attente">en_attente</span>
+                  <span class="badge badge-en_attente">En attente</span>
                 </div>
                 <div class="product-info">
                   <div class="info-row">
@@ -70,7 +72,7 @@ import { ApiService } from '../../../core/services/api.service';
         @if (disponibles().length === 0) {
           <p class="empty">Aucune production en entrepôt pour l'instant.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr>
                 <th>Code</th><th>Culture</th><th>Date récolte</th>
@@ -84,11 +86,11 @@ import { ApiService } from '../../../core/services/api.service';
                   <td><strong>{{ p.type_culture }}</strong></td>
                   <td>{{ p.date_recolte | date:'dd/MM/yyyy' }}</td>
                   <td>{{ p.quantite_estimee | number }} kg</td>
-                  <td><span class="badge badge-disponible">disponible</span></td>
+                  <td><span class="badge badge-disponible">Disponible</span></td>
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
 
@@ -105,7 +107,7 @@ import { ApiService } from '../../../core/services/api.service';
         } @else if (demandes().length === 0) {
           <p class="empty">Aucune demande disponible pour le moment.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>Numéro</th><th>Produit</th><th>Quantité</th><th>Prix</th><th>Date</th><th>Statut</th></tr>
             </thead>
@@ -117,11 +119,11 @@ import { ApiService } from '../../../core/services/api.service';
                   <td>{{ d.quantite | number }} kg</td>
                   <td>{{ d.prix ? (d.prix | number) + ' FCFA' : '—' }}</td>
                   <td>{{ d.date_commande | date:'dd/MM/yyyy' }}</td>
-                  <td><span class="badge badge-{{ d.statut }}">{{ d.statut }}</span></td>
+                  <td><span class="badge badge-{{ d.statut }}">{{ d.statut | libelleStatut }}</span></td>
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>

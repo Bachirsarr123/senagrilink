@@ -2,11 +2,13 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-commandes-entrepot',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe],
   template: `
     <div class="page">
       <div class="page-header">
@@ -29,7 +31,7 @@ import { ApiService } from '../../../core/services/api.service';
         } @else if (commandesEnAttente().length === 0) {
           <p class="empty">Aucune commande en attente.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr>
                 <th>Numéro</th><th>Produit</th><th>Quantité</th>
@@ -62,14 +64,14 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
 
       <!-- Modal création livraison -->
       @if (commandeSelectionnee()) {
         <div class="modal-overlay" (click)="fermerModal()">
-          <div class="modal-box" (click)="$event.stopPropagation()">
+          <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
             <h2>Confirmer &amp; créer la livraison</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
               Commande : <code class="code-lot">{{ commandeSelectionnee()!.numero_commande }}</code>
@@ -118,7 +120,7 @@ import { ApiService } from '../../../core/services/api.service';
         @if (commandesConfirmees().length === 0) {
           <p class="empty">Aucune commande confirmée.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr><th>Numéro</th><th>Produit</th><th>Quantité</th><th>Date</th><th>Livraison</th></tr>
             </thead>
@@ -131,7 +133,7 @@ import { ApiService } from '../../../core/services/api.service';
                   <td>{{ c.date_commande | date:'dd/MM/yyyy' }}</td>
                   <td>
                     @if (c.livraison) {
-                      <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut }}</span>
+                      <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut | libelleStatut }}</span>
                     } @else {
                       <span class="text-muted">—</span>
                     }
@@ -139,21 +141,13 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
     </div>
   `,
   styles: [`
-    .modal-overlay {
-      position:fixed;inset:0;background:rgba(0,0,0,.45);
-      display:flex;align-items:center;justify-content:center;z-index:1000;
-    }
-    .modal-box {
-      background:white;border-radius:10px;padding:2rem;
-      width:min(560px,94vw);max-height:90vh;overflow-y:auto;
-      box-shadow:0 20px 60px rgba(0,0,0,.25);
-    }
+    .modal-box { --modal-largeur: 560px; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })

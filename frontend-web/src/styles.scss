@@ -6,12 +6,38 @@ html, body {
   height: 100%;
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 16px;
+  line-height: 1.5;
   color: #1f2937;
   background: #f9fafb;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-/* Évite le débordement horizontal sur mobile */
-body { overflow-x: hidden; }
+/* Les mots très longs (e-mails, codes, adresses) passent à la ligne au lieu
+   d'élargir la page. Aucun overflow-x global : les débordements sont corrigés
+   à la source (grilles, tableaux, champs). */
+body { overflow-wrap: break-word; }
+
+button, input, select, textarea { font: inherit; }
+
+/* Retour visuel clavier, sans halo au clic souris */
+:focus-visible { outline: 2px solid #2d6a4f; outline-offset: 2px; }
+
+/* Retour visuel à l'appui sur les boutons */
+.btn-primary, .btn-secondary, .btn-danger, .btn-success, .btn-ghost {
+  &:active:not(:disabled) { transform: translateY(1px); }
+}
+
+/* Cibles tactiles d'au moins 44 px sur écran tactile ou téléphone (WCAG 2.5.5) */
+@media (pointer: coarse), (max-width: 640px) {
+  button, select, textarea,
+  input:not([type=checkbox]):not([type=radio]),
+  a.btn-primary, a.btn-secondary, a.btn-danger, a.btn-success, a.btn-ghost {
+    min-height: 44px;
+  }
+  /* Boutons de zoom de la carte de suivi, plus grands au doigt */
+  .leaflet-container.leaflet-touch .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; }
+}
 
 /* Pages avec routeur Angular */
 app-root { display: block; min-height: 100vh; }
@@ -117,16 +143,52 @@ table {
   p { margin: .5rem 0 0; font-size: .9rem; }
 }
 
-/* Tableaux : défilement horizontal plutôt que compression illisible des colonnes */
-table {
-  display: block;
+.text-muted { color: #9ca3af; }
+
+/* États de chargement et de contenu vide des pages */
+.loading { color: #6b7280; font-style: italic; text-align: center; padding: 2rem; }
+.empty {
+  color: #6b7280; text-align: center; padding: 1.75rem 1rem;
+  background: #f9fafb; border: 1px dashed #e5e7eb; border-radius: 8px;
+}
+
+/* Tableaux — Le défilement horizontal est porté par .table-scroll (et non par la page) :
+   le tableau garde toute la largeur de sa carte, et des ombres sur les bords
+   signalent qu'il reste des colonnes à faire défiler. */
+.table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  background:
+    linear-gradient(to right, white 30%, rgba(255,255,255,0)) left center / 2rem 100% no-repeat local,
+    linear-gradient(to left, white 30%, rgba(255,255,255,0)) right center / 2rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0,0,0,.14), transparent) left center / .75rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.14), transparent) right center / .75rem 100% no-repeat scroll;
+}
+@media (max-width: 900px) {
+  /* Jusqu'à 900 px les tableaux passent en cartes (shared.styles.scss) : plus de défilement */
+  .table-scroll { overflow: visible; background: none; }
+}
+
+/* Fenêtres modales — Largeur ajustable par composant via --modal-largeur ; la hauteur est bornée à
+   l'écran visible (dvh tient compte des barres du navigateur mobile). */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+           max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: rgba(0,0,0,.45);
+}
+.modal-box {
+  width: 100%; max-width: var(--modal-largeur, 480px);
+  max-height: 90vh; max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain;
+  background: white; border-radius: 10px; padding: 2rem;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  h2, h3 { margin-top: 0; }
+  @media (max-width: 640px) { padding: 1.25rem; }
 }
 
 @media (max-width: 640px) {
-  html, body { font-size: 15px; }
-
   .page {
     padding: 1rem;
   }
@@ -136,6 +198,9 @@ table {
     align-items: flex-start;
     gap: .5rem;
   }
+  /* Action principale de la page en pleine largeur, à portée de pouce */
+  .page-header > .btn-primary { width: 100%; }
+  .page-header .btn-group, .modal-box .btn-group { width: 100%; > * { flex: 1 1 auto; } }
 
   .card {
     padding: 1rem;

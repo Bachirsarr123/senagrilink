@@ -3,11 +3,13 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
+import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
+import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-mes-commandes',
   standalone: true,
-  imports: [ReactiveFormsModule, DatePipe, DecimalPipe, RouterLink],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe, RouterLink],
   template: `
     <div class="page">
       <div class="page-header"><h1>Mes commandes</h1></div>
@@ -21,7 +23,7 @@ import { ApiService } from '../../../core/services/api.service';
         } @else if (commandes().length === 0) {
           <p class="empty">Aucune commande passée.</p>
         } @else {
-          <table class="table">
+          <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
               <tr>
                 <th>Numéro</th><th>Produit</th><th>Qté</th>
@@ -37,14 +39,14 @@ import { ApiService } from '../../../core/services/api.service';
                   <td>{{ c.prix ? (c.prix | number) + ' FCFA' : '—' }}</td>
                   <td>{{ c.date_commande | date:'dd/MM/yyyy' }}</td>
                   <td>
-                    <span class="badge badge-{{ c.statut }}">{{ c.statut }}</span>
+                    <span class="badge badge-{{ c.statut }}">{{ c.statut | libelleStatut }}</span>
                     @if (c.alerte_livraison) {
                       <span class="badge badge-probleme" title="Problème de livraison signalé">⚠️</span>
                     }
                   </td>
                   <td>
                     @if (c.livraison) {
-                      <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut }}</span>
+                      <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut | libelleStatut }}</span>
                       @if (c.livraison.statut === 'en_cours') {
                         <a [routerLink]="['/suivi-livraison', c.livraison.id]" class="btn-secondary btn-sm" style="margin-left:.4rem">
                           📍 Suivre
@@ -69,14 +71,14 @@ import { ApiService } from '../../../core/services/api.service';
                 </tr>
               }
             </tbody>
-          </table>
+          </table></div>
         }
       </div>
 
       <!-- Modal modification commande -->
       @if (commandeEnEdition()) {
         <div class="modal-overlay" (click)="fermerModal()">
-          <div class="modal-box" (click)="$event.stopPropagation()">
+          <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
             <h2>Modifier la commande</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
               <code class="code-lot">{{ commandeEnEdition()!.numero_commande }}</code>
@@ -105,14 +107,7 @@ import { ApiService } from '../../../core/services/api.service';
     </div>
   `,
   styles: [`
-    .modal-overlay {
-      position:fixed;inset:0;background:rgba(0,0,0,.45);
-      display:flex;align-items:center;justify-content:center;z-index:1000;
-    }
-    .modal-box {
-      background:white;border-radius:10px;padding:2rem;
-      width:min(420px,94vw);box-shadow:0 20px 60px rgba(0,0,0,.25);
-    }
+    .modal-box { --modal-largeur: 420px; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })

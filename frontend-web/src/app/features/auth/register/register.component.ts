@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -16,8 +16,8 @@ import { Role } from '../../../core/auth/auth.model';
         </div>
         <h2>Créer un compte</h2>
 
-        @if (erreur) {
-          <div class="alert alert-error">{{ erreur }}</div>
+        @if (erreur()) {
+          <div class="alert alert-error" role="alert">{{ erreur() }}</div>
         }
 
         <form [formGroup]="form" (ngSubmit)="onSubmit()">
@@ -127,8 +127,8 @@ import { Role } from '../../../core/auth/auth.model';
             </div>
           </div>
 
-          <button type="submit" class="btn-primary" [disabled]="loading">
-            {{ loading ? 'Inscription...' : "S'inscrire" }}
+          <button type="submit" class="btn-primary" [disabled]="loading()">
+            {{ loading() ? 'Inscription...' : "S'inscrire" }}
           </button>
         </form>
 
@@ -140,8 +140,9 @@ import { Role } from '../../../core/auth/auth.model';
 })
 export class RegisterComponent {
   form: FormGroup;
-  loading       = false;
-  erreur: string | null = null;
+  // Signaux : affichage mis à jour dès la réponse de l'API (application sans zone.js)
+  loading       = signal(false);
+  erreur        = signal<string | null>(null);
   selectedRole: Role | '' = '';
 
   // Champs métier propres à chaque rôle, requis uniquement quand ce rôle est sélectionné.
@@ -188,14 +189,14 @@ export class RegisterComponent {
 
   onSubmit(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
-    this.loading = true;
-    this.erreur  = null;
+    this.loading.set(true);
+    this.erreur.set(null);
 
     this.auth.register(this.form.value).subscribe({
       next: () => this.auth.redirectAfterLogin(),
       error: err => {
-        this.erreur  = err.error?.message ?? 'Erreur lors de l\'inscription.';
-        this.loading = false;
+        this.erreur.set(err.error?.message ?? 'Erreur lors de l\'inscription.');
+        this.loading.set(false);
       },
     });
   }

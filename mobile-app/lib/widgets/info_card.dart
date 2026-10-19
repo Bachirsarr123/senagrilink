@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'app_theme.dart';
 
 /// Carte de statistique avec icône, valeur et libellé.
+/// Dans une carte étroite (trois côte à côte sur un petit téléphone), l'icône
+/// passe au-dessus du texte ; la valeur est réduite plutôt que coupée.
 class InfoCard extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -13,17 +15,29 @@ class InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? AppTheme.vert;
+    final avatar = CircleAvatar(backgroundColor: c.withAlpha(30), child: Icon(icon, color: c, size: 22));
+    final textes = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c)),
+      ),
+    ]);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(children: [
-          CircleAvatar(backgroundColor: c.withAlpha(30), child: Icon(icon, color: c, size: 22)),
-          const SizedBox(width: 12),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c)),
-          ]),
-        ]),
+        padding: const EdgeInsets.all(12),
+        child: LayoutBuilder(
+          builder: (context, contraintes) {
+            // Largeur non bornée (ex. liste horizontale) : pas d'Expanded possible
+            if (!contraintes.hasBoundedWidth) {
+              return Row(mainAxisSize: MainAxisSize.min, children: [avatar, const SizedBox(width: 12), textes]);
+            }
+            return contraintes.maxWidth < 150
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [avatar, const SizedBox(height: 8), textes])
+                : Row(children: [avatar, const SizedBox(width: 12), Expanded(child: textes)]);
+          },
+        ),
       ),
     );
   }
@@ -40,7 +54,10 @@ class EmptyState extends StatelessWidget {
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 60, color: Colors.grey.shade300),
       const SizedBox(height: 12),
-      Text(message, style: const TextStyle(color: Colors.grey, fontSize: 15)),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 15)),
+      ),
     ]),
   );
 }
