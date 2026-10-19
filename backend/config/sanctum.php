@@ -41,19 +41,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Expiration des jetons (R4)
+    | Expiration des jetons
     |--------------------------------------------------------------------------
     |
-    | Durée de vie, en minutes, de chaque jeton d'API depuis sa création
-    | (connexion ou inscription). Par défaut 7 jours (10080 min) : les
-    | producteurs et transporteurs utilisent l'application mobile sur le
-    | terrain, souvent avec une connexion intermittente ; une reconnexion
-    | quotidienne serait pénalisante, une durée illimitée laisserait un jeton
-    | volé valable indéfiniment. 0 ou vide = pas d'expiration (déconseillé).
+    | Règle fonctionnelle : un utilisateur reste connecté jusqu'à ce qu'il se
+    | déconnecte lui-même. Les jetons n'ont donc pas de durée de vie absolue
+    | par défaut, mais restent entièrement maîtrisés par le serveur : stockés
+    | hachés en base (personal_access_tokens), ils sont supprimés à la
+    | déconnexion (jeton de l'appareil courant uniquement) et un compte bloqué
+    | est refusé à chaque requête (middleware compte.actif).
+    | SANCTUM_EXPIRATION (minutes depuis la connexion) réactive une durée
+    | maximale si une politique de sécurité l'exige ; vide ou 0 = aucune.
     |
     */
 
-    'expiration' => (int) env('SANCTUM_EXPIRATION', 10080) ?: null,
+    'expiration' => (int) env('SANCTUM_EXPIRATION', 0) ?: null,
 
     /*
     |--------------------------------------------------------------------------
