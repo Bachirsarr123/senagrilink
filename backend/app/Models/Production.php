@@ -7,6 +7,9 @@ use Illuminate\Support\Str;
 
 class Production extends Model
 {
+    /** Statuts connus : en_attente (créée), disponible (réceptionnée en entrepôt). */
+    public const STATUTS = ['en_attente', 'disponible'];
+
     protected $fillable = [
         'producteur_id',
         'code_tracabilite',

@@ -26,7 +26,12 @@ class LivraisonController extends Controller
      */
     public function store(StoreLivraisonRequest $request): JsonResponse
     {
-        $commande = Commande::with('livraison')->findOrFail($request->commande_id);
+        $commande = Commande::with(['stock', 'livraison'])->findOrFail($request->commande_id);
+
+        // Contrôle de périmètre : seul le gestionnaire de l'entrepôt du stock (ou l'admin)
+        if (! $commande->estGereePar($request->user())) {
+            return response()->json(['message' => 'Accès non autorisé à cette commande.'], 403);
+        }
 
         // Règle métier 3 — vérification du statut de la commande
         if ($commande->statut !== 'confirmee') {

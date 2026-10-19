@@ -15,6 +15,7 @@ use App\Models\Transporteur;
 use App\Models\Utilisateur;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
@@ -82,8 +83,40 @@ class AdminController extends Controller
             return response()->json(['message' => 'Ce compte est déjà bloqué.'], 422);
         }
 
-        $utilisateur->statut = 'bloque';
-        $utilisateur->save();
+        // Bloquer le compte et révoquer tous ses jetons Sanctum (web, mobile...) :
+        // sans cela, les sessions déjà ouvertes restaient utilisables.
+        $refus = DB::transaction(function () use ($utilisateur) {
+            // R8 — les administrateurs actifs sont verrouillés (ordre stable, sans
+            // interblocage) puis recomptés : deux blocages croisés simultanés ne
+            // peuvent pas laisser la plateforme sans administrateur actif.
+            $adminsActifs = Utilisateur::where('role', 'administrateur')
+                ->where('statut', 'actif')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id');
+
+            $cible = Utilisateur::whereKey($utilisateur->id)->lockForUpdate()->first();
+
+            if ($cible->statut === 'bloque') {
+                return response()->json(['message' => 'Ce compte est déjà bloqué.'], 422);
+            }
+
+            if ($cible->role === 'administrateur'
+                && $adminsActifs->reject(fn ($adminId) => (int) $adminId === (int) $cible->id)->isEmpty()) {
+                return response()->json(['message' => 'Impossible de bloquer le dernier administrateur actif.'], 422);
+            }
+
+            $cible->statut = 'bloque';
+            $cible->save();
+            $cible->tokens()->delete();
+            $utilisateur->statut = 'bloque';
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
+        }
 
         return response()->json([
             'message'     => 'Compte bloqué.',

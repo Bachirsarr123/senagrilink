@@ -58,7 +58,7 @@ class ProductionController extends Controller
             'date_recolte'     => $request->date_recolte,
             'quantite_estimee' => $request->quantite_estimee,
             'quantite_reelle'  => $request->quantite_reelle,
-            'statut'           => $request->statut ?? 'en_attente',
+            'statut'           => 'en_attente',
         ]);
 
         return response()->json([
@@ -101,13 +101,32 @@ class ProductionController extends Controller
     {
         $commandes = Commande::where('statut', 'en_attente')
             ->with([
-                'stock:id,produit,quantite,entrepot_id',
+                'stock:id,produit,quantite,entrepot_id,production_id',
+                'stock.production:id,producteur_id',
                 'stock.entrepot:id,nom_entrepot,localisation',
                 'acheteur:id,utilisateur_id',
                 'acheteur.utilisateur:id,nom,prenom',
             ])
             ->orderBy('date_commande', 'desc')
             ->get();
+
+        // R6 — l'identité de l'acheteur n'est visible que du producteur dont le
+        // lot est commandé (et de l'administrateur) ; les autres voient la demande
+        // (produit, quantité, entrepôt) sans savoir qui l'a passée.
+        $utilisateur  = $request->user();
+        $producteurId = $utilisateur->producteur?->id;
+
+        $commandes->each(function (Commande $commande) use ($utilisateur, $producteurId) {
+            $concerne = $utilisateur->role === 'administrateur'
+                || ($producteurId !== null && (int) $commande->stock?->production?->producteur_id === (int) $producteurId);
+
+            if (! $concerne) {
+                $commande->setRelation('acheteur', null);
+                $commande->makeHidden('acheteur_id');
+            }
+            $commande->setAttribute('acheteur_masque', ! $concerne);
+            $commande->stock?->unsetRelation('production');
+        });
 
         return response()->json(['commandes_disponibles' => $commandes]);
     }

@@ -10,7 +10,17 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Raison d'une fin de session imposée par l'API.
+enum FinSession { expiree, compteBloque }
+
 class ApiService {
+  /// Client HTTP (remplaçable dans les tests par un MockClient).
+  static http.Client client = http.Client();
+
+  /// Appelé quand l'API refuse la session (401 sur une requête authentifiée,
+  /// ou 403 « compte_bloque ») ; branché par AuthProvider.
+  static void Function(FinSession raison)? onSessionInvalide;
+
   // Pointe vers le backend public par défaut, pour pouvoir tester depuis
   // n'importe quel réseau (build GitHub Actions incluse). Pour tester contre
   // un backend local, surcharger au build :
@@ -47,33 +57,47 @@ class ApiService {
     return h;
   }
 
-  static dynamic _parse(http.Response res) {
+  static Future<dynamic> _parse(http.Response res, {required bool avecJeton}) async {
     final body = jsonDecode(utf8.decode(res.bodyBytes));
     if (res.statusCode >= 200 && res.statusCode < 300) return body;
-    final msg = body['message'] ?? 'Erreur serveur (${res.statusCode})';
+
+    // Session refusée sur une requête authentifiée : on efface la session locale.
+    // Un 401 sur /login (mauvais mot de passe) n'est pas concerné, et un 403
+    // ordinaire (permission insuffisante) ne déconnecte pas l'utilisateur.
+    final code = body is Map ? body['code'] : null;
+    if (avecJeton && (res.statusCode == 401 || (res.statusCode == 403 && code == 'compte_bloque'))) {
+      await removeToken();
+      onSessionInvalide?.call(res.statusCode == 401 ? FinSession.expiree : FinSession.compteBloque);
+    }
+
+    final msg = body is Map && body['message'] != null ? body['message'] : 'Erreur serveur (${res.statusCode})';
     throw ApiException(msg, statusCode: res.statusCode);
   }
 
+  static bool _avecJeton(Map<String, String> h) => h.containsKey('Authorization');
+
   static Future<dynamic> get(String path) async {
-    final res = await http.get(Uri.parse('$_baseUrl$path'), headers: await _headers());
-    return _parse(res);
+    final h = await _headers();
+    final res = await client.get(Uri.parse('$_baseUrl$path'), headers: h);
+    return _parse(res, avecJeton: _avecJeton(h));
   }
 
   static Future<dynamic> post(String path, Map<String, dynamic> data, {bool auth = true}) async {
-    final res = await http.post(Uri.parse('$_baseUrl$path'),
-        headers: await _headers(auth: auth), body: jsonEncode(data));
-    return _parse(res);
+    final h = await _headers(auth: auth);
+    final res = await client.post(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data));
+    return _parse(res, avecJeton: _avecJeton(h));
   }
 
   static Future<dynamic> put(String path, Map<String, dynamic> data) async {
-    final res = await http.put(Uri.parse('$_baseUrl$path'),
-        headers: await _headers(), body: jsonEncode(data));
-    return _parse(res);
+    final h = await _headers();
+    final res = await client.put(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data));
+    return _parse(res, avecJeton: _avecJeton(h));
   }
 
   static Future<dynamic> delete(String path) async {
-    final res = await http.delete(Uri.parse('$_baseUrl$path'), headers: await _headers());
-    return _parse(res);
+    final h = await _headers();
+    final res = await client.delete(Uri.parse('$_baseUrl$path'), headers: h);
+    return _parse(res, avecJeton: _avecJeton(h));
   }
 
   // ── Auth ─────────────────────────────────────────────────────────────────

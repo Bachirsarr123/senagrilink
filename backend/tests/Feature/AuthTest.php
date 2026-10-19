@@ -21,6 +21,8 @@ class AuthTest extends TestCase
             'mot_de_passe'             => 'password123',
             'mot_de_passe_confirmation'=> 'password123',
             'role'                     => 'producteur',
+            'superficie'               => 2.5,
+            'types_cultures'           => 'riz, oignon',
             'region'                   => 'Thiès',
         ]);
 
@@ -142,7 +144,10 @@ class AuthTest extends TestCase
              ->assertOk()
              ->assertJsonPath('message', 'Déconnexion réussie.');
 
-        // Le token doit être révoqué
+        // Le token doit être révoqué. Le garde Sanctum met l'utilisateur en cache
+        // pendant le test : on le réinitialise pour simuler une nouvelle requête HTTP.
+        $this->app['auth']->forgetGuards();
+
         $this->withToken($token)
              ->getJson('/api/me')
              ->assertStatus(401);

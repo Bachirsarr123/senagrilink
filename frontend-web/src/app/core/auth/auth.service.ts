@@ -6,6 +6,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthResponse, LoginPayload, RegisterPayload, Utilisateur } from './auth.model';
 
+export type RaisonFinSession = 'session_expiree' | 'compte_bloque';
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly TOKEN_KEY = 'agri_token';
@@ -53,6 +55,22 @@ export class AuthService {
       transporteur:          '/profil',
     };
     this.router.navigate([routes[role ?? ''] ?? '/login']);
+  }
+
+  /**
+   * Session refusée par l'API (jeton expiré, révoqué, ou compte bloqué) : on
+   * efface la session locale sans rappeler l'API (qui répondrait encore 401)
+   * et on renvoie vers la connexion une seule fois, sans boucle de redirection.
+   */
+  invaliderSession(raison: RaisonFinSession): void {
+    const avaitUneSession = !!this.getToken() || !!this._utilisateur();
+    localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.USER_KEY);
+    this._utilisateur.set(null);
+
+    if (avaitUneSession && !this.router.url.startsWith('/login')) {
+      this.router.navigate(['/login'], { queryParams: { raison } });
+    }
   }
 
   /** Met à jour l'utilisateur en mémoire et en local storage sans re-authentifier. */

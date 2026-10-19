@@ -5,10 +5,8 @@ backend/vendor/
 backend/.env
 backend/.env.backup
 backend/storage/logs/*.log
-backend/storage/framework/cache/
-backend/storage/framework/sessions/
-backend/storage/framework/views/
-backend/bootstrap/cache/
+# storage/framework/{cache,sessions,views} et bootstrap/cache sont versionnés vides
+# (fichier .gitignore interne) : Laravel exige qu'ils existent dès le clone.
 backend/.phpunit.result.cache
 backend/coverage.xml
 backend/test-report.xml

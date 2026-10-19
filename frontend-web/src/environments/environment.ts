@@ -7,6 +7,6 @@ export const environment = {
     key: 'agriplatform-key',
     host: location.hostname,
     port: 8080,
-    scheme: 'http' as const,
+    scheme: 'http' as 'http' | 'https',
   },
 };

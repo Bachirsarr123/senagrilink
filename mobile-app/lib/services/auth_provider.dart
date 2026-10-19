@@ -8,12 +8,33 @@ class AuthProvider extends ChangeNotifier {
   Utilisateur? _utilisateur;
   bool _loading = false;
   String? _erreur;
+  String? _messageSession;
 
   Utilisateur? get utilisateur => _utilisateur;
   bool get isLoggedIn => _utilisateur != null;
   bool get loading => _loading;
   String? get erreur => _erreur;
   String? get role => _utilisateur?.role;
+  /// Motif affiché sur l'écran de connexion après une fin de session imposée.
+  String? get messageSession => _messageSession;
+
+  AuthProvider() {
+    ApiService.onSessionInvalide = _sessionInvalidee;
+  }
+
+  /// Rappelé par ApiService (session déjà effacée du stockage) : on vide l'état
+  /// une seule fois, ce qui affiche l'écran de connexion sans boucle.
+  void Function()? apresFinSession;
+
+  void _sessionInvalidee(FinSession raison) {
+    if (_utilisateur == null) return;
+    _utilisateur = null;
+    _messageSession = raison == FinSession.compteBloque
+        ? 'Votre compte a été bloqué. Contactez l\'administrateur.'
+        : 'Votre session a expiré. Veuillez vous reconnecter.';
+    notifyListeners();
+    apresFinSession?.call();
+  }
 
   // ── Initialisation depuis SharedPreferences ──────────────────────────────
   Future<void> init() async {
@@ -29,7 +50,7 @@ class AuthProvider extends ChangeNotifier {
 
   // ── Connexion ────────────────────────────────────────────────────────────
   Future<bool> login(String email, String password) async {
-    _loading = true; _erreur = null; notifyListeners();
+    _loading = true; _erreur = null; _messageSession = null; notifyListeners();
     try {
       final res = await ApiService.login(email, password);
       await _persistSession(res);
@@ -47,7 +68,7 @@ class AuthProvider extends ChangeNotifier {
 
   // ── Inscription ──────────────────────────────────────────────────────────
   Future<bool> register(Map<String, dynamic> data) async {
-    _loading = true; _erreur = null; notifyListeners();
+    _loading = true; _erreur = null; _messageSession = null; notifyListeners();
     try {
       final res = await ApiService.register(data);
       await _persistSession(res);
@@ -65,9 +86,12 @@ class AuthProvider extends ChangeNotifier {
 
   // ── Déconnexion ──────────────────────────────────────────────────────────
   Future<void> logout() async {
-    await ApiService.logout();
+    // Déconnexion volontaire : l'état est vidé d'abord, pour qu'un éventuel 401
+    // de /logout (jeton déjà expiré) n'affiche pas « session expirée ».
     _utilisateur = null;
+    _messageSession = null;
     notifyListeners();
+    await ApiService.logout();
   }
 
   void clearError() { _erreur = null; notifyListeners(); }

@@ -30,6 +30,8 @@
 
     <php>
         <env name="APP_ENV"                   value="testing"/>
+        <!-- Clé dédiée aux tests uniquement (base SQLite en mémoire) : .env.testing a une APP_KEY vide. -->
+        <env name="APP_KEY"                   value="base64:gHiecvoT6jEfQY51X8rjjz6zEiSI9RpWSUcSxmXdSLU="/>
         <env name="APP_MAINTENANCE_DRIVER"    value="file"/>
         <env name="BCRYPT_ROUNDS"             value="4"/>
         <env name="BROADCAST_CONNECTION"      value="null"/>

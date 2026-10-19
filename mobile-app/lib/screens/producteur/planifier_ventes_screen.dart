@@ -17,7 +17,6 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
   List<dynamic>    _demandes   = [];
   bool _loading = true;
   String? _erreur;
-  int? _actionId;
   late TabController _tabs;
 
   @override
@@ -39,30 +38,14 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
       setState(() {
         _enAttente   = all.where((p) => p.statut == 'en_attente').toList();
         _disponibles = all.where((p) => p.statut == 'disponible').toList();
-        _demandes    = resD['commandes'] as List? ?? [];
+        // Contrat de GET /api/commandes/disponibles : { commandes_disponibles: [...] }
+        _demandes    = resD['commandes_disponibles'] as List;
         _loading     = false;
       });
     } on ApiException catch (e) {
       setState(() { _erreur = e.message; _loading = false; });
-    }
-  }
-
-  Future<void> _mettreEnVente(int id) async {
-    setState(() => _actionId = id);
-    try {
-      await ApiService.updateProduction(id, {'statut': 'disponible'});
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Production mise en vente.'), backgroundColor: AppTheme.vert));
-        _charger();
-      }
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));
-      }
-    } finally {
-      if (mounted) setState(() => _actionId = null);
+    } catch (_) {
+      setState(() { _erreur = 'Réponse inattendue du serveur.'; _loading = false; });
     }
   }
 
@@ -76,7 +59,7 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
         labelColor: Colors.white,
         unselectedLabelColor: Colors.white70,
         tabs: [
-          Tab(text: 'À mettre en vente (${_enAttente.length})'),
+          Tab(text: 'Mes récoltes (${_enAttente.length + _disponibles.length})'),
           Tab(text: 'Demandes (${_demandes.length})'),
         ],
       ),
@@ -107,7 +90,7 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
         if (_enAttente.isNotEmpty) ...[
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('En attente de mise en vente',
+            child: Text('En attente de réception en entrepôt',
                 style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
           ),
           ..._enAttente.map((p) => Card(
@@ -128,14 +111,17 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
                   Text('${p.quantiteEstimee!.toStringAsFixed(0)} kg estimés',
                       style: const TextStyle(fontSize: 13)),
                 const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.storefront_outlined),
-                    label: Text(_actionId == p.id ? 'En cours...' : 'Mettre en vente'),
-                    onPressed: _actionId == p.id ? null : () => _mettreEnVente(p.id),
-                  ),
-                ),
+                // La mise en vente n'est pas une action du producteur : le lot devient
+                // « disponible » quand l'entrepôt valide sa réception (règle serveur).
+                const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.info_outline, size: 18, color: Colors.grey),
+                  SizedBox(width: 6),
+                  Expanded(child: Text(
+                    'Pour vendre ce lot, réservez une place en entrepôt (espace web). '
+                    'Il apparaîtra au catalogue dès que l\'entrepôt aura validé sa réception.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  )),
+                ]),
               ]),
             ),
           )),
