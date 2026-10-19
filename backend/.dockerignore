@@ -1,0 +1,21 @@
+# Jamais dans l'image : secrets locaux, dépendances et fichiers de test ou de CI.
+# (Le Dockerfile copie déjà explicitement le seul code nécessaire.)
+.env
+.env.*
+!.env.example
+vendor
+node_modules
+tests
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+.phpunit.result.cache
+test-report.xml
+coverage.xml
+phpunit.xml
+sonar-project.properties
+docker
+Dockerfile
+.dockerignore
+.git
