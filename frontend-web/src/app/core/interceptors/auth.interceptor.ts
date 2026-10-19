@@ -24,7 +24,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((erreur: unknown) => {
       // Seules les requêtes authentifiées peuvent invalider la session : un 401 sur
       // /login (mauvais mot de passe) reste une erreur affichée par le formulaire.
-      if (token && erreur instanceof HttpErrorResponse) {
+      // Le refus doit concerner le jeton encore en place : la réponse tardive d'une
+      // requête émise avec un ancien jeton n'efface pas une session ouverte depuis.
+      // Erreur réseau (status 0), délai dépassé ou 5xx : la session est conservée.
+      if (token && token === auth.getToken() && erreur instanceof HttpErrorResponse) {
         if (erreur.status === 401) {
           auth.invaliderSession('session_expiree');
         } else if (erreur.status === 403 && erreur.error?.code === 'compte_bloque') {
