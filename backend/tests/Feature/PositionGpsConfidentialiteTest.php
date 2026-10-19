@@ -82,12 +82,47 @@ class PositionGpsConfidentialiteTest extends TestCase
         $this->position($autreAcheteur, $nouvelle)->assertOk();
     }
 
+    public function test_le_suivi_renvoie_les_reperes_de_la_livraison_et_lheure_du_serveur(): void
+    {
+        $this->position($this->p->acheteur)
+             ->assertOk()
+             ->assertJsonPath('livraison.code_tracabilite', $this->p->production->code_tracabilite)
+             ->assertJsonPath('livraison.produit', 'riz')
+             ->assertJsonPath('position.timestamp', fn ($t) => $t !== null)
+             ->assertJsonPath('genere_le', fn ($t) => strtotime($t) >= time() - 5);
+    }
+
+    public function test_hors_livraison_en_cours_les_reperes_restent_disponibles_sans_position(): void
+    {
+        $this->p->livraison->update(['statut' => 'livree', 'date_livraison' => now()]);
+
+        $this->position($this->p->acheteur)
+             ->assertStatus(404)
+             ->assertJsonPath('statut_livraison', 'livree')
+             ->assertJsonPath('livraison.code_tracabilite', $this->p->production->code_tracabilite)
+             ->assertJsonPath('livraison.date_livraison', fn ($d) => $d !== null)
+             ->assertJsonMissingPath('position')
+             ->assertJsonMissingPath('origine')
+             ->assertJsonMissingPath('destination');
+    }
+
+    public function test_sans_position_enregistree_le_statut_et_les_reperes_sont_renvoyes(): void
+    {
+        PositionGps::query()->delete();
+
+        $this->position($this->p->acheteur)
+             ->assertStatus(404)
+             ->assertJsonPath('statut_livraison', 'en_cours')
+             ->assertJsonPath('livraison.numero_livraison', $this->p->livraison->fresh()->numero_livraison)
+             ->assertJsonMissingPath('position');
+    }
+
     public function test_un_tiers_reste_refuse_avant_et_apres_livraison(): void
     {
         $tiers = Utilisateur::factory()->acheteur()->create();
 
-        $this->position($tiers)->assertStatus(403);
+        $this->position($tiers)->assertStatus(403)->assertJsonMissingPath('livraison');
         $this->p->livraison->update(['statut' => 'livree']);
-        $this->position($tiers)->assertStatus(403);
+        $this->position($tiers)->assertStatus(403)->assertJsonMissingPath('livraison');
     }
 }

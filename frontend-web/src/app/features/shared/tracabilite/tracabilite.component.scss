@@ -1,0 +1,77 @@
+$vert: #2d6a4f;
+$vert-fonce: #1b4332;
+$gris: #6b7280;
+
+.champ-code { font-family: monospace; text-transform: uppercase; }
+.champ-code::placeholder { text-transform: none; }
+
+.recherche { display: flex; align-items: flex-end; gap: .75rem; flex-wrap: wrap; }
+.recherche__champ { flex: 1 1 16rem; margin-bottom: 0; }
+
+// ── Carte d'identité du lot ───────────────────────────────────────────────────
+.lot { display: flex; flex-direction: column; gap: 1rem; border-top: 4px solid $vert; }
+.lot__entete { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.lot__surtitre { margin: 0 0 .25rem; font-size: .85rem; color: $gris; }
+.lot__produit { margin: 0 !important; font-size: 1.6rem !important; text-transform: capitalize; }
+.lot__origine { margin: .25rem 0 0; color: #374151; }
+.lot__etat {
+  padding: .4rem .85rem; border-radius: 999px; background: #d8f3dc; color: $vert-fonce;
+  font-weight: 700; font-size: .9rem;
+}
+.lot__faits {
+  margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: .75rem;
+  > div { padding: .75rem 1rem; border-radius: 10px; background: #f9fafb; }
+  dt { font-size: .75rem; font-weight: 600; text-transform: uppercase; color: $gris; }
+  dd { margin: .2rem 0 0; font-weight: 600; color: #1f2937; overflow-wrap: anywhere; }
+}
+.lot__note { margin: -.25rem 0 0; font-size: .8rem; color: $gris; }
+.lot .btn-primary { align-self: flex-start; }
+
+// ── Chronologie verticale ────────────────────────────────────────────────────
+.chronologie { list-style: none; margin: 0; padding: 0; }
+.etape {
+  position: relative; display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); gap: .85rem;
+  padding-bottom: 1.25rem;
+  // Trait reliant les étapes : plein (vert) pour le parcours enregistré
+  &::before {
+    content: ''; position: absolute; left: calc(1.25rem - 1.5px); top: 2.5rem; bottom: 0;
+    width: 3px; border-radius: 3px; background: #b7e4c7;
+  }
+  &:last-child { padding-bottom: 0; &::before { display: none; } }
+}
+.etape__point {
+  width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: #d8f3dc; font-size: 1.1rem; border: 2px solid #fff; box-shadow: 0 0 0 2px #b7e4c7;
+}
+.etape__corps { padding-top: .2rem; min-width: 0; }
+.etape__ligne { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.etape__titre { margin: 0; font-size: 1rem; color: #1f2937; }
+.etape__marque {
+  padding: .1rem .55rem; border-radius: 999px; background: $vert; color: #fff; font-size: .72rem; font-weight: 700;
+  &--prevu { background: #f3f4f6; color: $gris; border: 1px dashed #9ca3af; }
+}
+.etape__date { margin: .15rem 0 0; font-size: .85rem; color: $gris; }
+.etape__lieu, .etape__detail { margin: .3rem 0 0; font-size: .9rem; color: #374151; overflow-wrap: anywhere; }
+.etape .badge { margin-top: .4rem; }
+.etape__lien { margin-top: .6rem; }
+
+.etape--actuel {
+  .etape__point { background: $vert; box-shadow: 0 0 0 4px rgba(45, 106, 79, .25); }
+  .etape__titre { color: $vert-fonce; }
+}
+.etape--prevu {
+  .etape__point { background: #fff; box-shadow: 0 0 0 2px #d1d5db; filter: grayscale(1); opacity: .8; }
+  .etape__titre { color: $gris; }
+}
+.etape--alerte {
+  .etape__point { background: #fee2e2; box-shadow: 0 0 0 2px #fca5a5; }
+  .etape__titre { color: #991b1b; }
+}
+// Les étapes précédant une étape prévue sont reliées par un trait pointillé
+.etape:has(+ .etape--prevu)::before { background: repeating-linear-gradient(#d1d5db 0 6px, transparent 6px 12px); }
+
+@media (max-width: 640px) {
+  .recherche .btn-primary { width: 100%; }
+  .lot__produit { font-size: 1.35rem !important; }
+  .lot .btn-primary { align-self: stretch; }
+}

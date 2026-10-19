@@ -140,8 +140,11 @@ void main() {
           expect(tester.takeException(), isNull);
           expect(find.textContaining(texteAttendu, skipOffstage: false), findsWidgets,
               reason: '$nomEcran devrait afficher ses données ($texteAttendu)');
-          expect(find.textContaining('indisponible', skipOffstage: false), findsNothing,
-              reason: '$nomEcran ne devrait afficher aucune erreur');
+          // Faux messages d'erreur (le fond de carte, lui, est réellement indisponible en test)
+          for (final faux in ['Position indisponible', 'Connexion au serveur perdue']) {
+            expect(find.textContaining(faux, skipOffstage: false), findsNothing,
+                reason: '$nomEcran ne devrait pas afficher « $faux »');
+          }
 
           // Démonte l'écran : arrête les minuteurs (rafraîchissement du suivi GPS)
           await tester.pumpWidget(const SizedBox());

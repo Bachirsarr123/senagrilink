@@ -1,10 +1,15 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { EtapeChronologie, construireChronologie, resumerLot } from '../../../shared/suivi/chronologie';
+
+const ICONES: Record<EtapeChronologie['type'], string> = {
+  recolte: '🌱', entree: '🏭', sortie: '📤', commande: '🛒', depart: '🚚', livree: '✅', planifiee: '🗓️', probleme: '⚠️',
+};
 
 @Component({
   selector: 'app-tracabilite',
@@ -14,278 +19,130 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
     <div class="page">
       <div class="page-header">
         <h1>Traçabilité d'un lot</h1>
-        <span class="subtitle">Parcours complet d'un produit par son code LOT</span>
+        <span class="subtitle">Parcours d'un produit, de la récolte à la livraison</span>
       </div>
 
       <div class="card form-card">
-        <form [formGroup]="form" (ngSubmit)="rechercher()">
-          <div class="form-row">
-            <div class="form-group" style="flex:1">
-              <label>Code de traçabilité *</label>
-              <input type="text" formControlName="code"
-                     placeholder="ex : LOT-2026-00001"
-                     class="champ-code" />
-            </div>
-            <div class="action-recherche">
-              <button type="submit" class="btn-primary" [disabled]="loading()">
-                {{ loading() ? 'Recherche...' : 'Rechercher' }}
-              </button>
-            </div>
+        <form [formGroup]="form" (ngSubmit)="rechercher()" class="recherche">
+          <div class="form-group recherche__champ">
+            <label for="code-lot">Code de traçabilité *</label>
+            <input id="code-lot" type="text" formControlName="code" placeholder="ex : LOT-2026-00001"
+                   class="champ-code" autocomplete="off" enterkeyhint="search" />
           </div>
+          <button type="submit" class="btn-primary" [disabled]="loading()">
+            {{ loading() ? 'Recherche…' : 'Rechercher' }}
+          </button>
         </form>
       </div>
 
-      @if (erreur()) {
-        <div class="alert alert-error">{{ erreur() }}</div>
-      }
+      @if (erreur()) { <div class="alert alert-error" role="alert">{{ erreur() }}</div> }
+      @if (loading()) { <p class="loading">Recherche du lot…</p> }
 
-      @if (resultat(); as r) {
-        <!-- Étape 1 : Production -->
-        <div class="card">
-          <h2 style="display:flex;align-items:center;gap:.5rem">
-            <span style="font-size:1.4rem">🌱</span> Production
-          </h2>
-          <div class="stat-row">
-            <span>Code</span>
-            <code class="code-lot">{{ r.code_tracabilite }}</code>
+      @if (resultat() && resume(); as r) {
+        <section class="lot card" aria-label="Résumé du lot">
+          <div class="lot__entete">
+            <div>
+              <p class="lot__surtitre">Lot <code class="code-lot">{{ r.code }}</code></p>
+              <h2 class="lot__produit">{{ r.produit ?? 'Produit non renseigné' }}</h2>
+              @if (r.producteur) {
+                <p class="lot__origine">Produit par <strong>{{ r.producteur }}</strong>@if (r.region) { · {{ r.region }} }</p>
+              }
+            </div>
+            @if (r.etatActuel) { <span class="lot__etat">{{ r.etatActuel }}</span> }
           </div>
-          @if (r.etape_production.producteur; as producteur) {
-            <div class="stat-row">
-              <span>Producteur</span>
-              <strong>{{ producteur.prenom }} {{ producteur.nom }}</strong>
-            </div>
-            <div class="stat-row">
-              <span>Région</span>
-              <span>{{ producteur.region ?? '—' }}</span>
-            </div>
+          <dl class="lot__faits">
+            <div><dt>Dernier lieu enregistré</dt><dd>{{ r.dernierLieu ?? 'Aucun lieu enregistré' }}</dd></div>
+            <div><dt>Dernière étape</dt><dd>{{ r.dateDerniereEtape ? (r.dateDerniereEtape | date:'dd/MM/yyyy') : '—' }}</dd></div>
+          </dl>
+          <p class="lot__note">Les lieux indiqués sont ceux déclarés lors de chaque opération, et non une position GPS.</p>
+          @if (r.livraisonEnCoursId && peutSuivreEnDirect()) {
+            <a class="btn-primary" [routerLink]="['/suivi-livraison', r.livraisonEnCoursId]">Suivre la livraison sur la carte</a>
           }
-          <div class="stat-row">
-            <span>Type de culture</span>
-            <strong>{{ r.etape_production.type_culture ?? '—' }}</strong>
-          </div>
-          <div class="stat-row">
-            <span>Date récolte</span>
-            <span>{{ r.etape_production.date_recolte | date:'dd/MM/yyyy' }}</span>
-          </div>
-          <div class="stat-row">
-            <span>Quantité estimée</span>
-            <span>{{ r.etape_production.quantite_estimee ?? '—' }} kg</span>
-          </div>
-          <div class="stat-row">
-            <span>Quantité réelle</span>
-            <span>{{ r.etape_production.quantite_reelle ?? '—' }} kg</span>
-          </div>
-          <div class="stat-row">
-            <span>Statut</span>
-            <span class="badge badge-{{ r.etape_production.statut }}">
-              {{ r.etape_production.statut | libelleStatut }}
-            </span>
-          </div>
-        </div>
+        </section>
 
-        <!-- Étape 2+ : une carte par entrepôt où le lot est passé -->
-        @if (r.etapes_stockage.length === 0) {
-          <div class="card" style="border-left:3px solid #e5e7eb">
-            <p class="text-muted" style="margin:0">
-              Ce lot n'a pas encore été réceptionné en entrepôt.
-            </p>
-          </div>
-        } @else {
-          @for (etape of r.etapes_stockage; track $index) {
-            <div class="card">
-              <h2 style="display:flex;align-items:center;gap:.5rem">
-                <span style="font-size:1.4rem">🏭</span> Stockage en entrepôt
-              </h2>
-              @if (etape.entrepot) {
-                <div class="stat-row">
-                  <span>Entrepôt</span>
-                  <strong>{{ etape.entrepot.nom }}</strong>
-                </div>
-                <div class="stat-row">
-                  <span>Localisation</span>
-                  <span>{{ etape.entrepot.localisation ?? '—' }}</span>
-                </div>
-              }
-              <div class="stat-row">
-                <span>Produit</span>
-                <span>{{ etape.produit }}</span>
-              </div>
-              <div class="stat-row">
-                <span>Quantité</span>
-                <span>{{ etape.quantite }} kg</span>
-              </div>
-              <div class="stat-row">
-                <span>Date entrée</span>
-                <span>{{ etape.date_entree | date:'dd/MM/yyyy' }}</span>
-              </div>
-              @if (etape.date_sortie) {
-                <div class="stat-row">
-                  <span>Date sortie</span>
-                  <span>{{ etape.date_sortie | date:'dd/MM/yyyy' }}</span>
-                </div>
-              }
-              <div class="stat-row">
-                <span>Statut</span>
-                <span class="badge badge-{{ etape.statut }}">{{ etape.statut | libelleStatut }}</span>
-              </div>
-            </div>
-
-            @if (etape.commandes.length === 0) {
-              <div class="card" style="border-left:3px solid #e5e7eb">
-                <p class="text-muted" style="margin:0">Aucune commande liée à ce lot.</p>
-              </div>
-            } @else {
-              @for (commande of etape.commandes; track $index) {
-                <div class="card">
-                  <h2 style="display:flex;align-items:center;gap:.5rem">
-                    <span style="font-size:1.4rem">🛒</span> Commande associée
-                  </h2>
-                  <div class="stat-row">
-                    <span>Numéro</span>
-                    <code class="code-lot">{{ commande.numero_commande }}</code>
+        <section class="card" aria-label="Chronologie du lot">
+          <h2>Chronologie</h2>
+          <ol class="chronologie">
+            @for (e of etapes(); track e.cle) {
+              <li class="etape etape--{{ e.etat }}" [attr.aria-current]="e.etat === 'actuel' ? 'step' : null">
+                <span class="etape__point" aria-hidden="true">{{ icone(e) }}</span>
+                <div class="etape__corps">
+                  <div class="etape__ligne">
+                    <h3 class="etape__titre">{{ e.titre }}</h3>
+                    @if (e.etat === 'actuel') { <span class="etape__marque">Étape actuelle</span> }
+                    @if (e.etat === 'prevu') { <span class="etape__marque etape__marque--prevu">Prévue</span> }
                   </div>
-                  @if (commande.acheteur; as acheteur) {
-                    <div class="stat-row">
-                      <span>Acheteur</span>
-                      <strong>{{ acheteur.prenom }} {{ acheteur.nom }}</strong>
-                    </div>
+                  <p class="etape__date">
+                    @if (e.date) { {{ e.date | date:(aUneHeure(e.date) ? 'dd/MM/yyyy à HH:mm' : 'dd/MM/yyyy') }} }
+                    @else if (e.etat === 'prevu') { Date de départ non encore fixée }
+                    @else { Date non enregistrée }
+                  </p>
+                  @if (e.lieu) { <p class="etape__lieu"><span aria-hidden="true">📍</span> {{ e.lieu }}</p> }
+                  @if (e.detail) { <p class="etape__detail">{{ e.detail }}</p> }
+                  @if (e.statut && e.type !== 'depart' && e.type !== 'livree') {
+                    <span class="badge badge-{{ e.statut }}">{{ e.statut | libelleStatut }}</span>
                   }
-                  <div class="stat-row">
-                    <span>Produit</span>
-                    <span>{{ commande.produit }}</span>
-                  </div>
-                  <div class="stat-row">
-                    <span>Quantité</span>
-                    <span>{{ commande.quantite }} kg</span>
-                  </div>
-                  <div class="stat-row">
-                    <span>Prix</span>
-                    <span>{{ commande.prix ? commande.prix + ' FCFA' : '—' }}</span>
-                  </div>
-                  <div class="stat-row">
-                    <span>Date commande</span>
-                    <span>{{ commande.date_commande | date:'dd/MM/yyyy' }}</span>
-                  </div>
-                  <div class="stat-row">
-                    <span>Statut</span>
-                    <span class="badge badge-{{ commande.statut }}">{{ commande.statut | libelleStatut }}</span>
-                  </div>
+                  @if (e.livraisonId && peutSuivreEnDirect()) {
+                    <a class="btn-secondary btn-sm etape__lien" [routerLink]="['/suivi-livraison', e.livraisonId]">📍 Voir sur la carte</a>
+                  }
                 </div>
-
-                @if (!commande.livraison) {
-                  <div class="card" style="border-left:3px solid #e5e7eb">
-                    <p class="text-muted" style="margin:0">Livraison pas encore créée pour cette commande.</p>
-                  </div>
-                } @else {
-                  <div class="card">
-                    <h2 style="display:flex;align-items:center;gap:.5rem">
-                      <span style="font-size:1.4rem">🚛</span> Livraison
-                    </h2>
-                    <div class="stat-row">
-                      <span>Numéro</span>
-                      <code class="code-lot">{{ commande.livraison.numero_livraison }}</code>
-                    </div>
-                    <div class="stat-row">
-                      <span>Origine</span>
-                      <span>{{ commande.livraison.origine ?? '—' }}</span>
-                    </div>
-                    <div class="stat-row">
-                      <span>Destination</span>
-                      <span>{{ commande.livraison.destination ?? '—' }}</span>
-                    </div>
-                    <div class="stat-row">
-                      <span>Date départ</span>
-                      <span>{{ commande.livraison.date_depart | date:'dd/MM/yyyy HH:mm' }}</span>
-                    </div>
-                    <div class="stat-row">
-                      <span>Date livraison</span>
-                      <span>
-                        {{ commande.livraison.date_livraison
-                           ? (commande.livraison.date_livraison | date:'dd/MM/yyyy HH:mm')
-                           : '—' }}
-                      </span>
-                    </div>
-                    <div class="stat-row">
-                      <span>Statut</span>
-                      <span class="badge badge-{{ commande.livraison.statut }}">
-                        {{ commande.livraison.statut | libelleStatut }}
-                      </span>
-                    </div>
-                    @if (commande.livraison.transporteur; as transporteur) {
-                      <div class="stat-row">
-                        <span>Transporteur</span>
-                        <strong>{{ transporteur.prenom }} {{ transporteur.nom }}</strong>
-                      </div>
-                      <div class="stat-row">
-                        <span>Véhicule</span>
-                        <span>{{ transporteur.type_vehicule ?? '—' }}</span>
-                      </div>
-                      <div class="stat-row">
-                        <span>Zone</span>
-                        <span>{{ transporteur.zone ?? '—' }}</span>
-                      </div>
-                    } @else {
-                      <div class="stat-row">
-                        <span>Transporteur</span>
-                        <span class="text-muted">Pas encore assigné</span>
-                      </div>
-                    }
-                    @if (commande.livraison.statut === 'en_cours' && peutSuivreEnDirect()) {
-                      <a class="btn-secondary btn-sm" style="margin-top:.75rem;display:inline-block"
-                         [routerLink]="['/suivi-livraison', commande.livraison.id]">
-                        📍 Suivre en direct
-                      </a>
-                    }
-                  </div>
-                }
-              }
+              </li>
             }
+          </ol>
+          @if (resultat()?.etapes_stockage?.length === 0) {
+            <p class="empty">Ce lot n'a pas encore été réceptionné en entrepôt.</p>
           }
-        }
+        </section>
       }
     </div>
   `,
-  styles: [`
-    .champ-code { font-family: monospace; text-transform: uppercase; }
-    .champ-code::placeholder { text-transform: none; }
-    .action-recherche { display: flex; align-items: flex-end; padding-bottom: .75rem; }
-    @media (max-width: 640px) {
-      .action-recherche { padding-bottom: 0; margin-bottom: .75rem; }
-      .action-recherche .btn-primary { width: 100%; }
-    }
-  `],
-  styleUrls: ['../../shared.styles.scss'],
+  styleUrls: ['../../shared.styles.scss', './tracabilite.component.scss'],
 })
-export class TracabiliteComponent {
-  private api  = inject(ApiService);
+export class TracabiliteComponent implements OnInit {
+  private api = inject(ApiService);
   private auth = inject(AuthService);
-  private fb   = inject(FormBuilder);
+  private fb = inject(FormBuilder);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
-  form:     FormGroup;
-  resultat  = signal<any | null>(null);
-  loading   = signal(false);
-  erreur    = signal<string | null>(null);
+  form: FormGroup = this.fb.group({ code: ['', Validators.required] });
+  resultat = signal<any | null>(null);
+  loading = signal(false);
+  erreur = signal<string | null>(null);
+
+  etapes = computed(() => construireChronologie(this.resultat()));
+  resume = computed(() => (this.resultat() ? resumerLot(this.resultat(), this.etapes()) : null));
 
   // Le suivi en direct n'est accessible qu'au producteur et à l'acheteur concernés (cf. app.routes.ts).
-  peutSuivreEnDirect = computed(() =>
-    this.auth.role() === 'producteur' || this.auth.role() === 'acheteur_gros'
-  );
+  peutSuivreEnDirect = computed(() => this.auth.role() === 'producteur' || this.auth.role() === 'acheteur_gros');
 
-  constructor() {
-    this.form = this.fb.group({ code: ['', Validators.required] });
+  ngOnInit(): void {
+    // Lien direct depuis la carte de suivi : /tracabilite?code=LOT-…
+    const code = this.route.snapshot.queryParamMap.get('code');
+    if (code) {
+      this.form.setValue({ code });
+      this.rechercher();
+    }
   }
+
+  icone(e: EtapeChronologie): string { return ICONES[e.type]; }
+  aUneHeure(date: string): boolean { return /\d{2}:\d{2}/.test(date); }
 
   rechercher(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
+    const code = (this.form.value.code as string).trim().toUpperCase();
     this.loading.set(true);
     this.erreur.set(null);
     this.resultat.set(null);
+    // Le code reste dans l'adresse : partage du lien et retour arrière depuis la carte.
+    this.router.navigate([], { relativeTo: this.route, queryParams: { code }, replaceUrl: true });
 
-    const code = (this.form.value.code as string).trim().toUpperCase();
     this.api.getTracabilite(code).subscribe({
       next: res => { this.resultat.set(res.tracabilite); this.loading.set(false); },
       error: err => {
-        this.erreur.set(err.error?.message ?? 'Code introuvable ou erreur serveur.');
+        this.erreur.set(err.status === 0
+          ? 'Serveur injoignable. Vérifiez votre connexion puis réessayez.'
+          : err.error?.message ?? 'Code introuvable ou erreur serveur.');
         this.loading.set(false);
       },
     });

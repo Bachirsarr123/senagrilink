@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
-  ApiException(this.message, {this.statusCode});
+  /// Corps JSON de la réponse d'erreur (ex. statut d'une livraison sans position).
+  final Map<String, dynamic>? donnees;
+  ApiException(this.message, {this.statusCode, this.donnees});
   @override
   String toString() => message;
 }
@@ -71,7 +73,7 @@ class ApiService {
     }
 
     final msg = body is Map && body['message'] != null ? body['message'] : 'Erreur serveur (${res.statusCode})';
-    throw ApiException(msg, statusCode: res.statusCode);
+    throw ApiException(msg, statusCode: res.statusCode, donnees: body is Map<String, dynamic> ? body : null);
   }
 
   static bool _avecJeton(Map<String, String> h) => h.containsKey('Authorization');

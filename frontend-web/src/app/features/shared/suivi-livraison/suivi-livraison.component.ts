@@ -1,215 +1,310 @@
-import { Component, OnDestroy, OnInit, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
-import { DatePipe } from '@angular/common';
-import * as L from 'leaflet';
+import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { DatePipe, Location } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { CARTE_SUIVI, CarteSuivi } from '../../../shared/suivi/carte-suivi';
+import {
+  Point, SEUIL_POSITION_DIRECTE_S, aDesCoordonnees, distanceKm, formaterDistance, libelleAge, versMs,
+} from '../../../shared/suivi/geo';
 
-const INTERVALLE_RAFRAICHISSEMENT_MS = 10000;
+/** Rafraîchissement : le transporteur envoie sa position toutes les 10 s. */
+export const DELAI_SUIVI_MS = 10_000;
+/** Livraison pas encore partie, ou réseau en échec : on revérifie moins souvent. */
+export const DELAI_ATTENTE_MS = 30_000;
 
-interface PointCarte {
-  latitude: number | null;
-  longitude: number | null;
-}
+/**
+ * chargement  : première requête en cours
+ * direct      : position reçue (en direct ou ancienne, cf. positionDirecte)
+ * sans-position : livraison en cours, aucune position encore envoyée
+ * pas-partie  : livraison planifiée, le suivi démarrera au départ
+ * terminee    : livrée — suivi arrêté
+ * probleme    : problème signalé — suivi arrêté
+ * refuse / introuvable : accès refusé ou livraison inconnue — suivi arrêté
+ */
+export type EtatSuivi = 'chargement' | 'direct' | 'sans-position' | 'pas-partie' | 'terminee' | 'probleme' | 'refuse' | 'introuvable';
 
 @Component({
   selector: 'app-suivi-livraison',
   standalone: true,
-  imports: [LibelleStatutPipe, DatePipe],
+  imports: [LibelleStatutPipe, DatePipe, RouterLink],
   template: `
-    <div class="page">
-      <div class="page-header">
-        <h1>Suivi de livraison en direct</h1>
-        <span class="subtitle">Position actualisée toutes les 10 secondes</span>
-      </div>
+    <div class="suivi" [class.suivi--avec-carte]="aUnePosition()">
+      <section class="suivi-carte" aria-label="Carte du suivi de livraison">
+        <div #carte class="suivi-carte__fond"></div>
 
-      @if (erreur()) {
-        <div class="alert alert-error">{{ erreur() }}</div>
-      }
-
-      @if (statutLivraison()) {
-        <div class="card">
-          <div class="stat-row">
-            <span>Statut de la livraison</span>
-            <span class="badge badge-{{ statutLivraison() }}">{{ statutLivraison() | libelleStatut }}</span>
+        @if (!aUnePosition()) {
+          <div class="suivi-carte__vide">
+            @if (etat() === 'chargement') {
+              <span class="pastille-chargement" aria-hidden="true"></span>
+              <p>Chargement du suivi…</p>
+            } @else {
+              <span class="suivi-carte__icone" aria-hidden="true">{{ iconeEtat() }}</span>
+              <p>{{ messageCarte() }}</p>
+            }
           </div>
-          @if (derniereMiseAJour()) {
-            <div class="stat-row">
-              <span>Dernière position reçue</span>
-              <span>{{ derniereMiseAJour() | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+        } @else {
+          <div class="suivi-carte__haut">
+            <button type="button" class="bouton-rond" (click)="retour()" aria-label="Retour">←</button>
+            <span class="puce-fraicheur" [class.puce-fraicheur--direct]="positionDirecte()" role="status">
+              <span class="puce-fraicheur__point" aria-hidden="true"></span>
+              {{ positionDirecte() ? 'En direct' : 'Dernière position connue' }} · {{ ageLibelle() }}
+            </span>
+          </div>
+          <div class="suivi-carte__actions">
+            <button type="button" class="bouton-rond" (click)="vueEnsemble()" aria-label="Vue d'ensemble du trajet" title="Vue d'ensemble">⤢</button>
+            <button type="button" class="bouton-rond" [class.bouton-rond--actif]="suiviAuto()" (click)="centrerVehicule()"
+                    aria-label="Centrer sur le transporteur" title="Centrer sur le transporteur">➤</button>
+          </div>
+          @if (tuilesIndisponibles()) {
+            <p class="suivi-carte__avis" role="status">Fond de carte indisponible : les positions restent affichées.</p>
+          }
+        }
+      </section>
+
+      <aside class="suivi-panneau" aria-live="polite">
+        <div class="suivi-panneau__poignee" aria-hidden="true"></div>
+
+        @if (statut(); as s) {
+          <div class="suivi-panneau__entete">
+            <span class="badge badge-{{ s }}">{{ s | libelleStatut }}</span>
+            @if (infos()?.numero_livraison; as numero) { <code class="suivi-panneau__numero">{{ numero }}</code> }
+          </div>
+        }
+
+        @if (aUnePosition()) {
+          @if (distanceRestante(); as d) {
+            <p class="suivi-panneau__distance"><strong>{{ d }}</strong> jusqu'à la destination</p>
+            <p class="suivi-panneau__note">Distance à vol d'oiseau, estimée depuis la dernière position reçue.</p>
+          } @else {
+            <p class="suivi-panneau__distance"><strong>En route</strong></p>
+            <p class="suivi-panneau__note">Coordonnées de destination non renseignées : distance non calculable.</p>
+          }
+          @if (progression() !== null) {
+            <div class="progression" role="progressbar" aria-label="Progression estimée"
+                 [attr.aria-valuenow]="progression()" aria-valuemin="0" aria-valuemax="100">
+              <span class="progression__barre" [style.width.%]="progression()"></span>
             </div>
           }
-        </div>
-      }
+        } @else if (etat() !== 'chargement') {
+          <!-- L'explication est affichée sur la carte : pas de doublon ici -->
+          <p class="suivi-panneau__distance"><strong>{{ titreEtat() }}</strong></p>
+        }
 
-      <div class="card">
-        @if (!position()) {
-          <p class="empty">{{ erreur() ? 'Position indisponible.' : 'Chargement de la position...' }}</p>
-        } @else {
-          <div id="suivi-map" class="carte-suivi"></div>
-          <p class="legende">
-            <span>🏭 Entrepôt</span>
-            <span>🚚 Transporteur</span>
-            <span>🏠 Adresse de livraison</span>
+        @if (erreurReseau()) {
+          <p class="alert alert-error" role="alert">
+            Connexion au serveur perdue — nouvelle tentative automatique.
+            @if (aUnePosition()) { La position affichée est la dernière reçue. }
           </p>
         }
-      </div>
+
+        @if (infos(); as i) {
+          <dl class="suivi-details">
+            @if (i.produit) { <div><dt>Marchandise</dt><dd>{{ i.produit }}@if (i.quantite) { · {{ i.quantite }} kg }</dd></div> }
+            @if (origineNom()) { <div><dt>Départ</dt><dd>{{ origineNom() }}</dd></div> }
+            @if (destinationAdresse()) { <div><dt>Destination</dt><dd>{{ destinationAdresse() }}</dd></div> }
+            @if (i.date_depart) { <div><dt>Parti le</dt><dd>{{ i.date_depart | date:'dd/MM/yyyy à HH:mm' }}</dd></div> }
+            @if (i.date_livraison) { <div><dt>Livré le</dt><dd>{{ i.date_livraison | date:'dd/MM/yyyy à HH:mm' }}</dd></div> }
+            @if (aUnePosition() && horodatagePosition()) {
+              <div><dt>Position GPS reçue</dt><dd>{{ horodatagePosition() | date:'dd/MM/yyyy à HH:mm:ss' }}</dd></div>
+            }
+          </dl>
+          @if (i.code_tracabilite) {
+            <a class="btn-primary btn-full" [routerLink]="['/tracabilite']" [queryParams]="{ code: i.code_tracabilite }">
+              Voir la traçabilité du lot
+            </a>
+          }
+        }
+
+        @if (aUnePosition()) {
+          <p class="suivi-legende">
+            <span><i class="legende-depart"></i>Départ</span>
+            <span><i class="legende-vehicule"></i>Transporteur</span>
+            <span><i class="legende-arrivee"></i>Arrivée</span>
+            <span><i class="legende-trace"></i>Tracé indicatif</span>
+          </p>
+        }
+      </aside>
     </div>
   `,
-  styles: [`
-    .legende { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; margin: .75rem 0 0; font-size: .85rem; color: #6b7280; }
-    /* Carte à la mesure de l'écran : reste visible en entier sur un petit téléphone
-       et en paysage, sans dépasser 480 px sur ordinateur. */
-    .carte-suivi { height: clamp(240px, 55vh, 480px); border-radius: 8px; }
-  `],
-  styleUrls: ['../../shared.styles.scss'],
+  styleUrls: ['../../shared.styles.scss', './suivi-livraison.component.scss'],
 })
-export class SuiviLivraisonComponent implements OnInit, OnDestroy {
-  position          = signal<{ latitude: number; longitude: number } | null>(null);
-  statutLivraison   = signal<string | null>(null);
-  derniereMiseAJour = signal<string | null>(null);
-  erreur            = signal<string | null>(null);
+export class SuiviLivraisonComponent implements OnInit, AfterViewInit, OnDestroy {
+  private route = inject(ActivatedRoute);
+  private api = inject(ApiService);
+  private location = inject(Location);
+  private carte: CarteSuivi = inject(CARTE_SUIVI)();
 
-  private livraisonId!: number;
-  private map: L.Map | null = null;
-  private markerTransporteur: L.Marker | null = null;
-  private markerOrigine: L.Marker | null = null;
-  private markerDestination: L.Marker | null = null;
-  private trajet: L.Polyline | null = null;
-  private intervalId: ReturnType<typeof setInterval> | null = null;
+  @ViewChild('carte', { static: true }) private conteneurCarte!: ElementRef<HTMLElement>;
 
-  constructor(private route: ActivatedRoute, private api: ApiService) {}
+  etat = signal<EtatSuivi>('chargement');
+  statut = signal<string | null>(null);
+  infos = signal<any | null>(null);
+  vehicule = signal<Point | null>(null);
+  origine = signal<any | null>(null);
+  destination = signal<any | null>(null);
+  horodatagePosition = signal<string | null>(null);
+  erreurReseau = signal(false);
+  tuilesIndisponibles = signal(false);
+  suiviAuto = signal(true);
+
+  /** Écart horloge appareil − horloge serveur, pour dater la position sans erreur de fuseau ou d'heure. */
+  private decalageHorlogeMs = 0;
+  private maintenant = signal(Date.now());
+  private minuteur: ReturnType<typeof setTimeout> | null = null;
+  private horloge: ReturnType<typeof setInterval> | null = null;
+  private livraisonId = 0;
+  private carteMontee = false;
+  private detruit = false;
+  private readonly surVisibilite = () => (document.hidden ? this.annulerMinuteur() : this.rafraichir());
+
+  aUnePosition = computed(() => aDesCoordonnees(this.vehicule()));
+  ageSecondes = computed(() => {
+    const t = versMs(this.horodatagePosition());
+    return t == null ? null : Math.max(0, (this.maintenant() - this.decalageHorlogeMs - t) / 1000);
+  });
+  positionDirecte = computed(() => {
+    const age = this.ageSecondes();
+    return this.etat() === 'direct' && !this.erreurReseau() && age != null && age <= SEUIL_POSITION_DIRECTE_S;
+  });
+  ageLibelle = computed(() => {
+    const age = this.ageSecondes();
+    return age == null ? 'heure inconnue' : libelleAge(age);
+  });
+  distanceRestante = computed(() => formaterDistance(distanceKm(this.vehicule() ?? {} as Point, this.destination() ?? {})));
+  progression = computed(() => {
+    const total = distanceKm(this.origine() ?? {}, this.destination() ?? {});
+    const reste = distanceKm(this.vehicule() ?? {} as Point, this.destination() ?? {});
+    if (total == null || reste == null || total < 0.05) return null;
+    return Math.round(Math.min(100, Math.max(0, (1 - reste / total) * 100)));
+  });
+  origineNom = computed(() => this.origine()?.nom ?? null);
+  destinationAdresse = computed(() => this.destination()?.adresse ?? null);
+
+  titreEtat = computed(() => ({
+    'sans-position': 'En attente de position',
+    'pas-partie': 'Livraison pas encore partie',
+    terminee: 'Livraison effectuée',
+    probleme: 'Problème signalé',
+    refuse: 'Accès refusé',
+    introuvable: 'Livraison introuvable',
+  } as Record<string, string>)[this.etat()] ?? '');
+  iconeEtat = computed(() => ({
+    'sans-position': '📡', 'pas-partie': '🕓', terminee: '✅', probleme: '⚠️', refuse: '🔒', introuvable: '🔍',
+  } as Record<string, string>)[this.etat()] ?? '📍');
+  messageCarte = computed(() => ({
+    'sans-position': 'Le transporteur n’a pas encore transmis sa position. La carte s’affichera dès sa réception.',
+    'pas-partie': 'Le suivi en direct démarrera au départ du transporteur. Cette page se met à jour automatiquement.',
+    terminee: 'La livraison est terminée : la position du transporteur n’est plus partagée.',
+    probleme: 'Le transporteur a signalé un problème : le suivi en direct est suspendu.',
+    refuse: 'Vous n’avez pas accès au suivi de cette livraison.',
+    introuvable: 'Cette livraison n’existe pas ou n’est plus disponible.',
+  } as Record<string, string>)[this.etat()] ?? 'Position indisponible pour le moment.');
 
   ngOnInit(): void {
     this.livraisonId = Number(this.route.snapshot.paramMap.get('id'));
+    this.horloge = setInterval(() => this.maintenant.set(Date.now()), 15_000);
+    document.addEventListener('visibilitychange', this.surVisibilite);
+  }
 
-    this.configurerIconesLeaflet();
-    this.rafraichirPosition();
-    this.intervalId = setInterval(() => this.rafraichirPosition(), INTERVALLE_RAFRAICHISSEMENT_MS);
+  ngAfterViewInit(): void {
+    this.rafraichir();
   }
 
   ngOnDestroy(): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-    }
+    this.detruit = true;
+    this.annulerMinuteur();
+    if (this.horloge) clearInterval(this.horloge);
+    document.removeEventListener('visibilitychange', this.surVisibilite);
+    this.carte.detruire();
   }
 
-  private rafraichirPosition(): void {
+  retour(): void { this.location.back(); }
+
+  vueEnsemble(): void {
+    this.suiviAuto.set(false);
+    this.carte.vueEnsemble();
+  }
+
+  centrerVehicule(): void {
+    this.suiviAuto.set(true);
+    this.carte.centrerVehicule();
+  }
+
+  rafraichir(): void {
+    this.annulerMinuteur();
+    if (this.detruit) return;
     this.api.getPositionLivraison(this.livraisonId).subscribe({
-      next: res => {
-        this.erreur.set(null);
-        this.statutLivraison.set(res.statut_livraison);
-        this.derniereMiseAJour.set(res.position.timestamp);
-        this.position.set({ latitude: res.position.latitude, longitude: res.position.longitude });
-        this.mettreAJourCarte(
-          { latitude: res.position.latitude, longitude: res.position.longitude },
-          res.origine as PointCarte,
-          res.destination as PointCarte
-        );
-      },
-      error: err => {
-        this.erreur.set(err.error?.message ?? 'Position indisponible pour le moment.');
-      },
+      next: res => this.surPosition(res),
+      error: err => this.surErreur(err),
     });
   }
 
-  private mettreAJourCarte(
-    transporteur: { latitude: number; longitude: number },
-    origine: PointCarte,
-    destination: PointCarte
-  ): void {
-    if (!this.map) {
-      // Le conteneur #suivi-map ne devient présent dans le DOM qu'après
-      // que position() passe à une valeur non nulle : on laisse Angular
-      // rafraîchir le template avant d'initialiser la carte Leaflet.
-      setTimeout(() => this.initialiserCarte(transporteur, origine, destination));
+  private surPosition(res: any): void {
+    const serveur = versMs(res.genere_le);
+    this.decalageHorlogeMs = serveur == null ? 0 : Date.now() - serveur;
+    this.maintenant.set(Date.now());
+    this.erreurReseau.set(false);
+    this.statut.set(res.statut_livraison ?? null);
+    this.infos.set(res.livraison ?? null);
+    this.origine.set(res.origine ?? null);
+    this.destination.set(res.destination ?? null);
+    this.horodatagePosition.set(res.position?.timestamp ?? null);
+    const vehicule = { latitude: res.position?.latitude, longitude: res.position?.longitude };
+    this.vehicule.set(aDesCoordonnees(vehicule) ? vehicule : null);
+    this.etat.set(this.vehicule() ? 'direct' : 'sans-position');
+
+    if (this.vehicule()) {
+      if (!this.carteMontee) {
+        this.carte.monter(this.conteneurCarte.nativeElement, ko => this.tuilesIndisponibles.set(ko), () => this.suiviAuto.set(false));
+        this.carteMontee = true;
+      }
+      this.carte.afficher({ vehicule: this.vehicule()!, origine: this.origine() ?? {}, destination: this.destination() ?? {} }, this.suiviAuto());
+    }
+    this.planifier(DELAI_SUIVI_MS);
+  }
+
+  private surErreur(err: any): void {
+    const statut = err?.error?.statut_livraison as string | undefined;
+    if (err?.status === 0 || err?.status >= 500) {
+      // Coupure réseau : la dernière position reste visible, signalée comme ancienne.
+      this.erreurReseau.set(true);
+      if (this.etat() === 'chargement') this.etat.set('sans-position');
+      this.planifier(DELAI_ATTENTE_MS);
       return;
     }
+    this.erreurReseau.set(false);
+    if (err?.error?.livraison) this.infos.set(err.error.livraison);
+    if (statut) this.statut.set(statut);
 
-    this.markerTransporteur?.setLatLng([transporteur.latitude, transporteur.longitude]);
-    this.map.panTo([transporteur.latitude, transporteur.longitude]);
-    this.mettreAJourTrajet(transporteur, origine, destination);
+    // Hors livraison en cours, aucune position n'est exposée : on n'affiche plus l'ancienne.
+    if (err?.status === 403) return this.arreter('refuse');
+    if (statut === 'livree') return this.arreter('terminee');
+    if (statut === 'probleme') return this.arreter('probleme');
+    if (statut === 'en_attente') { this.vider(); this.etat.set('pas-partie'); return this.planifier(DELAI_ATTENTE_MS); }
+    if (statut === 'en_cours') { this.vider(); this.etat.set('sans-position'); return this.planifier(DELAI_SUIVI_MS); }
+    this.arreter('introuvable');
   }
 
-  private initialiserCarte(
-    transporteur: { latitude: number; longitude: number },
-    origine: PointCarte,
-    destination: PointCarte
-  ): void {
-    this.map = L.map('suivi-map').setView([transporteur.latitude, transporteur.longitude], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(this.map);
-
-    this.markerTransporteur = L.marker([transporteur.latitude, transporteur.longitude])
-      .addTo(this.map)
-      .bindPopup('Transporteur');
-
-    if (this.aDesCoordonnees(origine)) {
-      this.markerOrigine = L.marker([origine.latitude!, origine.longitude!], { icon: this.icone('🏭') })
-        .addTo(this.map)
-        .bindPopup('Entrepôt (départ)');
-    }
-
-    if (this.aDesCoordonnees(destination)) {
-      this.markerDestination = L.marker([destination.latitude!, destination.longitude!], { icon: this.icone('🏠') })
-        .addTo(this.map)
-        .bindPopup('Adresse de livraison (arrivée)');
-    }
-
-    this.mettreAJourTrajet(transporteur, origine, destination);
-
-    // Cadre la carte pour englober tous les points disponibles.
-    const points: L.LatLngExpression[] = [[transporteur.latitude, transporteur.longitude]];
-    if (this.aDesCoordonnees(origine)) points.push([origine.latitude!, origine.longitude!]);
-    if (this.aDesCoordonnees(destination)) points.push([destination.latitude!, destination.longitude!]);
-    if (points.length > 1) {
-      this.map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
-    }
+  private arreter(etat: EtatSuivi): void {
+    this.vider();
+    this.etat.set(etat);
+    this.annulerMinuteur();
   }
 
-  private mettreAJourTrajet(
-    transporteur: { latitude: number; longitude: number },
-    origine: PointCarte,
-    destination: PointCarte
-  ): void {
-    if (!this.map) return;
-
-    const points: L.LatLngExpression[] = [];
-    if (this.aDesCoordonnees(origine)) points.push([origine.latitude!, origine.longitude!]);
-    points.push([transporteur.latitude, transporteur.longitude]);
-    if (this.aDesCoordonnees(destination)) points.push([destination.latitude!, destination.longitude!]);
-
-    if (points.length < 2) return;
-
-    if (!this.trajet) {
-      this.trajet = L.polyline(points, { color: '#2d6a4f', weight: 3, dashArray: '6 6' }).addTo(this.map);
-    } else {
-      this.trajet.setLatLngs(points);
-    }
+  private vider(): void {
+    this.vehicule.set(null);
+    this.horodatagePosition.set(null);
   }
 
-  private aDesCoordonnees(point: PointCarte): boolean {
-    return point?.latitude != null && point?.longitude != null;
+  private planifier(delai: number): void {
+    this.annulerMinuteur();
+    if (this.detruit || (typeof document !== 'undefined' && document.hidden)) return;
+    this.minuteur = setTimeout(() => this.rafraichir(), delai);
   }
 
-  private icone(emoji: string): L.DivIcon {
-    return L.divIcon({
-      html: `<div style="font-size: 26px; line-height: 1; transform: translate(-50%, -100%);">${emoji}</div>`,
-      className: '',
-      iconSize: [0, 0],
-    });
-  }
-
-  private configurerIconesLeaflet(): void {
-    // Corrige le 404 classique des icônes par défaut de Leaflet une fois bundlées
-    // (les chemins relatifs du CSS ne correspondent pas à la sortie du build Angular).
-    delete (L.Icon.Default.prototype as any)._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: 'leaflet/marker-icon-2x.png',
-      iconUrl: 'leaflet/marker-icon.png',
-      shadowUrl: 'leaflet/marker-shadow.png',
-    });
+  private annulerMinuteur(): void {
+    if (this.minuteur) clearTimeout(this.minuteur);
+    this.minuteur = null;
   }
 }
