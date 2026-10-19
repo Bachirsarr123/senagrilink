@@ -72,8 +72,23 @@ class PositionGpsController extends Controller
             return response()->json(['message' => 'Accès non autorisé à cette position.'], 403);
         }
 
+        // Repères de la livraison, utiles même sans position (statut, lien vers la
+        // traçabilité du lot) : ce sont des données que ces acteurs voient déjà.
+        $infos = [
+            'numero_livraison' => $livraison->numero_livraison,
+            'produit'          => $livraison->commande?->produit,
+            'quantite'         => $livraison->commande?->quantite,
+            'date_depart'      => $livraison->date_depart,
+            'date_livraison'   => $livraison->date_livraison,
+            'code_tracabilite' => $livraison->commande?->stock?->production?->code_tracabilite,
+        ];
+
         if (! $livraison->transporteur_id) {
-            return response()->json(['message' => 'Aucun transporteur assigné à cette livraison.'], 404);
+            return response()->json([
+                'message'          => 'Aucun transporteur assigné à cette livraison.',
+                'statut_livraison' => $livraison->statut,
+                'livraison'        => $infos,
+            ], 404);
         }
 
         // R5 — la position est celle du transporteur, pas de la livraison : hors
@@ -83,6 +98,7 @@ class PositionGpsController extends Controller
             return response()->json([
                 'message'          => 'Suivi en direct disponible uniquement pendant la livraison en cours.',
                 'statut_livraison' => $livraison->statut,
+                'livraison'        => $infos,
             ], 404);
         }
 
@@ -91,7 +107,11 @@ class PositionGpsController extends Controller
             ->first();
 
         if (! $position) {
-            return response()->json(['message' => 'Aucune position disponible pour cette livraison.'], 404);
+            return response()->json([
+                'message'          => 'Aucune position disponible pour cette livraison.',
+                'statut_livraison' => $livraison->statut,
+                'livraison'        => $infos,
+            ], 404);
         }
 
         $entrepot = $livraison->commande?->stock?->entrepot;
@@ -109,7 +129,11 @@ class PositionGpsController extends Controller
                 'latitude'  => $livraison->destination_latitude,
                 'longitude' => $livraison->destination_longitude,
             ],
-            'position' => $position,
+            'position'  => $position,
+            'livraison' => $infos,
+            // Heure du serveur : l'âge de la position se calcule sans dépendre de
+            // l'horloge de l'appareil (une position ancienne n'est pas « en direct »).
+            'genere_le' => now()->toIso8601String(),
         ]);
     }
 
