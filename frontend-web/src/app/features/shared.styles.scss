@@ -221,10 +221,11 @@ code.code-lot { background: $vert-clair; color: $vert-fonce; padding: .15rem .4r
     tbody tr:hover td { background: transparent; }
     tr.row-alert { background: #fef9c3; td { background: transparent; } }
     td {
-      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+      // Valeurs groupées à droite (statut + ⚠️, statut + « Suivre »), intitulé à gauche
+      display: flex; justify-content: flex-end; flex-wrap: wrap; align-items: center; gap: .4rem;
       padding: .5rem 0; text-align: right; min-width: 0; overflow-wrap: anywhere;
       &::before {
-        content: attr(data-label); flex-shrink: 0; max-width: 45%;
+        content: attr(data-label); flex-shrink: 0; max-width: 45%; margin-right: auto;
         text-align: left; font-size: .75rem; font-weight: 600; color: #6b7280;
         text-transform: uppercase;
       }

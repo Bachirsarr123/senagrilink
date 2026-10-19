@@ -56,22 +56,25 @@ void main() {
     Map<String, dynamic>.from((reponses['/livraisons']['livraisons'] as List).first as Map)..['statut'] = 'en_attente',
   );
 
-  final ecrans = <String, (String, Widget Function())>{
-    'Connexion':               ('producteur', () => const LoginScreen()),
-    'Inscription':             ('producteur', () => const RegisterScreen()),
-    'Mes productions':         ('producteur', () => const ProductionsScreen()),
-    'Nouvelle récolte':        ('producteur', () => const NouvelleRecolteScreen()),
-    'Planifier mes ventes':    ('producteur', () => const PlanifierVentesScreen()),
-    'Commandes disponibles':   ('producteur', () => const CommandesDisponiblesScreen()),
-    'Stocks':                  ('gestionnaire_entrepot', () => const StocksScreen()),
-    'Catalogue':               ('acheteur_gros', () => const CatalogueScreen()),
-    'Mes commandes':           ('acheteur_gros', () => const MesCommandesScreen()),
-    'Suivi de livraison':      ('acheteur_gros', () => const SuiviLivraisonScreen(livraisonId: 1)),
-    'Livraisons':              ('transporteur', () => const LivraisonsScreen()),
-    'Réservations à acheminer': ('transporteur', () => const ReservationsScreen()),
-    'Détail de livraison':     ('transporteur', () => DetailLivraisonScreen(livraison: livraison)),
-    'Profil':                  ('producteur', () => const ProfilScreen()),
-    'Traçabilité':             ('acheteur_gros', () => const TracabiliteScreen()),
+  // Écran → (rôle connecté, construction, texte attendu une fois les données chargées).
+  // Le texte attendu garantit que l'écran a bien rendu son contenu réel, et non
+  // un état d'erreur ou de chargement qui passerait le test sans rien mesurer.
+  final ecrans = <String, (String, Widget Function(), String)>{
+    'Connexion':                ('producteur', () => const LoginScreen(), 'Se connecter'),
+    'Inscription':              ('producteur', () => const RegisterScreen(), 'Créer mon compte'),
+    'Mes productions':          ('producteur', () => const ProductionsScreen(), 'LOT-2026-49RTEX'),
+    'Nouvelle récolte':         ('producteur', () => const NouvelleRecolteScreen(), 'Enregistrer la récolte'),
+    'Planifier mes ventes':     ('producteur', () => const PlanifierVentesScreen(), 'LOT-2026-H83OSV'),
+    'Commandes disponibles':    ('producteur', () => const CommandesDisponiblesScreen(), 'Acheteur : Moussa Ba'),
+    'Stocks':                   ('gestionnaire_entrepot', () => const StocksScreen(), '1340'),
+    'Catalogue':                ('acheteur_gros', () => const CatalogueScreen(), 'oignon'),
+    'Mes commandes':            ('acheteur_gros', () => const MesCommandesScreen(), 'CMD-20261019-OFXJ'),
+    'Suivi de livraison':       ('acheteur_gros', () => const SuiviLivraisonScreen(livraisonId: 1), 'En cours'),
+    'Livraisons':               ('transporteur', () => const LivraisonsScreen(), 'LIV-20261019-ZLEH'),
+    'Réservations à acheminer': ('transporteur', () => const ReservationsScreen(), 'RES-20261019-Y7UB'),
+    'Détail de livraison':      ('transporteur', () => DetailLivraisonScreen(livraison: livraison), 'Statut actuel'),
+    'Profil':                   ('producteur', () => const ProfilScreen(), 'Modifier mes informations'),
+    'Traçabilité':              ('acheteur_gros', () => const TracabiliteScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
   };
 
   // Police réelle (Roboto, fournie avec le SDK Flutter) plutôt que la police de
@@ -98,7 +101,7 @@ void main() {
     });
   });
 
-  for (final MapEntry(key: nomEcran, value: (role, construire)) in ecrans.entries) {
+  for (final MapEntry(key: nomEcran, value: (role, construire, texteAttendu)) in ecrans.entries) {
     for (final MapEntry(key: nomFormat, value: taille) in formats.entries) {
       for (final echelle in echellesTexte) {
         testWidgets('$nomEcran — $nomFormat — texte ×$echelle : aucun débordement', (tester) async {
@@ -135,6 +138,10 @@ void main() {
           }
 
           expect(tester.takeException(), isNull);
+          expect(find.textContaining(texteAttendu, skipOffstage: false), findsWidgets,
+              reason: '$nomEcran devrait afficher ses données ($texteAttendu)');
+          expect(find.textContaining('indisponible', skipOffstage: false), findsNothing,
+              reason: '$nomEcran ne devrait afficher aucune erreur');
 
           // Démonte l'écran : arrête les minuteurs (rafraîchissement du suivi GPS)
           await tester.pumpWidget(const SizedBox());

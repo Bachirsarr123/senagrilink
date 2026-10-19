@@ -28,9 +28,15 @@ class InfoCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: LayoutBuilder(
-          builder: (context, contraintes) => contraintes.maxWidth < 150
-              ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [avatar, const SizedBox(height: 8), textes])
-              : Row(children: [avatar, const SizedBox(width: 12), Expanded(child: textes)]),
+          builder: (context, contraintes) {
+            // Largeur non bornée (ex. liste horizontale) : pas d'Expanded possible
+            if (!contraintes.hasBoundedWidth) {
+              return Row(mainAxisSize: MainAxisSize.min, children: [avatar, const SizedBox(width: 12), textes]);
+            }
+            return contraintes.maxWidth < 150
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [avatar, const SizedBox(height: 8), textes])
+                : Row(children: [avatar, const SizedBox(width: 12), Expanded(child: textes)]);
+          },
         ),
       ),
     );
