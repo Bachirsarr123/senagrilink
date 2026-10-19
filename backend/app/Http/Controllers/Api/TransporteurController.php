@@ -14,7 +14,10 @@ class TransporteurController extends Controller
      */
     public function index(): JsonResponse
     {
-        $transporteurs = Transporteur::with('utilisateur:id,nom,prenom,telephone')->get();
+        // Seuls les transporteurs dont le compte n'est pas bloqué peuvent recevoir une mission.
+        $transporteurs = Transporteur::with('utilisateur:id,nom,prenom,telephone')
+            ->whereHas('utilisateur', fn ($q) => $q->where('statut', '!=', 'bloque'))
+            ->get();
 
         return response()->json(['transporteurs' => $transporteurs]);
     }

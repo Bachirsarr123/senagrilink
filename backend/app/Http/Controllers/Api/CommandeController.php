@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCommandeRequest;
 use App\Http\Requests\UpdateCommandeRequest;
 use App\Models\Commande;
+use App\Models\HistoriqueOperation;
 use App\Models\Stock;
 use App\Notifications\CommandeConfirmeeNotification;
 use App\Notifications\NouvelleCommandeNotification;
+use App\Notifications\OperationModifieeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -155,15 +157,26 @@ class CommandeController extends Controller
             return $commande;
         }
 
-        if ($commande->statut !== 'en_attente') {
-            return response()->json([
-                'message'       => 'Seules les commandes en attente peuvent être annulées.',
-                'statut_actuel' => $commande->statut,
-            ], 422);
-        }
+        $refus = DB::transaction(function () use ($commande, $request) {
+            $c = Commande::whereKey($commande->id)->lockForUpdate()->first();
 
-        $commande->statut = 'annulee';
-        $commande->save();
+            if ($c->statut !== 'en_attente') {
+                return response()->json([
+                    'message'       => 'Seules les commandes en attente peuvent être annulées. Une commande confirmée est déjà préparée par l\'entrepôt : contactez-le.',
+                    'statut_actuel' => $c->statut,
+                ], 422);
+            }
+
+            $c->statut = 'annulee';
+            $c->save();
+            HistoriqueOperation::consigner('commande', $c->id, 'annulation', $request->user(), 'en_attente', 'annulee', $request->input('motif'));
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
+        }
 
         return response()->json([
             'message'  => 'Commande annulée.',
@@ -293,6 +306,125 @@ class CommandeController extends Controller
             'commande'      => $commande->fresh()->load('stock'),
             'stock_restant' => $stock->quantite,
         ]);
+    }
+
+    /**
+     * Commandes portant sur les stocks de l'entrepôt du gestionnaire connecté
+     * (toutes pour l'administrateur), avec la livraison et son transporteur.
+     * Filtre facultatif : ?statut=en_attente|confirmee|annulee|livree.
+     */
+    public function indexEntrepot(Request $request): JsonResponse
+    {
+        $utilisateur = $request->user();
+        $request->validate(['statut' => ['nullable', 'in:en_attente,confirmee,annulee,livree']]);
+
+        $query = Commande::with([
+            'acheteur:id,utilisateur_id',
+            'acheteur.utilisateur:id,nom,prenom,telephone',
+            'livraison:id,commande_id,numero_livraison,statut,transporteur_id,date_depart',
+            'livraison.transporteur:id,utilisateur_id,type_vehicule',
+            'livraison.transporteur.utilisateur:id,nom,prenom,telephone',
+            'historique.utilisateur:id,nom,prenom,role',
+        ])->when($request->statut, fn ($q, $statut) => $q->where('statut', $statut))
+          ->orderByDesc('date_commande');
+
+        if ($utilisateur->role !== 'administrateur') {
+            $entrepot = $utilisateur->entrepot;
+
+            if (! $entrepot) {
+                return response()->json(['message' => 'Profil entrepôt introuvable.'], 404);
+            }
+
+            $query->whereHas('stock', fn ($q) => $q->where('entrepot_id', $entrepot->id));
+        }
+
+        return response()->json(['commandes' => $query->get()]);
+    }
+
+    /** Refus par l'entrepôt d'une commande en attente (motif obligatoire, acheteur notifié). */
+    public function refuser(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif' => ['required', 'string', 'max:500']], ['motif.required' => 'Indiquez le motif du refus.']);
+
+        return $this->annulerParLEntrepot($request, $id, 'en_attente', 'refus', 'Commande refusée. L\'acheteur a été notifié.');
+    }
+
+    /**
+     * Annulation par l'entrepôt d'une commande confirmée par erreur, tant
+     * qu'aucune livraison n'a été créée : la quantité déduite est remise en stock.
+     */
+    public function annulerConfirmation(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif' => ['required', 'string', 'max:500']], ['motif.required' => 'Indiquez le motif de l\'annulation.']);
+
+        return $this->annulerParLEntrepot($request, $id, 'confirmee', 'annulation_confirmation', 'Commande annulée, quantité remise en stock. L\'acheteur a été notifié.');
+    }
+
+    private function annulerParLEntrepot(Request $request, int $id, string $depuis, string $action, string $messageSucces): JsonResponse
+    {
+        $commande = Commande::with(['stock', 'acheteur.utilisateur'])->find($id);
+
+        if (! $commande) {
+            return response()->json(['message' => 'Commande introuvable.'], 404);
+        }
+
+        if (! $commande->estGereePar($request->user())) {
+            return response()->json(['message' => 'Accès non autorisé à cette commande.'], 403);
+        }
+
+        $refus = DB::transaction(function () use ($commande, $depuis, $action, $request) {
+            $c = Commande::whereKey($commande->id)->lockForUpdate()->first();
+
+            if ($c->statut !== $depuis) {
+                return response()->json([
+                    'message'       => $depuis === 'en_attente'
+                        ? 'Seules les commandes en attente peuvent être refusées.'
+                        : 'Seules les commandes confirmées peuvent être annulées par l\'entrepôt.',
+                    'statut_actuel' => $c->statut,
+                ], 422);
+            }
+
+            if ($depuis === 'confirmee') {
+                if ($c->livraison()->exists()) {
+                    return response()->json([
+                        'message'       => 'Une livraison existe déjà pour cette commande : elle ne peut plus être annulée.',
+                        'statut_actuel' => $c->statut,
+                    ], 422);
+                }
+
+                // Inverse exact de confirmer() : la quantité déduite revient au stock.
+                $stock = Stock::whereKey($c->stock_id)->lockForUpdate()->first();
+
+                if ($stock) {
+                    $stock->quantite += $c->quantite;
+
+                    if ($stock->statut === 'epuise' && $stock->quantite > 0) {
+                        $stock->statut      = 'disponible';
+                        $stock->date_sortie = null;
+                    }
+
+                    $stock->save();
+                }
+            }
+
+            $c->statut = 'annulee';
+            $c->save();
+            HistoriqueOperation::consigner('commande', $c->id, $action, $request->user(), $depuis, 'annulee', $request->input('motif'),
+                $depuis === 'confirmee' ? ['quantite_remise_en_stock' => $c->quantite] : []);
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
+        }
+
+        $commande->acheteur?->utilisateur?->notify(new OperationModifieeNotification("commande_{$action}", sprintf(
+            'Votre commande %s (%s) a été %s par l\'entrepôt. Motif : %s',
+            $commande->numero_commande, $commande->produit, $depuis === 'en_attente' ? 'refusée' : 'annulée', $request->input('motif'),
+        ), ['commande_id' => $commande->id, 'numero_commande' => $commande->numero_commande]));
+
+        return response()->json(['message' => $messageSucces, 'commande' => $commande->fresh()->load('stock')]);
     }
 
     // ── Helpers privés ────────────────────────────────────────────────────────

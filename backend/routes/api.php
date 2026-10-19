@@ -24,11 +24,13 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::get('/productions',              [\App\Http\Controllers\Api\ProductionController::class, 'index']);
         Route::post('/productions',             [\App\Http\Controllers\Api\ProductionController::class, 'store']);
         Route::put('/productions/{id}',         [\App\Http\Controllers\Api\ProductionController::class, 'update']);
+        Route::put('/productions/{id}/annuler', [\App\Http\Controllers\Api\ProductionController::class, 'annuler']);
         Route::get('/commandes/disponibles',    [\App\Http\Controllers\Api\ProductionController::class, 'commandesDisponibles']);
 
         // Réservation d'entrepôt
         Route::get('/entrepots/disponibles',    [\App\Http\Controllers\Api\ReservationController::class, 'entrepotsDisponibles']);
         Route::post('/reservations',            [\App\Http\Controllers\Api\ReservationController::class, 'store']);
+        Route::put('/reservations/{id}/annuler', [\App\Http\Controllers\Api\ReservationController::class, 'annuler']);
     });
 
     // ── Module Gestionnaire d'entrepôt ────────────────────────────────────────
@@ -38,13 +40,20 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::post('/stocks/sortie',           [\App\Http\Controllers\Api\StockController::class, 'sortie']);
         Route::get('/stocks/alertes',           [\App\Http\Controllers\Api\StockController::class, 'alertes']);
         Route::get('/stocks/rapport',           [\App\Http\Controllers\Api\StockController::class, 'rapport']);
+        Route::get('/commandes',                [\App\Http\Controllers\Api\CommandeController::class, 'indexEntrepot']);
         Route::put('/commandes/{id}/confirmer', [\App\Http\Controllers\Api\CommandeController::class, 'confirmer']);
+        Route::put('/commandes/{id}/refuser',   [\App\Http\Controllers\Api\CommandeController::class, 'refuser']);
+        Route::put('/commandes/{id}/annuler-confirmation', [\App\Http\Controllers\Api\CommandeController::class, 'annulerConfirmation']);
         // Option B : création explicite de livraison après confirmation de commande
         Route::post('/livraisons',              [\App\Http\Controllers\Api\LivraisonController::class, 'store']);
+        Route::put('/livraisons/{id}/transporteur', [\App\Http\Controllers\Api\LivraisonController::class, 'changerTransporteur']);
 
         // Réservation d'entrepôt
         Route::put('/reservations/{id}/confirmer',              [\App\Http\Controllers\Api\ReservationController::class, 'confirmer']);
         Route::put('/reservations/{id}/assigner-transporteur',  [\App\Http\Controllers\Api\ReservationController::class, 'assignerTransporteur']);
+        Route::delete('/reservations/{id}/transporteur',        [\App\Http\Controllers\Api\ReservationController::class, 'retirerTransporteur']);
+        Route::put('/reservations/{id}/refuser',                [\App\Http\Controllers\Api\ReservationController::class, 'refuser']);
+        Route::put('/reservations/{id}/remettre-en-attente',    [\App\Http\Controllers\Api\ReservationController::class, 'remettreEnAttente']);
         Route::put('/reservations/{id}/valider',                [\App\Http\Controllers\Api\ReservationController::class, 'validerMarchandise']);
         Route::get('/transporteurs',                            [\App\Http\Controllers\Api\TransporteurController::class, 'index']);
     });

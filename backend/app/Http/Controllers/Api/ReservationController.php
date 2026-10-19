@@ -7,10 +7,13 @@ use App\Http\Requests\AssignerTransporteurReservationRequest;
 use App\Http\Requests\StoreReservationRequest;
 use App\Http\Requests\ValiderMarchandiseRequest;
 use App\Models\Entrepot;
+use App\Models\HistoriqueOperation;
 use App\Models\Reservation;
 use App\Models\Stock;
+use App\Models\Transporteur;
 use App\Notifications\ArriveeEntrepotNotification;
 use App\Notifications\MarchandiseEnregistreeNotification;
+use App\Notifications\OperationModifieeNotification;
 use App\Notifications\ReservationConfirmeeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -77,6 +80,56 @@ class ReservationController extends Controller
         ], 201);
     }
 
+    /**
+     * Annulation par le producteur de sa propre demande, tant qu'aucun
+     * transporteur n'est engagé (en attente, ou confirmée sans transporteur).
+     */
+    public function annuler(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif' => ['nullable', 'string', 'max:500']]);
+        $producteur  = $request->user()->producteur;
+        $reservation = Reservation::with('entrepot.utilisateur')->find($id);
+
+        if (! $reservation) {
+            return response()->json(['message' => 'Réservation introuvable.'], 404);
+        }
+
+        if (! $producteur || $reservation->producteur_id !== $producteur->id) {
+            return response()->json(['message' => 'Accès non autorisé à cette réservation.'], 403);
+        }
+
+        $resultat = DB::transaction(function () use ($reservation, $request) {
+            $r = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
+
+            if ($r->statut === 'confirmee' && $r->transporteur_id) {
+                return $this->refus('Un transporteur est déjà assigné à cette réservation : demandez à l\'entrepôt de retirer la mission avant d\'annuler.', $r);
+            }
+
+            if (! in_array($r->statut, ['en_attente', 'confirmee'], true)) {
+                return $this->refus('Cette réservation ne peut plus être annulée.', $r);
+            }
+
+            $ancien = $r->statut;
+            $r->statut = 'annulee';
+            $r->save();
+
+            HistoriqueOperation::consigner('reservation', $r->id, 'annulation', $request->user(), $ancien, 'annulee', $request->input('motif'));
+
+            return null;
+        });
+
+        if ($resultat) {
+            return $resultat;
+        }
+
+        $reservation->entrepot?->utilisateur?->notify(new OperationModifieeNotification('reservation_annulee', sprintf(
+            'Le producteur a annulé la réservation %s (%s, %s kg).',
+            $reservation->numero_reservation, $reservation->produit, $reservation->quantite_reservee,
+        ), ['reservation_id' => $reservation->id, 'numero_reservation' => $reservation->numero_reservation]));
+
+        return response()->json(['message' => 'Réservation annulée. L\'entrepôt a été notifié.', 'reservation' => $reservation->fresh()]);
+    }
+
     // ── Gestionnaire d'entrepôt ────────────────────────────────────────────────
 
     /**
@@ -123,8 +176,12 @@ class ReservationController extends Controller
     }
 
     /**
-     * Assigner un transporteur à une réservation confirmée, pour l'acheminement
-     * de la marchandise du producteur vers l'entrepôt.
+     * Assigner (ou réassigner) un transporteur à une réservation confirmée, pour
+     * l'acheminement de la marchandise du producteur vers l'entrepôt.
+     *
+     * Possible tant que la marchandise n'est pas arrivée (statut confirmee).
+     * La mission apparaît chez le nouveau transporteur (GET /reservations, filtré
+     * par transporteur_id) et il est notifié ; l'ancien la perd et est notifié.
      */
     public function assignerTransporteur(AssignerTransporteurReservationRequest $request, int $id): JsonResponse
     {
@@ -134,20 +191,113 @@ class ReservationController extends Controller
             return $reservation;
         }
 
-        if ($reservation->statut !== 'confirmee') {
-            return response()->json([
-                'message'       => 'Seules les réservations confirmées peuvent recevoir un transporteur.',
-                'statut_actuel' => $reservation->statut,
-            ], 422);
+        $transporteur = Transporteur::with('utilisateur')->find($request->transporteur_id);
+
+        if ($transporteur->utilisateur?->statut === 'bloque') {
+            return response()->json(['message' => 'Ce transporteur ne peut pas recevoir de mission (compte bloqué).'], 422);
         }
 
-        $reservation->transporteur_id = $request->transporteur_id;
-        $reservation->save();
+        $resultat = DB::transaction(function () use ($reservation, $transporteur, $request) {
+            $r = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
+
+            if ($r->statut !== 'confirmee') {
+                return $this->refus('Seules les réservations confirmées, dont la marchandise n\'est pas encore arrivée, peuvent recevoir un transporteur.', $r);
+            }
+
+            $ancien = $r->transporteur_id;
+
+            if ($ancien === $transporteur->id) {
+                return response()->json(['message' => 'Ce transporteur est déjà assigné à cette réservation.'], 422);
+            }
+
+            $r->transporteur_id = $transporteur->id;
+            $r->save();
+
+            HistoriqueOperation::consigner('reservation', $r->id, $ancien ? 'reassignation_transporteur' : 'assignation_transporteur',
+                $request->user(), $r->statut, $r->statut, $request->input('motif'),
+                ['ancien_transporteur_id' => $ancien, 'nouveau_transporteur_id' => $transporteur->id]);
+
+            return ['ancien' => $ancien];
+        });
+
+        if ($resultat instanceof JsonResponse) {
+            return $resultat;
+        }
+
+        $reservation->refresh()->load('entrepot', 'producteur.utilisateur');
+        $transporteur->utilisateur?->notify(new OperationModifieeNotification('mission_assignee', sprintf(
+            'Nouvelle mission : acheminer %s (%s kg) de %s vers l\'entrepôt %s — réservation %s.',
+            $reservation->produit, $reservation->quantite_reservee,
+            trim(($reservation->producteur?->utilisateur?->prenom ?? '').' '.($reservation->producteur?->utilisateur?->nom ?? '')),
+            $reservation->entrepot?->nom_entrepot ?? '', $reservation->numero_reservation,
+        ), ['reservation_id' => $reservation->id, 'numero_reservation' => $reservation->numero_reservation]));
+        $this->notifierRetraitMission($resultat['ancien'], $reservation);
 
         return response()->json([
-            'message'     => 'Transporteur assigné à la réservation.',
+            'message'     => $resultat['ancien'] ? 'Mission réassignée au nouveau transporteur.' : 'Transporteur assigné à la réservation.',
             'reservation' => $reservation->fresh()->load('transporteur.utilisateur:id,nom,prenom,telephone'),
         ]);
+    }
+
+    /** Retirer le transporteur d'une réservation dont la marchandise n'est pas encore arrivée. */
+    public function retirerTransporteur(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif' => ['nullable', 'string', 'max:500']]);
+        $reservation = $this->reservationDeLEntrepot($request, $id);
+
+        if ($reservation instanceof JsonResponse) {
+            return $reservation;
+        }
+
+        $resultat = DB::transaction(function () use ($reservation, $request) {
+            $r = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
+
+            if ($r->statut !== 'confirmee' || ! $r->transporteur_id) {
+                return $this->refus('Aucune mission en cours à retirer : la marchandise est déjà arrivée ou aucun transporteur n\'est assigné.', $r);
+            }
+
+            $ancien = $r->transporteur_id;
+            $r->transporteur_id = null;
+            $r->save();
+
+            HistoriqueOperation::consigner('reservation', $r->id, 'retrait_transporteur', $request->user(),
+                $r->statut, $r->statut, $request->input('motif'), ['ancien_transporteur_id' => $ancien]);
+
+            return ['ancien' => $ancien];
+        });
+
+        if ($resultat instanceof JsonResponse) {
+            return $resultat;
+        }
+
+        $this->notifierRetraitMission($resultat['ancien'], $reservation->refresh());
+
+        return response()->json([
+            'message'     => 'Transporteur retiré. La mission n\'apparaît plus dans son espace.',
+            'reservation' => $reservation->fresh(),
+        ]);
+    }
+
+    /** Refuser une demande de réservation en attente (motif obligatoire, producteur notifié). */
+    public function refuser(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif' => ['required', 'string', 'max:500']], ['motif.required' => 'Indiquez le motif du refus.']);
+
+        return $this->changerStatutParLEntrepot($request, $id, ['en_attente'], 'refusee', 'refus',
+            'Seules les demandes en attente peuvent être refusées.',
+            'Votre demande de réservation %s a été refusée par l\'entrepôt %s. Motif : %s',
+            'Réservation refusée. Le producteur a été notifié.');
+    }
+
+    /** Annuler la confirmation (erreur de manipulation) : retour en attente, sans transporteur assigné. */
+    public function remettreEnAttente(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif' => ['nullable', 'string', 'max:500']]);
+
+        return $this->changerStatutParLEntrepot($request, $id, ['confirmee'], 'en_attente', 'retour_en_attente',
+            'Seule une réservation confirmée, sans transporteur assigné, peut revenir en attente.',
+            'La confirmation de votre réservation %s à l\'entrepôt %s a été annulée : elle est de nouveau en attente. %s',
+            'Réservation remise en attente. Le producteur a été notifié.');
     }
 
     /**
@@ -250,6 +400,12 @@ class ReservationController extends Controller
             'transporteur.utilisateur:id,nom,prenom,telephone',
         ])->orderByDesc('date_reservation');
 
+        // Historique des corrections : utile au producteur, au gestionnaire et à
+        // l'administrateur ; non exposé au transporteur (il ne concerne pas que lui).
+        if ($utilisateur->role !== 'transporteur') {
+            $query->with('historique.utilisateur:id,nom,prenom,role');
+        }
+
         if ($utilisateur->role === 'producteur') {
             $producteur = $utilisateur->producteur;
 
@@ -281,6 +437,68 @@ class ReservationController extends Controller
     }
 
     // ── Helpers privés ─────────────────────────────────────────────────────────
+
+    private function refus(string $message, Reservation $reservation): JsonResponse
+    {
+        return response()->json(['message' => $message, 'statut_actuel' => $reservation->statut], 422);
+    }
+
+    /** L'ancien transporteur ne voit plus la mission : il en est informé. */
+    private function notifierRetraitMission(?int $transporteurId, Reservation $reservation): void
+    {
+        if (! $transporteurId) {
+            return;
+        }
+
+        Transporteur::with('utilisateur')->find($transporteurId)?->utilisateur?->notify(new OperationModifieeNotification(
+            'mission_retiree',
+            sprintf('La mission d\'acheminement %s vous a été retirée par l\'entrepôt.', $reservation->numero_reservation),
+            ['reservation_id' => $reservation->id, 'numero_reservation' => $reservation->numero_reservation],
+        ));
+    }
+
+    /**
+     * Transition décidée par le gestionnaire (refus, retour en attente) : statut
+     * revérifié sous verrou, historique et notification du producteur.
+     */
+    private function changerStatutParLEntrepot(Request $request, int $id, array $depuis, string $vers, string $action,
+        string $messageRefus, string $messageProducteur, string $messageSucces): JsonResponse
+    {
+        $reservation = $this->reservationDeLEntrepot($request, $id);
+
+        if ($reservation instanceof JsonResponse) {
+            return $reservation;
+        }
+
+        $motif = $request->input('motif');
+
+        $refus = DB::transaction(function () use ($reservation, $depuis, $vers, $action, $messageRefus, $motif, $request) {
+            $r = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
+
+            if (! in_array($r->statut, $depuis, true) || $r->transporteur_id) {
+                return $this->refus($messageRefus, $r);
+            }
+
+            $ancien = $r->statut;
+            $r->statut = $vers;
+            $r->save();
+
+            HistoriqueOperation::consigner('reservation', $r->id, $action, $request->user(), $ancien, $vers, $motif);
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
+        }
+
+        $reservation->refresh()->load('entrepot', 'producteur.utilisateur');
+        $reservation->producteur?->utilisateur?->notify(new OperationModifieeNotification("reservation_{$action}", trim(sprintf(
+            $messageProducteur, $reservation->numero_reservation, $reservation->entrepot?->nom_entrepot ?? '', $motif ?? ''
+        )), ['reservation_id' => $reservation->id, 'numero_reservation' => $reservation->numero_reservation]));
+
+        return response()->json(['message' => $messageSucces, 'reservation' => $reservation->fresh()]);
+    }
 
     private function reservationDeLEntrepot(Request $request, int $id): Reservation|JsonResponse
     {
