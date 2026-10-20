@@ -2,6 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
@@ -165,6 +166,8 @@ export class ProductionsComponent implements OnInit {
   formCreation!: FormGroup;
   formEdition!: FormGroup;
 
+  private cleRecolte = new CleSoumission();
+
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void {
@@ -226,8 +229,9 @@ export class ProductionsComponent implements OnInit {
     this.loading.set(true);
     this.erreur.set(null);
 
-    this.api.storeProduction(this.formCreation.value).subscribe({
+    this.api.storeProduction(this.formCreation.value, this.cleRecolte.valeur).subscribe({
       next: res => {
+        this.cleRecolte.renouveler();
         this.productions.update(list => [res.production, ...list]);
         this.succes.set('Récolte enregistrée ! Code : ' + res.production.code_tracabilite);
         this.formCreation.reset();

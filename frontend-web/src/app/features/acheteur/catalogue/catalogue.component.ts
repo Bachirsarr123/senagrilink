@@ -2,6 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 
 @Component({
   selector: 'app-catalogue',
@@ -87,6 +88,9 @@ export class CatalogueComponent implements OnInit {
   erreurCommande  = signal<string | null>(null);
   formCommande: FormGroup;
 
+  /** Clé de la commande en cours de saisie : un nouvel essai ne crée pas de doublon. */
+  private cleCommande = new CleSoumission();
+
   constructor(private api: ApiService, private fb: FormBuilder) {
     this.formCommande = this.fb.group({
       quantite: [null, [Validators.required, Validators.min(0.01)]],
@@ -104,6 +108,7 @@ export class CatalogueComponent implements OnInit {
   ouvrirCommande(produit: any): void {
     this.commandeOuverte.set(produit.stock_id);
     this.formCommande.reset();
+    this.cleCommande.renouveler();
     this.erreurCommande.set(null);
   }
 
@@ -111,8 +116,9 @@ export class CatalogueComponent implements OnInit {
     if (this.formCommande.invalid) { this.formCommande.markAllAsTouched(); return; }
     this.loadingCmd.set(true); this.erreurCommande.set(null);
 
-    this.api.passerCommande({ stock_id: produit.stock_id, ...this.formCommande.value }).subscribe({
+    this.api.passerCommande({ stock_id: produit.stock_id, ...this.formCommande.value }, this.cleCommande.valeur).subscribe({
       next: res => {
+        this.cleCommande.renouveler();
         this.succes.set(`Commande ${res.commande.numero_commande} passée avec succès !`);
         this.commandeOuverte.set(null);
         this.loadingCmd.set(false);

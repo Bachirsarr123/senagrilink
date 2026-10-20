@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
@@ -9,28 +9,33 @@ export class ApiService {
 
   constructor(private http: HttpClient) {}
 
+  /** En-tête Idempotency-Key d'une création (voir shared/idempotence/cle-soumission.ts). */
+  private idempotence(cle?: string): { headers?: HttpHeaders } {
+    return cle ? { headers: new HttpHeaders({ 'Idempotency-Key': cle }) } : {};
+  }
+
   // ── Productions ────────────────────────────────────────────────────────────
   getProductions(): Observable<any> { return this.http.get(`${this.base}/productions`); }
-  storeProduction(data: any): Observable<any> { return this.http.post(`${this.base}/productions`, data); }
+  storeProduction(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/productions`, data, this.idempotence(cle)); }
   updateProduction(id: number, data: any): Observable<any> { return this.http.put(`${this.base}/productions/${id}`, data); }
   annulerProduction(id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/productions/${id}/annuler`, { motif }); }
   getCommandesDisponibles(): Observable<any> { return this.http.get(`${this.base}/commandes/disponibles`); }
 
   // ── Stocks ─────────────────────────────────────────────────────────────────
   getStocks(): Observable<any> { return this.http.get(`${this.base}/stocks`); }
-  entreeStock(data: any): Observable<any> { return this.http.post(`${this.base}/stocks/entree`, data); }
-  sortieStock(data: any): Observable<any> { return this.http.post(`${this.base}/stocks/sortie`, data); }
+  entreeStock(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/stocks/entree`, data, this.idempotence(cle)); }
+  sortieStock(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/stocks/sortie`, data, this.idempotence(cle)); }
   getAlertes(): Observable<any> { return this.http.get(`${this.base}/stocks/alertes`); }
   getRapport(): Observable<any> { return this.http.get(`${this.base}/stocks/rapport`); }
   confirmerCommande(id: number): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/confirmer`, {}); }
-  createLivraison(data: any): Observable<any> { return this.http.post(`${this.base}/livraisons`, data); }
+  createLivraison(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/livraisons`, data, this.idempotence(cle)); }
   changerTransporteurLivraison(id: number, transporteur_id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/livraisons/${id}/transporteur`, { transporteur_id, motif }); }
   refuserCommande(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/refuser`, { motif }); }
   annulerConfirmationCommande(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/annuler-confirmation`, { motif }); }
 
   // ── Commandes (Acheteur) ───────────────────────────────────────────────────
   getCatalogue(): Observable<any> { return this.http.get(`${this.base}/catalogue`); }
-  passerCommande(data: any): Observable<any> { return this.http.post(`${this.base}/commandes`, data); }
+  passerCommande(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/commandes`, data, this.idempotence(cle)); }
   updateCommande(id: number, data: any): Observable<any> { return this.http.put(`${this.base}/commandes/${id}`, data); }
   annulerCommande(id: number): Observable<any> { return this.http.delete(`${this.base}/commandes/${id}`); }
   getHistoriqueCommandes(): Observable<any> { return this.http.get(`${this.base}/commandes/historique`); }
@@ -46,7 +51,7 @@ export class ApiService {
   // ── Admin ──────────────────────────────────────────────────────────────────
   getDashboard(): Observable<any> { return this.http.get(`${this.base}/admin/dashboard`); }
   getUtilisateurs(params?: any): Observable<any> { return this.http.get(`${this.base}/admin/utilisateurs`, { params }); }
-  createUtilisateur(data: any): Observable<any> { return this.http.post(`${this.base}/admin/utilisateurs`, data); }
+  createUtilisateur(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/admin/utilisateurs`, data, this.idempotence(cle)); }
   bloquerUtilisateur(id: number): Observable<any> { return this.http.put(`${this.base}/admin/utilisateurs/${id}/bloquer`, {}); }
   debloquerUtilisateur(id: number): Observable<any> { return this.http.put(`${this.base}/admin/utilisateurs/${id}/debloquer`, {}); }
 
@@ -63,7 +68,7 @@ export class ApiService {
   // ── Réservations d'entrepôt ────────────────────────────────────────────────
   getEntrepotsDisponibles(): Observable<any> { return this.http.get(`${this.base}/entrepots/disponibles`); }
   getReservations(): Observable<any> { return this.http.get(`${this.base}/reservations`); }
-  storeReservation(data: any): Observable<any> { return this.http.post(`${this.base}/reservations`, data); }
+  storeReservation(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/reservations`, data, this.idempotence(cle)); }
   confirmerReservation(id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/confirmer`, {}); }
   assignerTransporteur(id: number, transporteur_id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/assigner-transporteur`, { transporteur_id, motif }); }
   retirerTransporteur(id: number, motif?: string): Observable<any> { return this.http.delete(`${this.base}/reservations/${id}/transporteur`, { body: { motif } }); }

@@ -3,6 +3,7 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { of } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
@@ -230,6 +231,8 @@ export class CommandesEntrepotComponent implements OnInit {
   transporteurs        = signal<any[]>([]);
   commandeAReassigner  = signal<any | null>(null);
 
+  private cleLivraison = new CleSoumission();
+
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void {
@@ -346,6 +349,7 @@ export class CommandesEntrepotComponent implements OnInit {
   ouvrirLivraison(c: any): void {
     this.commandeSelectionnee.set(c);
     this.formLivraison.reset();
+    this.cleLivraison.renouveler();
     this.erreurModal.set(null);
   }
 
@@ -360,9 +364,14 @@ export class CommandesEntrepotComponent implements OnInit {
     const confirmation = c.statut === 'confirmee' ? of(null) : this.api.confirmerCommande(c.id);
     confirmation.subscribe({
       next: () => {
+        // P-16 — la confirmation est acquise (stock déduit) : si la création de la
+        // livraison échoue, le nouvel essai ne doit créer que la livraison, au lieu
+        // de reconfirmer (refus « seules les commandes en attente… »).
+        this.commandeSelectionnee.set({ ...c, statut: 'confirmee' });
         const livData = { ...this.formLivraison.value, commande_id: c.id };
-        this.api.createLivraison(livData).subscribe({
+        this.api.createLivraison(livData, this.cleLivraison.valeur).subscribe({
           next: () => {
+            this.cleLivraison.renouveler();
             this.loadingModal.set(false);
             this.fermerModal();
             this.message.set('Commande confirmée et livraison créée avec succès.');
@@ -370,8 +379,9 @@ export class CommandesEntrepotComponent implements OnInit {
             setTimeout(() => this.message.set(null), 4000);
           },
           error: err => {
-            this.erreurModal.set(err.error?.message ?? 'Commande confirmée mais erreur à la création de la livraison.');
+            this.erreurModal.set(`La commande est confirmée (stock déduit), mais la livraison n'a pas été créée : ${err.error?.message ?? 'erreur réseau ou serveur'}. Corrigez si besoin puis réessayez.`);
             this.loadingModal.set(false);
+            this.charger();
           },
         });
       },

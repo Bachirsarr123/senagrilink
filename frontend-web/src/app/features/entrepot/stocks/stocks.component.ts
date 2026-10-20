@@ -2,6 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
@@ -120,6 +121,9 @@ export class StocksComponent implements OnInit {
   formEntree: FormGroup;
   formSortie: FormGroup;
 
+  private cleEntree = new CleSoumission();
+  private cleSortie = new CleSoumission();
+
   constructor(private api: ApiService, private fb: FormBuilder) {
     this.formEntree = this.fb.group({
       produit:       ['', Validators.required],
@@ -148,8 +152,8 @@ export class StocksComponent implements OnInit {
   enregistrerEntree(): void {
     if (this.formEntree.invalid) { this.formEntree.markAllAsTouched(); return; }
     this.loading.set(true); this.erreur.set(null);
-    this.api.entreeStock(this.formEntree.value).subscribe({
-      next: () => { this.chargerStocks(); this.formEntree.reset(); this.loading.set(false); this.modeFormulaire.set(null); },
+    this.api.entreeStock(this.formEntree.value, this.cleEntree.valeur).subscribe({
+      next: () => { this.cleEntree.renouveler(); this.chargerStocks(); this.formEntree.reset(); this.loading.set(false); this.modeFormulaire.set(null); },
       error: err => { this.erreur.set(err.error?.message ?? 'Erreur.'); this.loading.set(false); },
     });
   }
@@ -157,8 +161,8 @@ export class StocksComponent implements OnInit {
   enregistrerSortie(): void {
     if (this.formSortie.invalid) { this.formSortie.markAllAsTouched(); return; }
     this.loading.set(true); this.erreur.set(null);
-    this.api.sortieStock(this.formSortie.value).subscribe({
-      next: () => { this.chargerStocks(); this.formSortie.reset(); this.loading.set(false); this.modeFormulaire.set(null); },
+    this.api.sortieStock(this.formSortie.value, this.cleSortie.valeur).subscribe({
+      next: () => { this.cleSortie.renouveler(); this.chargerStocks(); this.formSortie.reset(); this.loading.set(false); this.modeFormulaire.set(null); },
       error: err => { this.erreur.set(err.error?.message ?? 'Erreur.'); this.loading.set(false); },
     });
   }

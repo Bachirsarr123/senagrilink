@@ -1,6 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
@@ -137,6 +138,8 @@ export class UtilisateursComponent implements OnInit {
   form!: FormGroup;
   private params: any = {};
 
+  private cleCreation = new CleSoumission();
+
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void {
@@ -175,8 +178,9 @@ export class UtilisateursComponent implements OnInit {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     this.loadingForm.set(true);
     this.erreur.set(null);
-    this.api.createUtilisateur(this.form.value).subscribe({
+    this.api.createUtilisateur(this.form.value, this.cleCreation.valeur).subscribe({
       next: res => {
+        this.cleCreation.renouveler();
         this.utilisateurs.update(list => [res.utilisateur, ...list]);
         this.message.set(`Compte créé pour ${this.form.value.prenom} ${this.form.value.nom}.`);
         this.form.reset();

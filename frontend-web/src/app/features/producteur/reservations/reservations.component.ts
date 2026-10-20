@@ -2,6 +2,7 @@ import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
@@ -162,6 +163,8 @@ export class ProducteurReservationsComponent implements OnInit {
   productionsReservables = computed(() => this.productions().filter(p => p.statut !== 'annulee'));
   form!: FormGroup;
 
+  private cleReservation = new CleSoumission();
+
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void {
@@ -200,6 +203,7 @@ export class ProducteurReservationsComponent implements OnInit {
   ouvrirFormulaire(entrepot: any): void {
     this.entrepotSelectionne.set(entrepot);
     this.form.reset();
+    this.cleReservation.renouveler();
     this.erreurModal.set(null);
   }
 
@@ -239,8 +243,9 @@ export class ProducteurReservationsComponent implements OnInit {
     this.erreurModal.set(null);
 
     const data = { ...this.form.value, entrepot_id: this.entrepotSelectionne()!.id };
-    this.api.storeReservation(data).subscribe({
+    this.api.storeReservation(data, this.cleReservation.valeur).subscribe({
       next: () => {
+        this.cleReservation.renouveler();
         this.loadingModal.set(false);
         this.fermerModal();
         this.message.set('Demande de réservation envoyée.');
