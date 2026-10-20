@@ -55,6 +55,11 @@
 - `noindex` sur le site ;
 - `autoDeployTrigger: off`.
 
-## 4. Limites de la préproduction gratuite
+## 4. Retour arrière de la migration 000018
+- Commande : `php artisan migrate:rollback --path=database/migrations/2025_01_01_000018_create_requetes_idempotentes_table.php --force`.
+- Elle affiche « Migration not found » pour chacune des autres migrations du dernier lot. C'est normal : elles sont hors du chemin indiqué et **restent en place**. Seule `requetes_idempotentes` est supprimée ; `historique_operations` est conservée (vérifié à chaque exécution de `backend-ci.yml`).
+- Ne jamais lancer `migrate:rollback` sans `--path`.
+
+## 5. Limites de la préproduction gratuite
 - Les services gratuits s'endorment après 15 minutes et mettent environ 1 minute à se réveiller : le délai d'attente mobile de 60 s peut se déclencher au premier appel (comportement à observer, pas un défaut).
 - Les heures gratuites (750 h/mois) sont partagées avec la production : suspendez la préproduction entre deux recettes.

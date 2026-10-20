@@ -34,6 +34,7 @@ Cocher chaque ligne avec sa **preuve** : lien vers l'exécution CI, capture ou j
 - [ ] Retour arrière connu de tous :
   1. *Rollback* Render du code (suffisant) ;
   2. si nécessaire, `migrate:rollback --path=database/migrations/2025_01_01_000018_create_requetes_idempotentes_table.php --force`.
+     - La commande affiche « Migration not found » pour les autres migrations du même lot : c'est normal, elles sont hors du chemin indiqué et **ne sont pas annulées** (constaté dans `backend-ci.yml`).
 - [ ] **Interdit :** `migrate:rollback` sans `--path`. Si `000017` et `000018` sont dans le même lot, il supprimerait aussi l'historique (`historique_operations`).
 
 ## D. Android
