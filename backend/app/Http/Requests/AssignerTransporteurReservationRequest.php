@@ -15,6 +15,7 @@ class AssignerTransporteurReservationRequest extends FormRequest
     {
         return [
             'transporteur_id' => ['required', 'integer', 'exists:transporteurs,id'],
+            'motif'           => ['nullable', 'string', 'max:500'],
         ];
     }
 

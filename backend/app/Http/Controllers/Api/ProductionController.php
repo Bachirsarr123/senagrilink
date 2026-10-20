@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProductionRequest;
 use App\Http\Requests\UpdateProductionRequest;
 use App\Models\Commande;
+use App\Models\HistoriqueOperation;
 use App\Models\Production;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductionController extends Controller
 {
@@ -68,6 +70,53 @@ class ProductionController extends Controller
     }
 
     /**
+     * Annuler une récolte enregistrée par erreur. Refusé dès qu'elle est
+     * utilisée par une réservation active, un stock ou une commande : elle
+     * n'est jamais supprimée, son statut passe à « annulee » (historisé).
+     */
+    public function annuler(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif' => ['nullable', 'string', 'max:500']]);
+        $production = Production::find($id);
+        $producteur = $request->user()->producteur;
+
+        if (! $production) {
+            return response()->json(['message' => 'Récolte introuvable.'], 404);
+        }
+
+        if (! $producteur || $production->producteur_id !== $producteur->id) {
+            return response()->json(['message' => 'Action non autorisée sur cette production.'], 403);
+        }
+
+        return DB::transaction(function () use ($production, $request) {
+            $p = Production::whereKey($production->id)->lockForUpdate()->first();
+
+            if ($p->statut !== 'en_attente') {
+                return response()->json([
+                    'message'       => 'Seule une récolte en attente (pas encore en entrepôt) peut être annulée.',
+                    'statut_actuel' => $p->statut,
+                ], 422);
+            }
+
+            $utilisee = $p->stocks()->exists()
+                || $p->reservations()->whereIn('statut', ['en_attente', 'confirmee', 'arrivee_entrepot', 'enregistree'])->exists();
+
+            if ($utilisee) {
+                return response()->json([
+                    'message'       => 'Cette récolte est liée à une réservation d\'entrepôt en cours : annulez d\'abord la réservation.',
+                    'statut_actuel' => $p->statut,
+                ], 422);
+            }
+
+            $p->statut = 'annulee';
+            $p->save();
+            HistoriqueOperation::consigner('production', $p->id, 'annulation', $request->user(), 'en_attente', 'annulee', $request->input('motif'));
+
+            return response()->json(['message' => 'Récolte annulée.', 'production' => $p->fresh()]);
+        });
+    }
+
+    /**
      * Modifier une production.
      * Un producteur ne peut modifier que ses propres productions.
      */
@@ -83,6 +132,10 @@ class ProductionController extends Controller
             if (! $producteur || $production->producteur_id !== $producteur->id) {
                 return response()->json(['message' => 'Action non autorisée sur cette production.'], 403);
             }
+        }
+
+        if ($production->statut === 'annulee') {
+            return response()->json(['message' => 'Cette récolte a été annulée : elle ne peut plus être modifiée.'], 422);
         }
 
         $production->update($request->validated());

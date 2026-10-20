@@ -36,6 +36,9 @@ class StoreReservationRequest extends FormRequest
 
         $regle = Rule::exists('productions', 'id');
 
+        // Une récolte annulée ne peut plus faire l'objet d'une réservation.
+        $regle->whereNot('statut', 'annulee');
+
         return $producteurId === null ? $regle : $regle->where('producteur_id', $producteurId);
     }
 
@@ -44,7 +47,7 @@ class StoreReservationRequest extends FormRequest
         return [
             'entrepot_id.required'       => 'L\'entrepôt à réserver est obligatoire.',
             'entrepot_id.exists'         => 'L\'entrepôt sélectionné est introuvable.',
-            'production_id.exists'       => 'La production référencée est introuvable parmi vos productions.',
+            'production_id.exists'       => 'La production référencée est introuvable (ou annulée) parmi vos productions.',
             'produit.required'           => 'Le type de produit est obligatoire.',
             'quantite_reservee.required' => 'La quantité à réserver est obligatoire.',
             'quantite_reservee.min'      => 'La quantité doit être supérieure à zéro.',

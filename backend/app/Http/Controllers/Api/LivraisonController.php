@@ -6,12 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreLivraisonRequest;
 use App\Http\Requests\UpdateStatutLivraisonRequest;
 use App\Models\Commande;
+use App\Models\HistoriqueOperation;
 use App\Models\Livraison;
 use App\Models\PositionGps;
+use App\Models\Transporteur;
 use App\Notifications\LivraisonEnCoursNotification;
 use App\Notifications\LivraisonTermineeNotification;
+use App\Notifications\OperationModifieeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LivraisonController extends Controller
 {
@@ -49,6 +53,10 @@ class LivraisonController extends Controller
             ], 422);
         }
 
+        if ($request->transporteur_id && Transporteur::with('utilisateur')->find($request->transporteur_id)?->utilisateur?->statut === 'bloque') {
+            return response()->json(['message' => 'Ce transporteur ne peut pas recevoir de mission (compte bloqué).'], 422);
+        }
+
         $livraison = Livraison::create([
             'commande_id'            => $commande->id,
             'transporteur_id'        => $request->transporteur_id,
@@ -60,6 +68,10 @@ class LivraisonController extends Controller
             'statut'                 => 'en_attente',
         ]);
 
+        $this->notifierTransporteur($livraison->transporteur_id, 'mission_assignee', sprintf(
+            'Nouvelle livraison : %s vers %s — commande %s.', $commande->produit, $livraison->destination, $commande->numero_commande,
+        ), $livraison);
+
         return response()->json([
             'message'   => 'Livraison créée avec succès.',
             'livraison' => $livraison->load([
@@ -68,6 +80,85 @@ class LivraisonController extends Controller
                 'transporteur.utilisateur:id,nom,prenom,telephone',
             ]),
         ], 201);
+    }
+
+    /**
+     * Corriger le transporteur d'une livraison qui n'a pas encore démarré.
+     * Une livraison en cours, livrée ou en problème n'est plus réassignable.
+     */
+    public function changerTransporteur(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'transporteur_id' => ['required', 'integer', 'exists:transporteurs,id'],
+            'motif'           => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $livraison = Livraison::with('commande.stock')->find($id);
+
+        if (! $livraison) {
+            return response()->json(['message' => 'Livraison introuvable.'], 404);
+        }
+
+        if (! $livraison->commande?->estGereePar($request->user())) {
+            return response()->json(['message' => 'Accès non autorisé à cette livraison.'], 403);
+        }
+
+        if (Transporteur::with('utilisateur')->find($request->transporteur_id)?->utilisateur?->statut === 'bloque') {
+            return response()->json(['message' => 'Ce transporteur ne peut pas recevoir de mission (compte bloqué).'], 422);
+        }
+
+        $resultat = DB::transaction(function () use ($livraison, $request) {
+            $l = Livraison::whereKey($livraison->id)->lockForUpdate()->first();
+
+            if ($l->statut !== 'en_attente') {
+                return response()->json([
+                    'message'       => 'La livraison a déjà démarré ou est terminée : le transporteur ne peut plus être changé.',
+                    'statut_actuel' => $l->statut,
+                ], 422);
+            }
+
+            $ancien = $l->transporteur_id;
+
+            if ($ancien === (int) $request->transporteur_id) {
+                return response()->json(['message' => 'Ce transporteur est déjà assigné à cette livraison.'], 422);
+            }
+
+            $l->transporteur_id = (int) $request->transporteur_id;
+            $l->save();
+            HistoriqueOperation::consigner('livraison', $l->id, $ancien ? 'reassignation_transporteur' : 'assignation_transporteur',
+                $request->user(), $l->statut, $l->statut, $request->input('motif'),
+                ['ancien_transporteur_id' => $ancien, 'nouveau_transporteur_id' => $l->transporteur_id]);
+
+            return ['ancien' => $ancien];
+        });
+
+        if ($resultat instanceof JsonResponse) {
+            return $resultat;
+        }
+
+        $livraison->refresh();
+        $this->notifierTransporteur($livraison->transporteur_id, 'mission_assignee', sprintf(
+            'Nouvelle livraison : %s vers %s — commande %s.', $livraison->commande->produit, $livraison->destination, $livraison->commande->numero_commande,
+        ), $livraison);
+        $this->notifierTransporteur($resultat['ancien'], 'mission_retiree', sprintf(
+            'La livraison %s vous a été retirée par l\'entrepôt.', $livraison->numero_livraison,
+        ), $livraison);
+
+        return response()->json([
+            'message'   => 'Transporteur de la livraison modifié.',
+            'livraison' => $livraison->fresh()->load('transporteur.utilisateur:id,nom,prenom,telephone'),
+        ]);
+    }
+
+    private function notifierTransporteur(?int $transporteurId, string $type, string $message, Livraison $livraison): void
+    {
+        if (! $transporteurId) {
+            return;
+        }
+
+        Transporteur::with('utilisateur')->find($transporteurId)?->utilisateur?->notify(new OperationModifieeNotification(
+            $type, $message, ['livraison_id' => $livraison->id, 'numero_livraison' => $livraison->numero_livraison],
+        ));
     }
 
     // ── Transporteur ─────────────────────────────────────────────────────────

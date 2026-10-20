@@ -35,8 +35,21 @@ class Production extends Model
         return $this->belongsTo(Producteur::class, 'producteur_id');
     }
 
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class, 'production_id');
+    }
+
     public function stocks()
     {
         return $this->hasMany(Stock::class, 'production_id');
+    }
+
+    /** Corrections et annulations successives (plus ancienne d'abord). */
+    public function historique()
+    {
+        return $this->hasMany(HistoriqueOperation::class, 'sujet_id')
+            ->where('sujet_type', 'production')
+            ->orderBy('id');
     }
 }

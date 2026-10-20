@@ -62,4 +62,12 @@ class Commande extends Model
             && $this->stock !== null
             && (int) $this->stock->entrepot_id === (int) $entrepotId;
     }
+
+    /** Corrections et annulations successives (plus ancienne d'abord). */
+    public function historique()
+    {
+        return $this->hasMany(HistoriqueOperation::class, 'sujet_id')
+            ->where('sujet_type', 'commande')
+            ->orderBy('id');
+    }
 }

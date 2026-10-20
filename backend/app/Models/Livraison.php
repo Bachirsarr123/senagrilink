@@ -40,4 +40,12 @@ class Livraison extends Model
     {
         return $this->belongsTo(Transporteur::class, 'transporteur_id');
     }
+
+    /** Corrections et annulations successives (plus ancienne d'abord). */
+    public function historique()
+    {
+        return $this->hasMany(HistoriqueOperation::class, 'sujet_id')
+            ->where('sujet_type', 'livraison')
+            ->orderBy('id');
+    }
 }

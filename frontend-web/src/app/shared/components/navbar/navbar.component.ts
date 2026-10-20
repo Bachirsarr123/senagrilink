@@ -38,6 +38,9 @@ import { EchoService } from '../../../core/services/echo.service';
             <li><a routerLink="/acheteur/catalogue" routerLinkActive="active">Catalogue</a></li>
             <li><a routerLink="/acheteur/mes-commandes" routerLinkActive="active">Mes commandes</a></li>
           }
+          @if (role() === 'transporteur') {
+            <li><a routerLink="/transporteur/missions" routerLinkActive="active">Mes missions</a></li>
+          }
           @if (role() === 'administrateur') {
             <li><a routerLink="/admin/dashboard" routerLinkActive="active">Tableau de bord</a></li>
             <li><a routerLink="/admin/utilisateurs" routerLinkActive="active">Utilisateurs</a></li>

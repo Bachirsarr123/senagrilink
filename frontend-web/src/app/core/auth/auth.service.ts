@@ -43,18 +43,21 @@ export class AuthService {
     return localStorage.getItem(this.TOKEN_KEY);
   }
 
-  redirectAfterLogin(): void {
-    const role = this.role();
+  /** Page d'accueil de l'espace du rôle connecté. */
+  routeAccueil(): string {
     const routes: Record<string, string> = {
       producteur:            '/producteur/productions',
       gestionnaire_entrepot: '/entrepot/stocks',
       acheteur_gros:         '/acheteur/catalogue',
       administrateur:        '/admin/dashboard',
-      // Le transporteur n'a pas d'espace dédié côté web (utilise l'app mobile) :
-      // on l'amène sur son profil plutôt que de le renvoyer vers /login.
-      transporteur:          '/profil',
+      transporteur:          '/transporteur/missions',
     };
-    this.router.navigate([routes[role ?? ''] ?? '/login']);
+    // Repli sur le profil (protégé) et non sur /login, pour éviter toute boucle.
+    return routes[this.role() ?? ''] ?? '/profil';
+  }
+
+  redirectAfterLogin(): void {
+    this.router.navigateByUrl(this.routeAccueil());
   }
 
   /**

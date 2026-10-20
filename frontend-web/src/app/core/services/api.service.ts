@@ -13,6 +13,7 @@ export class ApiService {
   getProductions(): Observable<any> { return this.http.get(`${this.base}/productions`); }
   storeProduction(data: any): Observable<any> { return this.http.post(`${this.base}/productions`, data); }
   updateProduction(id: number, data: any): Observable<any> { return this.http.put(`${this.base}/productions/${id}`, data); }
+  annulerProduction(id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/productions/${id}/annuler`, { motif }); }
   getCommandesDisponibles(): Observable<any> { return this.http.get(`${this.base}/commandes/disponibles`); }
 
   // ── Stocks ─────────────────────────────────────────────────────────────────
@@ -23,6 +24,9 @@ export class ApiService {
   getRapport(): Observable<any> { return this.http.get(`${this.base}/stocks/rapport`); }
   confirmerCommande(id: number): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/confirmer`, {}); }
   createLivraison(data: any): Observable<any> { return this.http.post(`${this.base}/livraisons`, data); }
+  changerTransporteurLivraison(id: number, transporteur_id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/livraisons/${id}/transporteur`, { transporteur_id, motif }); }
+  refuserCommande(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/refuser`, { motif }); }
+  annulerConfirmationCommande(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/annuler-confirmation`, { motif }); }
 
   // ── Commandes (Acheteur) ───────────────────────────────────────────────────
   getCatalogue(): Observable<any> { return this.http.get(`${this.base}/catalogue`); }
@@ -37,7 +41,7 @@ export class ApiService {
   signalerProbleme(id: number): Observable<any> { return this.http.post(`${this.base}/livraisons/${id}/probleme`, {}); }
 
   // ── Commandes (Gestionnaire) ──────────────────────────────────────────────
-  getCommandesPourConfirmation(): Observable<any> { return this.http.get(`${this.base}/commandes?statut=en_attente`); }
+  getCommandesEntrepot(): Observable<any> { return this.http.get(`${this.base}/commandes`); }
 
   // ── Admin ──────────────────────────────────────────────────────────────────
   getDashboard(): Observable<any> { return this.http.get(`${this.base}/admin/dashboard`); }
@@ -61,7 +65,12 @@ export class ApiService {
   getReservations(): Observable<any> { return this.http.get(`${this.base}/reservations`); }
   storeReservation(data: any): Observable<any> { return this.http.post(`${this.base}/reservations`, data); }
   confirmerReservation(id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/confirmer`, {}); }
-  assignerTransporteur(id: number, transporteur_id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/assigner-transporteur`, { transporteur_id }); }
+  assignerTransporteur(id: number, transporteur_id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/assigner-transporteur`, { transporteur_id, motif }); }
+  retirerTransporteur(id: number, motif?: string): Observable<any> { return this.http.delete(`${this.base}/reservations/${id}/transporteur`, { body: { motif } }); }
+  refuserReservation(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/refuser`, { motif }); }
+  remettreReservationEnAttente(id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/remettre-en-attente`, { motif }); }
+  annulerReservation(id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/annuler`, { motif }); }
+  signalerArriveeReservation(id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/arrivee`, {}); }
   validerMarchandise(id: number, data: any): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/valider`, data); }
   getTransporteurs(): Observable<any> { return this.http.get(`${this.base}/transporteurs`); }
 

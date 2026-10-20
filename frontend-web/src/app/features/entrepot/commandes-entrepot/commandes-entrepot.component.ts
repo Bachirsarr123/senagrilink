@@ -1,9 +1,11 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
+import { of } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
 
 @Component({
   selector: 'app-commandes-entrepot',
@@ -12,7 +14,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
   template: `
     <div class="page">
       <div class="page-header">
-        <h1>Commandes à confirmer</h1>
+        <h1>Commandes</h1>
         <span class="subtitle">{{ commandesEnAttente().length }} en attente</span>
       </div>
 
@@ -46,7 +48,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   <td>{{ c.quantite | number }} kg</td>
                   <td>{{ c.prix ? (c.prix | number) + ' FCFA' : '—' }}</td>
                   <td>{{ c.date_commande | date:'dd/MM/yyyy' }}</td>
-                  <td>{{ c.acheteur?.prenom }} {{ c.acheteur?.nom }}</td>
+                  <td>{{ c.acheteur?.utilisateur?.prenom }} {{ c.acheteur?.utilisateur?.nom }}</td>
                   <td>
                     <div class="btn-group">
                       <button class="btn-success btn-sm"
@@ -59,6 +61,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                               (click)="confirmerSeul(c.id)">
                         Confirmer seul
                       </button>
+                      <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === c.id" (click)="refuser(c)">Refuser</button>
                     </div>
                   </td>
                 </tr>
@@ -70,9 +73,9 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
       <!-- Modal création livraison -->
       @if (commandeSelectionnee()) {
-        <div class="modal-overlay" (click)="fermerModal()">
+        <div class="modal-overlay" (click)="demanderFermeture()">
           <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-            <h2>Confirmer &amp; créer la livraison</h2>
+            <h2>{{ commandeSelectionnee()!.statut === 'confirmee' ? 'Créer la livraison' : 'Confirmer & créer la livraison' }}</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
               Commande : <code class="code-lot">{{ commandeSelectionnee()!.numero_commande }}</code>
               — {{ commandeSelectionnee()!.produit }} / {{ commandeSelectionnee()!.quantite }} kg
@@ -83,6 +86,18 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
             }
 
             <form [formGroup]="formLivraison" (ngSubmit)="confirmerAvecLivraison()">
+              <div class="form-group">
+                <label>Transporteur *</label>
+                <select formControlName="transporteur_id">
+                  <option [ngValue]="null">— Choisir —</option>
+                  @for (t of transporteurs(); track t.id) {
+                    <option [ngValue]="t.id">{{ t.utilisateur?.prenom }} {{ t.utilisateur?.nom }} {{ t.type_vehicule ? '(' + t.type_vehicule + ')' : '' }}</option>
+                  }
+                </select>
+                @if (formLivraison.get('transporteur_id')?.invalid && formLivraison.get('transporteur_id')?.touched) {
+                  <span class="field-error">Choisis le transporteur qui recevra la mission.</span>
+                }
+              </div>
               <div class="form-row">
                 <div class="form-group">
                   <label>Origine *</label>
@@ -105,9 +120,40 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
               </div>
               <div class="btn-group">
                 <button type="submit" class="btn-success" [disabled]="loadingModal()">
-                  {{ loadingModal() ? 'Traitement...' : 'Confirmer et créer la livraison' }}
+                  {{ loadingModal() ? 'Traitement...' : (commandeSelectionnee()!.statut === 'confirmee' ? 'Créer la livraison' : 'Confirmer et créer la livraison') }}
                 </button>
-                <button type="button" class="btn-ghost" (click)="fermerModal()">Annuler</button>
+                <button type="button" class="btn-ghost" (click)="demanderFermeture()">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      }
+
+      <!-- Changement du transporteur d'une livraison non démarrée -->
+      @if (commandeAReassigner(); as c) {
+        <div class="modal-overlay" (click)="demanderFermeture()">
+          <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+            <h2>Changer de transporteur</h2>
+            <p class="note">Livraison <code class="code-lot">{{ c.livraison.numero_livraison }}</code> — elle sera retirée à
+              {{ c.livraison.transporteur?.utilisateur?.prenom }} {{ c.livraison.transporteur?.utilisateur?.nom }}, qui en sera informé(e).</p>
+            @if (erreurModal()) { <div class="alert alert-error">{{ erreurModal() }}</div> }
+            <form [formGroup]="formReassignation" (ngSubmit)="changerTransporteur()">
+              <div class="form-group">
+                <label>Nouveau transporteur *</label>
+                <select formControlName="transporteur_id">
+                  <option [ngValue]="null">— Choisir —</option>
+                  @for (t of transporteurs(); track t.id) {
+                    <option [ngValue]="t.id" [disabled]="t.id === c.livraison.transporteur_id">{{ t.utilisateur?.prenom }} {{ t.utilisateur?.nom }} {{ t.type_vehicule ? '(' + t.type_vehicule + ')' : '' }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Motif (facultatif)</label>
+                <textarea formControlName="motif" rows="2" maxlength="500"></textarea>
+              </div>
+              <div class="btn-group">
+                <button type="submit" class="btn-primary" [disabled]="loadingModal() || formReassignation.invalid">{{ loadingModal() ? 'Envoi...' : 'Réassigner' }}</button>
+                <button type="button" class="btn-ghost" (click)="demanderFermeture()">Annuler</button>
               </div>
             </form>
           </div>
@@ -122,7 +168,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
         } @else {
           <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
-              <tr><th>Numéro</th><th>Produit</th><th>Quantité</th><th>Date</th><th>Livraison</th></tr>
+              <tr><th>Numéro</th><th>Produit</th><th>Quantité</th><th>Date</th><th>Livraison</th><th>Actions</th></tr>
             </thead>
             <tbody>
               @for (c of commandesConfirmees(); track c.id) {
@@ -134,9 +180,22 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   <td>
                     @if (c.livraison) {
                       <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut | libelleStatut }}</span>
+                      <div class="text-muted">{{ c.livraison.transporteur?.utilisateur?.prenom }} {{ c.livraison.transporteur?.utilisateur?.nom }}</div>
                     } @else {
                       <span class="text-muted">—</span>
                     }
+                  </td>
+                  <td>
+                    <div class="btn-group">
+                      @if (!c.livraison) {
+                        <button class="btn-success btn-sm" [disabled]="actionEnCours() === c.id" (click)="ouvrirLivraison(c)">Créer la livraison</button>
+                        <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === c.id" (click)="annulerConfirmation(c)">Annuler la commande</button>
+                      } @else if (c.livraison.statut === 'en_attente') {
+                        <button class="btn-secondary btn-sm" [disabled]="actionEnCours() === c.id" (click)="ouvrirChangementTransporteur(c)">Changer de transporteur</button>
+                      } @else {
+                        <span class="text-muted">Livraison démarrée : plus de correction possible</span>
+                      }
+                    </div>
                   </td>
                 </tr>
               }
@@ -148,6 +207,10 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
   `,
   styles: [`
     .modal-box { --modal-largeur: 560px; }
+    select, textarea { padding:.55rem .8rem; border:1px solid #e5e7eb; border-radius:6px; font-size:.9rem; width:100%; font-family:inherit; }
+    .field-error { display:block; color:#dc2626; font-size:.8rem; margin-top:.3rem; }
+    .note { font-size:.85rem; color:#6b7280; margin:0 0 1rem; }
+    .text-muted { color:#6b7280; font-size:.85rem; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })
@@ -163,29 +226,102 @@ export class CommandesEntrepotComponent implements OnInit {
   erreurModal         = signal<string | null>(null);
   loadingModal        = signal(false);
   formLivraison!: FormGroup;
+  formReassignation!: FormGroup;
+  transporteurs        = signal<any[]>([]);
+  commandeAReassigner  = signal<any | null>(null);
 
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void {
     this.formLivraison = this.fb.group({
+      transporteur_id: [null, Validators.required],
       origine:        ['', Validators.required],
       destination:    ['', Validators.required],
       date_depart:    ['', Validators.required],
       date_livraison: [''],
     });
+    this.formReassignation = this.fb.group({ transporteur_id: [null, Validators.required], motif: [''] });
     this.charger();
+    this.api.getTransporteurs().subscribe({
+      next: res => this.transporteurs.set(res.transporteurs ?? []),
+      error: () => {},
+    });
   }
 
   charger(): void {
     this.chargement.set(true);
-    this.api.getCommandesPourConfirmation().subscribe({
+    this.api.getCommandesEntrepot().subscribe({
       next: res => {
         const all: any[] = res.commandes ?? [];
         this.commandesEnAttente.set(all.filter(c => c.statut === 'en_attente'));
         this.commandesConfirmees.set(all.filter(c => c.statut === 'confirmee'));
         this.chargement.set(false);
       },
-      error: () => this.chargement.set(false),
+      error: err => {
+        this.chargement.set(false);
+        this.erreur.set(err.status === 0 ? 'Serveur injoignable. Vérifiez votre connexion.' : err.error?.message ?? 'Impossible de charger les commandes.');
+      },
+    });
+  }
+
+  refuser(c: any): void {
+    const motif = demanderMotif(`Refuser la commande ${c.numero_commande} ?\nElle sera annulée et l'acheteur notifié avec le motif. Le stock n'est pas modifié.`, true);
+    if (motif === null) return;
+    this.executer(c.id, this.api.refuserCommande(c.id, motif), 'Commande refusée. L\'acheteur a été notifié.');
+  }
+
+  annulerConfirmation(c: any): void {
+    const motif = demanderMotif(`Annuler la commande confirmée ${c.numero_commande} ?\n${c.quantite} kg seront remis en stock et l'acheteur sera notifié. Cette annulation est définitive. Aucun remboursement n'est effectué automatiquement.`, true);
+    if (motif === null) return;
+    this.executer(c.id, this.api.annulerConfirmationCommande(c.id, motif), 'Commande annulée, quantité remise en stock.');
+  }
+
+  ouvrirChangementTransporteur(c: any): void {
+    this.commandeAReassigner.set(c);
+    this.formReassignation.reset({ transporteur_id: null, motif: '' });
+    this.erreurModal.set(null);
+  }
+
+  changerTransporteur(): void {
+    const c = this.commandeAReassigner()!;
+    const { transporteur_id, motif } = this.formReassignation.value;
+    this.loadingModal.set(true);
+    this.erreurModal.set(null);
+    this.api.changerTransporteurLivraison(c.livraison.id, transporteur_id, motif || undefined).subscribe({
+      next: () => {
+        this.loadingModal.set(false);
+        this.fermerModal();
+        this.message.set('Transporteur de la livraison modifié. Les deux transporteurs ont été notifiés.');
+        this.charger();
+        setTimeout(() => this.message.set(null), 4000);
+      },
+      error: err => {
+        this.loadingModal.set(false);
+        this.erreurModal.set(err.error?.message ?? 'Erreur lors du changement de transporteur.');
+      },
+    });
+  }
+
+  demanderFermeture(): void {
+    const form = this.commandeAReassigner() ? this.formReassignation : this.formLivraison;
+    if (abandonConfirme(form)) this.fermerModal();
+  }
+
+  private executer(id: number, requete: ReturnType<ApiService['getCommandesEntrepot']>, succes: string): void {
+    this.actionEnCours.set(id);
+    this.erreur.set(null);
+    requete.subscribe({
+      next: () => {
+        this.actionEnCours.set(null);
+        this.message.set(succes);
+        this.charger();
+        setTimeout(() => this.message.set(null), 4000);
+      },
+      error: err => {
+        this.actionEnCours.set(null);
+        this.erreur.set(err.status === 0 ? 'Serveur injoignable : action non enregistrée.' : err.error?.message ?? 'Action impossible.');
+        this.charger();
+      },
     });
   }
 
@@ -213,7 +349,7 @@ export class CommandesEntrepotComponent implements OnInit {
     this.erreurModal.set(null);
   }
 
-  fermerModal(): void { this.commandeSelectionnee.set(null); }
+  fermerModal(): void { this.commandeSelectionnee.set(null); this.commandeAReassigner.set(null); }
 
   confirmerAvecLivraison(): void {
     if (this.formLivraison.invalid) { this.formLivraison.markAllAsTouched(); return; }
@@ -221,7 +357,8 @@ export class CommandesEntrepotComponent implements OnInit {
     this.loadingModal.set(true);
     this.erreurModal.set(null);
 
-    this.api.confirmerCommande(c.id).subscribe({
+    const confirmation = c.statut === 'confirmee' ? of(null) : this.api.confirmerCommande(c.id);
+    confirmation.subscribe({
       next: () => {
         const livData = { ...this.formLivraison.value, commande_id: c.id };
         this.api.createLivraison(livData).subscribe({

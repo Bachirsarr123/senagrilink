@@ -1,9 +1,10 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
 
 @Component({
   selector: 'app-producteur-reservations',
@@ -46,7 +47,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
       <!-- Modal réservation -->
       @if (entrepotSelectionne(); as entrepot) {
-        <div class="modal-overlay" (click)="fermerModal()">
+        <div class="modal-overlay" (click)="demanderFermeture()">
           <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
             <h2>Réserver — {{ entrepot.nom_entrepot }}</h2>
             <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
@@ -60,7 +61,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                 <label>Production concernée (optionnel)</label>
                 <select formControlName="production_id">
                   <option [ngValue]="null">— Aucune —</option>
-                  @for (p of productions(); track p.id) {
+                  @for (p of productionsReservables(); track p.id) {
                     <option [ngValue]="p.id">{{ p.code_tracabilite }} — {{ p.type_culture }}</option>
                   }
                 </select>
@@ -89,7 +90,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                 <button type="submit" class="btn-primary" [disabled]="loadingModal()">
                   {{ loadingModal() ? 'Envoi...' : 'Envoyer la demande' }}
                 </button>
-                <button type="button" class="btn-ghost" (click)="fermerModal()">Annuler</button>
+                <button type="button" class="btn-ghost" (click)="demanderFermeture()">Annuler</button>
               </div>
             </form>
           </div>
@@ -108,7 +109,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
             <thead>
               <tr>
                 <th>Numéro</th><th>Entrepôt</th><th>Produit</th>
-                <th>Quantité</th><th>Date début</th><th>Statut</th>
+                <th>Quantité</th><th>Date début</th><th>Statut</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -120,6 +121,13 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   <td>{{ r.quantite_reservee | number }} kg</td>
                   <td>{{ r.date_debut | date:'dd/MM/yyyy' }}</td>
                   <td><span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span></td>
+                  <td>
+                    @if (r.statut === 'en_attente' || (r.statut === 'confirmee' && !r.transporteur_id)) {
+                      <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === r.id" (click)="annuler(r)">Annuler</button>
+                    } @else if (r.statut === 'confirmee') {
+                      <span class="text-muted">Transporteur assigné : contactez l'entrepôt pour annuler</span>
+                    }
+                  </td>
                 </tr>
               }
             </tbody>
@@ -130,6 +138,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
   `,
   styles: [`
     .modal-box { --modal-largeur: 480px; }
+    .text-muted { color:#6b7280; font-size:.85rem; }
     select {
       padding:.55rem .8rem;border:1px solid #e5e7eb;border-radius:6px;
       font-size:.9rem;width:100%;
@@ -148,6 +157,9 @@ export class ProducteurReservationsComponent implements OnInit {
   message                = signal<string | null>(null);
   erreur                 = signal<string | null>(null);
   erreurModal            = signal<string | null>(null);
+  actionEnCours          = signal<number | null>(null);
+  /** Une récolte annulée ne peut plus être réservée. */
+  productionsReservables = computed(() => this.productions().filter(p => p.statut !== 'annulee'));
   form!: FormGroup;
 
   constructor(private api: ApiService, private fb: FormBuilder) {}
@@ -192,6 +204,34 @@ export class ProducteurReservationsComponent implements OnInit {
   }
 
   fermerModal(): void { this.entrepotSelectionne.set(null); }
+
+  demanderFermeture(): void {
+    if (abandonConfirme(this.form)) this.fermerModal();
+  }
+
+  annuler(r: any): void {
+    const consequence = r.statut === 'confirmee'
+      ? `Annuler la réservation ${r.numero_reservation}, déjà confirmée par ${r.entrepot?.nom_entrepot ?? 'l\'entrepôt'} ?\nLa place réservée sera libérée et l'entrepôt notifié. Cette annulation est définitive.`
+      : `Annuler la demande ${r.numero_reservation} ?\nL'entrepôt sera notifié. Cette annulation est définitive.`;
+    const motif = demanderMotif(consequence, false);
+    if (motif === null) return;
+    this.actionEnCours.set(r.id);
+    this.erreur.set(null);
+    this.api.annulerReservation(r.id, motif || undefined).subscribe({
+      next: () => {
+        this.actionEnCours.set(null);
+        this.message.set('Réservation annulée. L\'entrepôt a été notifié.');
+        this.chargerReservations();
+        this.chargerEntrepots();
+        setTimeout(() => this.message.set(null), 4000);
+      },
+      error: err => {
+        this.actionEnCours.set(null);
+        this.erreur.set(err.status === 0 ? 'Serveur injoignable : réservation non annulée.' : err.error?.message ?? 'Annulation impossible.');
+        this.chargerReservations();
+      },
+    });
+  }
 
   reserver(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
