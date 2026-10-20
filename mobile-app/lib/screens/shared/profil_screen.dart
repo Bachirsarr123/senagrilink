@@ -16,6 +16,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   final _nomCtl     = TextEditingController();
   final _emailCtl   = TextEditingController();
   final _telCtl     = TextEditingController();
+  final _mdpActuelCtl = TextEditingController();
   final _mdpCtl     = TextEditingController();
   final _mdpConfCtl = TextEditingController();
   bool _obscure1    = true;
@@ -91,7 +92,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   @override
   void dispose() {
     _prenomCtl.dispose(); _nomCtl.dispose(); _emailCtl.dispose();
-    _telCtl.dispose(); _mdpCtl.dispose(); _mdpConfCtl.dispose();
+    _telCtl.dispose(); _mdpActuelCtl.dispose(); _mdpCtl.dispose(); _mdpConfCtl.dispose();
     _regionCtl.dispose(); _culturesCtl.dispose(); _superficieCtl.dispose();
     _nomEntrepotCtl.dispose(); _localisationCtl.dispose(); _capaciteCtl.dispose();
     _latitudeCtl.dispose(); _longitudeCtl.dispose();
@@ -108,6 +109,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
       setState(() => _erreur = 'Les mots de passe ne correspondent pas.');
       return;
     }
+    if (mdp.isNotEmpty && _mdpActuelCtl.text.isEmpty) {
+      setState(() => _erreur = 'Indiquez votre mot de passe actuel pour le modifier.');
+      return;
+    }
 
     setState(() { _loading = true; _erreur = null; _succes = null; });
 
@@ -118,6 +123,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       'telephone': _telCtl.text.trim(),
     };
     if (mdp.isNotEmpty) {
+      data['mot_de_passe_actuel'] = _mdpActuelCtl.text;
       data['mot_de_passe'] = mdp;
       data['mot_de_passe_confirmation'] = conf;
     }
@@ -157,10 +163,16 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
     try {
       await ApiService.updateProfile(data);
-      setState(() { _loading = false; _succes = 'Profil mis à jour avec succès.'; });
-      _mdpCtl.clear(); _mdpConfCtl.clear();
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _succes = mdp.isNotEmpty
+            ? 'Profil et mot de passe mis à jour. Vos autres sessions ont été déconnectées.'
+            : 'Profil mis à jour avec succès.';
+      });
+      _mdpActuelCtl.clear(); _mdpCtl.clear(); _mdpConfCtl.clear();
     } on ApiException catch (e) {
-      setState(() { _loading = false; _erreur = e.message; });
+      if (mounted) setState(() { _loading = false; _erreur = e.message; });
     }
   }
 
@@ -307,6 +319,14 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 const Divider(),
                 const Text('Changer le mot de passe (laisser vide pour ne pas modifier)',
                     style: TextStyle(fontSize: 13, color: Colors.grey)),
+                const SizedBox(height: 12),
+
+                TextFormField(
+                  key: const Key('profil-mdp-actuel'),
+                  controller: _mdpActuelCtl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Mot de passe actuel', prefixIcon: Icon(Icons.lock_clock_outlined)),
+                ),
                 const SizedBox(height: 12),
 
                 TextFormField(

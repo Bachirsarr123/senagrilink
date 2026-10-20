@@ -13,6 +13,7 @@ use App\Models\Transporteur;
 use App\Models\Utilisateur;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -87,7 +88,23 @@ class AuthController extends Controller
     {
         $utilisateur = $request->user();
 
-        $utilisateur->update($request->only(['nom', 'prenom', 'email', 'telephone', 'adresse', 'photo']));
+        if ($request->filled('mot_de_passe') && ! Hash::check((string) $request->input('mot_de_passe_actuel'), $utilisateur->mot_de_passe)) {
+            return response()->json([
+                'message' => 'Mot de passe actuel incorrect.',
+                'errors'  => ['mot_de_passe_actuel' => ['Mot de passe actuel incorrect.']],
+            ], 422);
+        }
+
+        DB::transaction(function () use ($utilisateur, $request) {
+            $utilisateur->update($request->only(['nom', 'prenom', 'email', 'telephone', 'adresse', 'photo']));
+
+            // P-17 — le nouveau mot de passe était ignoré alors que l'écran affichait
+            // un succès. Les autres sessions sont révoquées ; celle-ci reste ouverte.
+            if ($request->filled('mot_de_passe')) {
+                $utilisateur->update(['mot_de_passe' => $request->input('mot_de_passe')]);
+                $utilisateur->tokens()->whereKeyNot($request->user()->currentAccessToken()->getKey())->delete();
+            }
+        });
 
         $this->mettreAJourProfil($utilisateur, $request);
 

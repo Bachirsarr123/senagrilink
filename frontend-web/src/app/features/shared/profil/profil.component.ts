@@ -167,6 +167,10 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
             </h3>
             <div class="form-row">
               <div class="form-group">
+                <label>Mot de passe actuel</label>
+                <input type="password" formControlName="mot_de_passe_actuel" autocomplete="current-password" />
+              </div>
+              <div class="form-group">
                 <label>Nouveau mot de passe</label>
                 <input type="password" formControlName="mot_de_passe" placeholder="Minimum 8 caractères" />
               </div>
@@ -224,7 +228,8 @@ export class ProfilComponent implements OnInit {
       nom:                      [u?.nom    ?? '',  Validators.required],
       email:                    [u?.email  ?? '',  [Validators.required, Validators.email]],
       telephone:                [u?.telephone ?? ''],
-      adresse:                  [''],
+      adresse:                  [u?.adresse ?? ''],
+      mot_de_passe_actuel:      [''],
       mot_de_passe:             [''],
       mot_de_passe_confirmation:[''],
 
@@ -256,6 +261,10 @@ export class ProfilComponent implements OnInit {
       this.erreurMdp.set('Les mots de passe ne correspondent pas.');
       return;
     }
+    if (mdp && !this.form.value.mot_de_passe_actuel) {
+      this.erreurMdp.set('Indiquez votre mot de passe actuel pour le modifier.');
+      return;
+    }
     this.erreurMdp.set(null);
 
     const data: any = {
@@ -266,6 +275,7 @@ export class ProfilComponent implements OnInit {
       adresse:   this.form.value.adresse,
     };
     if (mdp) {
+      data.mot_de_passe_actuel       = this.form.value.mot_de_passe_actuel;
       data.mot_de_passe             = mdp;
       data.mot_de_passe_confirmation = conf;
     }
@@ -307,8 +317,9 @@ export class ProfilComponent implements OnInit {
 
     this.api.updateProfile(data).subscribe({
       next: res => {
-        this.message.set('Profil mis à jour avec succès.');
+        this.message.set(mdp ? 'Profil et mot de passe mis à jour. Vos autres sessions ont été déconnectées.' : 'Profil mis à jour avec succès.');
         this.loading.set(false);
+        this.form.get('mot_de_passe_actuel')?.reset('');
         this.form.get('mot_de_passe')?.reset('');
         this.form.get('mot_de_passe_confirmation')?.reset('');
         this.auth.mettreAJourUtilisateur(res.utilisateur);
