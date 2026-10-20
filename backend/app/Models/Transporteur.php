@@ -10,6 +10,14 @@ class Transporteur extends Model
 
     protected $fillable = ['utilisateur_id', 'type_vehicule', 'capacite_charge', 'zone'];
 
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    protected $casts = [
+        'capacite_charge' => 'float',
+    ];
+
     public function utilisateur()
     {
         return $this->belongsTo(Utilisateur::class, 'utilisateur_id');

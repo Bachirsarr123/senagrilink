@@ -10,6 +10,16 @@ class Entrepot extends Model
 
     protected $fillable = ['utilisateur_id', 'nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude'];
 
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    protected $casts = [
+        'capacite'  => 'float',
+        'latitude'  => 'float',
+        'longitude' => 'float',
+    ];
+
     public function utilisateur()
     {
         return $this->belongsTo(Utilisateur::class, 'utilisateur_id');

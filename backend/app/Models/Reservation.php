@@ -23,6 +23,14 @@ class Reservation extends Model
         'statut',
     ];
 
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    protected $casts = [
+        'quantite_reservee' => 'float',
+    ];
+
     protected static function booted(): void
     {
         static::creating(function (Reservation $reservation) {

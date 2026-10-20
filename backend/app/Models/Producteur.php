@@ -10,6 +10,14 @@ class Producteur extends Model
 
     protected $fillable = ['utilisateur_id', 'superficie', 'types_cultures', 'region'];
 
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    protected $casts = [
+        'superficie' => 'float',
+    ];
+
     public function utilisateur()
     {
         return $this->belongsTo(Utilisateur::class, 'utilisateur_id');
