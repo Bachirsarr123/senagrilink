@@ -232,3 +232,33 @@ La table ne contient que des traces techniques de moins de 24 h ; sa suppression
 | Angular | 76 réussis ; compilation OK |
 | Flutter | 207 réussis ; analyse sans erreur (4 remarques de style préexistantes) |
 | APK release (CI GitHub) | construit ; INTERNET présente dans le manifeste fusionné |
+
+---
+
+## 8. Vérifications avant fusion : CI, publication Android, effets d'une fusion (20 octobre 2026)
+
+### 8.1 CI sur le dernier commit
+- Dernier commit de la branche : `442face734f3550b493dd8e35e6029cfe8a9c41e`.
+- **Une seule exécution porte sur ce commit** : la n° 3 (`39478193071`), du workflow « Vérification APK release ». Elle est **réussie à toutes les étapes** :
+  - construction release ;
+  - `aapt2` : `android.permission.INTERNET` présente ;
+  - certificat affiché ;
+  - artefact déposé.
+- L'exécution n° 2 (`39477435555`, réussie) portait sur `cb9e6b6`, qui n'est pas le dernier commit. La n° 1 (`39476932218`, réussie) portait sur `868e98d`.
+- Aucun autre workflow GitHub ne teste le backend ou le web. Leurs tests ont été exécutés localement (§7.6). Jenkins n'est pas branché sur GitHub Actions.
+
+### 8.2 Publication Android existante (`mobile-apk.yml`)
+- **Déclenchement :** tout push sur `main` touchant `mobile-app/**` (ou lancement manuel). Il construit `flutter build apk --release` et **remplace** la release publique `mobile-latest`.
+- **Signature :** `android/app/build.gradle.kts` signe la release avec `signingConfigs.getByName("debug")`. Aucun keystore n'est configuré dans le dépôt, et aucun secret n'est utilisé par le workflow. Chaque runner GitHub crée donc **une nouvelle clé de debug aléatoire** à chaque construction.
+- **APK actuellement publié** (release `mobile-latest` du 19 octobre, construit depuis `7e7aa20`, 0 téléchargement enregistré). Analysé en lecture seule, empreinte du fichier `244500ff…` identique à celle de GitHub :
+  - signature v2, certificat `CN=Android Debug`, créé le 19 octobre à 15 h 33 (pendant la construction), SHA-256 `d2f408cc…` ;
+  - **`android.permission.INTERNET` absente** : l'APK distribué ne peut joindre aucune API (P-06 confirmé sur le fichier réellement publié).
+- **Builds de la branche :** certificats `2354d22b…` (n° 1) et `01f7a5d6…` (n° 3), tous différents.
+  - L'analyseur utilisé pour l'APK publié a été validé sur l'APK de la n° 3 : même empreinte et mêmes permissions que celles rapportées par `apksigner` et `aapt2`.
+- **Conséquence :** l'APK publié et toute prochaine version **ne partagent pas la même clé**. Android refusera de mettre à jour une installation existante (« conflit de package »). Il faudra désinstaller d'abord, ce qui efface la session et les données locales de l'application. Ce sera encore le cas à chaque nouvelle construction, tant qu'une clé de signature stable n'est pas configurée.
+
+### 8.3 Effets automatiques d'une fusion dans `main`
+1. **Publication Android immédiate** (`mobile-apk.yml`) : nouvel APK public, signé avec une nouvelle clé de debug.
+2. **Déploiement Render probable** : `render.yaml` ne définit pas `autoDeploy`, or Render déploie par défaut à chaque commit sur la branche liée. Le réglage réel du tableau de bord n'est pas visible d'ici. Si le déploiement automatique est actif, la fusion exécute `start.sh`, donc `php artisan migrate --force` **sur la base de production**, sans préproduction.
+
+**Fusionner revient donc à déployer et à publier.** Les vérifications de préproduction doivent précéder la fusion, ou bien il faut désactiver auparavant le déploiement automatique et le workflow de publication.
