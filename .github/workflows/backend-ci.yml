@@ -1,0 +1,100 @@
+name: Backend — tests (SQLite et PostgreSQL 16), migrations, garde de démarrage
+
+# Tests automatiques du backend Laravel à chaque push et pull request. N'accède
+# à aucun service extérieur : base PostgreSQL éphémère propre au runner, détruite
+# en fin de job. Ne déploie rien.
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: senagri
+          POSTGRES_PASSWORD: senagri_ci
+          POSTGRES_DB: senagrilink_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U senagri -d senagrilink_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      PGPASSWORD: senagri_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP et extensions requises
+        run: |
+          php -v
+          for ext in pdo_pgsql pdo_sqlite mbstring; do
+            php -m | grep -qx "$ext" || { echo "::error::extension PHP $ext absente du runner"; exit 1; }
+          done
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Tests (SQLite en mémoire)
+        run: php artisan test
+
+      - name: Tests (PostgreSQL 16, concurrence incluse)
+        env:
+          SENAGRILINK_TESTS_CONCURRENCE: '1'
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+          DB_DATABASE: senagrilink_test
+          DB_USERNAME: senagri
+          DB_PASSWORD: senagri_ci
+        run: php artisan test
+
+      # Cycle complet sur une base vierge : application, retour ciblé de la
+      # dernière migration (procédure de retour arrière documentée), puis retour
+      # de toutes les migrations (chaque down() est exécutable).
+      - name: Migrations — application, retour ciblé, retour complet
+        env:
+          APP_ENV: local
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+          DB_DATABASE: senagrilink_migrations
+          DB_USERNAME: senagri
+          DB_PASSWORD: senagri_ci
+        run: |
+          psql -h 127.0.0.1 -U senagri -d senagrilink_test -c 'CREATE DATABASE senagrilink_migrations'
+          table() { psql -h 127.0.0.1 -U senagri -d senagrilink_migrations -tAc "select to_regclass('$1') is not null"; }
+          php artisan migrate --force --no-interaction
+          php artisan migrate:status --no-interaction
+          [ "$(table requetes_idempotentes)" = t ] && [ "$(table historique_operations)" = t ]
+
+          php artisan migrate:rollback --force --no-interaction \
+            --path=database/migrations/2025_01_01_000018_create_requetes_idempotentes_table.php
+          [ "$(table requetes_idempotentes)" = f ] || { echo "::error::000018 non annulée"; exit 1; }
+          [ "$(table historique_operations)" = t ] || { echo "::error::le retour ciblé a supprimé historique_operations"; exit 1; }
+
+          php artisan migrate --force --no-interaction
+          php artisan migrate:reset --force --no-interaction
+          php artisan migrate --force --no-interaction
+          echo "OK : migrations appliquées, annulables et réappliquées."
+
+      - name: Garde de démarrage (aucune migration sur une base inattendue)
+        run: sh tests/garde-base.test.sh
