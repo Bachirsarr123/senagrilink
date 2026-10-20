@@ -74,11 +74,37 @@ class _HomeRouterState extends State<HomeRouter> {
   }
 }
 
+/// Rôle sans interface mobile (l'administrateur, selon le cahier des charges) :
+/// l'utilisateur doit pouvoir se déconnecter, sinon sa session persistante le
+/// ramenait sur cet écran à chaque lancement (P-19).
 class _AccessRefused extends StatelessWidget {
   const _AccessRefused();
+
+  Future<void> _deconnecter(BuildContext context) async {
+    await context.read<AuthProvider>().logout();
+    if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Accès refusé')),
-    body: const Center(child: Text('Ce rôle n\'a pas d\'interface mobile.')),
+    appBar: AppBar(title: const Text('SenAgriLink')),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.desktop_windows_outlined, size: 48, color: Colors.grey),
+          const SizedBox(height: 12),
+          const Text('Ce rôle n\'a pas d\'interface mobile.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text('L\'administration se fait depuis le site web SenAgriLink.', textAlign: TextAlign.center),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.logout),
+            label: const Text('Se déconnecter'),
+            onPressed: () => _deconnecter(context),
+          ),
+        ]),
+      ),
+    ),
   );
 }

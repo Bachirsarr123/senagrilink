@@ -4,6 +4,7 @@ import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/info_card.dart';
+import 'formulaire_commande.dart';
 import 'mes_commandes_screen.dart';
 import '../shared/tracabilite_screen.dart';
 import '../shared/profil_screen.dart';
@@ -33,6 +34,14 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     } on ApiException catch (e) {
       setState(() { _erreur = e.message; _loading = false; });
     }
+  }
+
+  Future<void> _commander(Map<String, dynamic> produit) async {
+    final numero = await ouvrirFormulaireCommande(context, produit);
+    if (numero == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Commande $numero passée. Suivez-la dans « Mes commandes ».'), backgroundColor: AppTheme.vert));
+    _charger();
   }
 
   @override
@@ -114,6 +123,15 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                                     Flexible(child: Text(production['code_tracabilite'] ?? '', style: const TextStyle(fontSize: 12, color: AppTheme.vert))),
                                   ]),
                                 ],
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.add_shopping_cart),
+                                    label: const Text('Commander'),
+                                    onPressed: () => _commander(p),
+                                  ),
+                                ),
                               ]),
                             ),
                           );

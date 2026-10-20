@@ -1,4 +1,5 @@
 import 'geo.dart';
+import 'nombres.dart';
 
 enum EtatEtape { termine, actuel, prevu, alerte }
 
@@ -26,7 +27,10 @@ String? _joindre(List<String?> parts) {
   return p.isEmpty ? null : p.join(' — ');
 }
 
-String? _kg(Object? q) => q is num ? '${q % 1 == 0 ? q.toInt() : q} kg' : null;
+String? _kg(Object? valeur) {
+  final q = nombre(valeur);
+  return q == null ? null : '${q % 1 == 0 ? q.toInt() : q} kg';
+}
 
 String? _nom(Object? p) {
   if (p is! Map) return null;

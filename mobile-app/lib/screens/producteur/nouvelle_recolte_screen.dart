@@ -16,6 +16,9 @@ class _NouvelleRecolteScreenState extends State<NouvelleRecolteScreen> {
   final _qteReelleCtl   = TextEditingController();
   DateTime? _dateRecolte;
   bool _loading = false;
+  /// Une clé par saisie, réutilisée si le producteur réessaie après une erreur :
+  /// la récolte n'est jamais enregistrée deux fois (P-25).
+  final _cleIdempotence = ApiService.nouvelleCleIdempotence();
   String? _erreur;
 
   @override
@@ -49,10 +52,10 @@ class _NouvelleRecolteScreenState extends State<NouvelleRecolteScreen> {
         'date_recolte':     '${_dateRecolte!.year}-${_dateRecolte!.month.toString().padLeft(2,'0')}-${_dateRecolte!.day.toString().padLeft(2,'0')}',
         'quantite_estimee': double.parse(_qteEstimeeCtl.text),
         'quantite_reelle':  _qteReelleCtl.text.isEmpty ? null : double.tryParse(_qteReelleCtl.text),
-      });
+      }, cleIdempotence: _cleIdempotence);
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
-      setState(() { _erreur = e.message; _loading = false; });
+      if (mounted) setState(() { _erreur = e.message; _loading = false; });
     }
   }
 

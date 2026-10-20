@@ -1,3 +1,5 @@
+import '../utils/nombres.dart';
+
 class Stock {
   final int id;
   final String produit;
@@ -25,8 +27,8 @@ class Stock {
   factory Stock.fromJson(Map<String, dynamic> j) => Stock(
         id: j['id'],
         produit: j['produit'],
-        quantite: (j['quantite'] as num).toDouble(),
-        seuilAlerte: (j['seuil_alerte'] as num?)?.toDouble(),
+        quantite: nombre(j['quantite']) ?? 0,
+        seuilAlerte: nombre(j['seuil_alerte']),
         dateEntree: j['date_entree'],
         statut: j['statut'] ?? 'disponible',
         entrepot: j['entrepot'],

@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Accès à l'API SenAgriLink. Indispensable en version release : sans cette
+         permission (présente seulement dans les manifestes debug et profile),
+         l'APK publié ne pouvait joindre aucun serveur. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Suivi GPS du transporteur pendant une livraison en cours -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>

@@ -1,3 +1,5 @@
+import '../utils/nombres.dart';
+
 class Commande {
   final int id;
   final String numeroCommande;
@@ -29,8 +31,8 @@ class Commande {
         id: j['id'],
         numeroCommande: j['numero_commande'] ?? '',
         produit: j['produit'],
-        quantite: (j['quantite'] as num).toDouble(),
-        prix: (j['prix'] as num?)?.toDouble(),
+        quantite: nombre(j['quantite']) ?? 0,
+        prix: nombre(j['prix']),
         dateCommande: j['date_commande'],
         statut: j['statut'],
         alerteLivraison: j['alerte_livraison'] == true,

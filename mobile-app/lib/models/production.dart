@@ -1,3 +1,5 @@
+import '../utils/nombres.dart';
+
 class Production {
   final int id;
   final String codeTracabilite;
@@ -23,10 +25,10 @@ class Production {
         id: j['id'],
         codeTracabilite: j['code_tracabilite'],
         typeCulture: j['type_culture'],
-        superficie: (j['superficie'] as num?)?.toDouble(),
+        superficie: nombre(j['superficie']),
         dateRecolte: j['date_recolte'],
-        quantiteEstimee: (j['quantite_estimee'] as num?)?.toDouble(),
-        quantiteReelle: (j['quantite_reelle'] as num?)?.toDouble(),
+        quantiteEstimee: nombre(j['quantite_estimee']),
+        quantiteReelle: nombre(j['quantite_reelle']),
         statut: j['statut'] ?? 'en_attente',
       );
 }

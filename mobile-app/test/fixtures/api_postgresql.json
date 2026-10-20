@@ -1,0 +1,252 @@
+{
+ "ancien_backend": {
+  "stocks": {
+   "stocks": [
+    {
+     "id": 1,
+     "entrepot_id": 1,
+     "production_id": 1,
+     "produit": "oignon",
+     "quantite": "70.5",
+     "date_entree": null,
+     "date_sortie": null,
+     "seuil_alerte": "100",
+     "statut": "disponible",
+     "observation": null,
+     "production": {
+      "id": 1,
+      "code_tracabilite": "LOT-2026-WTTXSW",
+      "type_culture": "oignon"
+     }
+    }
+   ]
+  },
+  "catalogue": {
+   "catalogue": [
+    {
+     "stock_id": 1,
+     "produit": "oignon",
+     "quantite": "70.5",
+     "date_entree": null,
+     "entrepot": {
+      "id": 1,
+      "nom_entrepot": "Entrepôt Thiès-Nord",
+      "localisation": "Thiès"
+     },
+     "production": {
+      "id": 1,
+      "code_tracabilite": "LOT-2026-WTTXSW",
+      "type_culture": "oignon",
+      "date_recolte": "2026-09-01"
+     }
+    }
+   ]
+  },
+  "historique": {
+   "commandes": [
+    {
+     "id": 2,
+     "numero_commande": "CMD-20261020-NPV4",
+     "acheteur_id": 1,
+     "stock_id": 1,
+     "produit": "oignon",
+     "quantite": "5",
+     "prix": null,
+     "date_commande": "2026-10-20 18:19:54",
+     "statut": "en_attente",
+     "stock": {
+      "id": 1,
+      "produit": "oignon",
+      "entrepot_id": 1,
+      "entrepot": {
+       "id": 1,
+       "nom_entrepot": "Entrepôt Thiès-Nord",
+       "localisation": "Thiès"
+      }
+     },
+     "livraison": null,
+     "alerte_livraison": false
+    },
+    {
+     "id": 1,
+     "numero_commande": "CMD-20261020-QG7S",
+     "acheteur_id": 1,
+     "stock_id": 1,
+     "produit": "oignon",
+     "quantite": "10",
+     "prix": null,
+     "date_commande": "2026-10-20 18:19:14",
+     "statut": "confirmee",
+     "stock": {
+      "id": 1,
+      "produit": "oignon",
+      "entrepot_id": 1,
+      "entrepot": {
+       "id": 1,
+       "nom_entrepot": "Entrepôt Thiès-Nord",
+       "localisation": "Thiès"
+      }
+     },
+     "livraison": null,
+     "alerte_livraison": false
+    }
+   ]
+  },
+  "productions": {
+   "productions": [
+    {
+     "id": 1,
+     "producteur_id": 1,
+     "code_tracabilite": "LOT-2026-WTTXSW",
+     "type_culture": "oignon",
+     "superficie": "1.5",
+     "date_recolte": "2026-09-01",
+     "quantite_estimee": "120.5",
+     "quantite_reelle": null,
+     "statut": "disponible",
+     "created_at": "2026-10-20T18:18:13.000000Z",
+     "updated_at": "2026-10-20T18:18:13.000000Z",
+     "stocks": [
+      {
+       "id": 1,
+       "entrepot_id": 1,
+       "production_id": 1,
+       "produit": "oignon",
+       "quantite": "70.5",
+       "date_entree": null,
+       "date_sortie": null,
+       "seuil_alerte": "100",
+       "statut": "disponible",
+       "observation": null
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "backend_corrige": {
+  "stocks": {
+   "stocks": [
+    {
+     "id": 1,
+     "entrepot_id": 1,
+     "production_id": 1,
+     "produit": "oignon",
+     "quantite": 70.5,
+     "date_entree": null,
+     "date_sortie": null,
+     "seuil_alerte": 100,
+     "statut": "disponible",
+     "observation": null,
+     "production": {
+      "id": 1,
+      "code_tracabilite": "LOT-2026-WTTXSW",
+      "type_culture": "oignon"
+     }
+    }
+   ]
+  },
+  "catalogue": {
+   "catalogue": [
+    {
+     "stock_id": 1,
+     "produit": "oignon",
+     "quantite": 70.5,
+     "date_entree": null,
+     "entrepot": {
+      "id": 1,
+      "nom_entrepot": "Entrepôt Thiès-Nord",
+      "localisation": "Thiès"
+     },
+     "production": {
+      "id": 1,
+      "code_tracabilite": "LOT-2026-WTTXSW",
+      "type_culture": "oignon",
+      "date_recolte": "2026-09-01"
+     }
+    }
+   ]
+  },
+  "historique": {
+   "commandes": [
+    {
+     "id": 2,
+     "numero_commande": "CMD-20261020-NPV4",
+     "acheteur_id": 1,
+     "stock_id": 1,
+     "produit": "oignon",
+     "quantite": 5,
+     "prix": null,
+     "date_commande": "2026-10-20 18:19:54",
+     "statut": "en_attente",
+     "stock": {
+      "id": 1,
+      "produit": "oignon",
+      "entrepot_id": 1,
+      "entrepot": {
+       "id": 1,
+       "nom_entrepot": "Entrepôt Thiès-Nord",
+       "localisation": "Thiès"
+      }
+     },
+     "livraison": null,
+     "alerte_livraison": false
+    },
+    {
+     "id": 1,
+     "numero_commande": "CMD-20261020-QG7S",
+     "acheteur_id": 1,
+     "stock_id": 1,
+     "produit": "oignon",
+     "quantite": 10,
+     "prix": null,
+     "date_commande": "2026-10-20 18:19:14",
+     "statut": "confirmee",
+     "stock": {
+      "id": 1,
+      "produit": "oignon",
+      "entrepot_id": 1,
+      "entrepot": {
+       "id": 1,
+       "nom_entrepot": "Entrepôt Thiès-Nord",
+       "localisation": "Thiès"
+      }
+     },
+     "livraison": null,
+     "alerte_livraison": false
+    }
+   ]
+  },
+  "productions": {
+   "productions": [
+    {
+     "id": 1,
+     "producteur_id": 1,
+     "code_tracabilite": "LOT-2026-WTTXSW",
+     "type_culture": "oignon",
+     "superficie": 1.5,
+     "date_recolte": "2026-09-01",
+     "quantite_estimee": 120.5,
+     "quantite_reelle": null,
+     "statut": "disponible",
+     "created_at": "2026-10-20T18:18:13.000000Z",
+     "updated_at": "2026-10-20T18:18:13.000000Z",
+     "stocks": [
+      {
+       "id": 1,
+       "entrepot_id": 1,
+       "production_id": 1,
+       "produit": "oignon",
+       "quantite": 70.5,
+       "date_entree": null,
+       "date_sortie": null,
+       "seuil_alerte": 100,
+       "statut": "disponible",
+       "observation": null
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

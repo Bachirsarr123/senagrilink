@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show SocketException;
+import 'dart:math';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -81,8 +84,18 @@ class ApiService {
 
   /// [jeton] : jeton envoyé avec la requête (null pour les routes publiques).
   static Future<dynamic> _parse(http.Response res, {required String? jeton}) async {
-    final body = jsonDecode(utf8.decode(res.bodyBytes));
-    if (res.statusCode >= 200 && res.statusCode < 300) return body;
+    // Réponse non JSON (page HTML d'un proxy 502/503, corps vide…) : jamais
+    // d'exception brute, qui laissait les écrans en chargement infini (P-20).
+    Object? body;
+    try {
+      body = res.bodyBytes.isEmpty ? null : jsonDecode(utf8.decode(res.bodyBytes));
+    } on FormatException {
+      body = null;
+    }
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      if (body == null) throw ApiException('Réponse inattendue du serveur.', statusCode: res.statusCode);
+      return body;
+    }
 
     // Session refusée sur une requête authentifiée : on efface la session locale.
     // Un 401 sur /login (mauvais mot de passe) n'est pas concerné, et un 403
@@ -104,27 +117,55 @@ class ApiService {
 
   static String? _jeton(Map<String, String> h) => h['Authorization']?.substring('Bearer '.length);
 
+  /// Délai maximal d'une requête : le backend Render peut mettre près d'une
+  /// minute à sortir de veille ; au-delà, l'écran affiche une erreur au lieu
+  /// d'attendre indéfiniment.
+  static Duration delaiMaximal = const Duration(seconds: 60);
+
+  /// Exécute la requête ; délai dépassé et absence de réseau deviennent une
+  /// ApiException (statusCode null), que tous les écrans savent afficher.
+  static Future<http.Response> _envoyer(Future<http.Response> Function() requete) async {
+    try {
+      return await requete().timeout(delaiMaximal);
+    } on TimeoutException {
+      throw ApiException('Le serveur ne répond pas. Vérifiez votre connexion puis réessayez.');
+    } on SocketException {
+      throw ApiException('Serveur injoignable. Vérifiez votre connexion puis réessayez.');
+    } on http.ClientException {
+      throw ApiException('Serveur injoignable. Vérifiez votre connexion puis réessayez.');
+    }
+  }
+
+  /// Clé d'idempotence d'une soumission de formulaire : à générer une fois par
+  /// soumission et à réutiliser si l'utilisateur réessaie, pour qu'une création
+  /// déjà enregistrée ne soit jamais dupliquée (P-25).
+  static String nouvelleCleIdempotence() {
+    final aleatoire = Random.secure();
+    return List.generate(32, (_) => aleatoire.nextInt(16).toRadixString(16)).join();
+  }
+
   static Future<dynamic> get(String path) async {
     final h = await _headers();
-    final res = await client.get(Uri.parse('$_baseUrl$path'), headers: h);
+    final res = await _envoyer(() => client.get(Uri.parse('$_baseUrl$path'), headers: h));
     return _parse(res, jeton: _jeton(h));
   }
 
-  static Future<dynamic> post(String path, Map<String, dynamic> data, {bool auth = true}) async {
+  static Future<dynamic> post(String path, Map<String, dynamic> data, {bool auth = true, String? cleIdempotence}) async {
     final h = await _headers(auth: auth);
-    final res = await client.post(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data));
+    if (cleIdempotence != null) h['Idempotency-Key'] = cleIdempotence;
+    final res = await _envoyer(() => client.post(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data)));
     return _parse(res, jeton: _jeton(h));
   }
 
   static Future<dynamic> put(String path, Map<String, dynamic> data) async {
     final h = await _headers();
-    final res = await client.put(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data));
+    final res = await _envoyer(() => client.put(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data)));
     return _parse(res, jeton: _jeton(h));
   }
 
   static Future<dynamic> delete(String path) async {
     final h = await _headers();
-    final res = await client.delete(Uri.parse('$_baseUrl$path'), headers: h);
+    final res = await _envoyer(() => client.delete(Uri.parse('$_baseUrl$path'), headers: h));
     return _parse(res, jeton: _jeton(h));
   }
 
@@ -142,7 +183,8 @@ class ApiService {
 
   // ── Productions ──────────────────────────────────────────────────────────
   static Future<dynamic> getProductions() => get('/productions');
-  static Future<dynamic> storeProduction(Map<String, dynamic> data) => post('/productions', data);
+  static Future<dynamic> storeProduction(Map<String, dynamic> data, {String? cleIdempotence}) =>
+      post('/productions', data, cleIdempotence: cleIdempotence);
   static Future<dynamic> updateProduction(int id, Map<String, dynamic> data) => put('/productions/$id', data);
   static Future<dynamic> getCommandesDisponibles() => get('/commandes/disponibles');
 
@@ -152,7 +194,8 @@ class ApiService {
 
   // ── Commandes (Acheteur) ─────────────────────────────────────────────────
   static Future<dynamic> getCatalogue() => get('/catalogue');
-  static Future<dynamic> passerCommande(Map<String, dynamic> data) => post('/commandes', data);
+  static Future<dynamic> passerCommande(Map<String, dynamic> data, {String? cleIdempotence}) =>
+      post('/commandes', data, cleIdempotence: cleIdempotence);
   static Future<dynamic> updateCommande(int id, Map<String, dynamic> data) => put('/commandes/$id', data);
   static Future<dynamic> annulerCommande(int id) => delete('/commandes/$id');
   static Future<dynamic> getHistoriqueCommandes() => get('/commandes/historique');

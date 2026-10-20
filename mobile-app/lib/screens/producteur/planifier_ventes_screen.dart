@@ -3,6 +3,7 @@ import '../../models/production.dart';
 import '../../services/api_service.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
+import '../../utils/nombres.dart';
 
 class PlanifierVentesScreen extends StatefulWidget {
   const PlanifierVentesScreen({super.key});
@@ -168,8 +169,8 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
               ),
               title: Text(d['produit'] ?? '—', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${(d['quantite'] as num).toStringAsFixed(0)} kg'
-                    '${d['prix'] != null ? ' — ${(d['prix'] as num).toStringAsFixed(0)} FCFA' : ''}'),
+                Text('${(nombre(d['quantite']) ?? 0).toStringAsFixed(0)} kg'
+                    '${d['prix'] != null ? ' — ${(nombre(d['prix']) ?? 0).toStringAsFixed(0)} FCFA' : ''}'),
                 if (d['numero_commande'] != null)
                   Text('Commande : ${d['numero_commande']}',
                       style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppTheme.vert)),

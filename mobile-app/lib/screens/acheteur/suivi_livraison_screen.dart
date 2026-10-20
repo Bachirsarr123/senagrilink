@@ -119,7 +119,9 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
 
   void _surErreur(ApiException e) {
     final statut = e.donnees?['statut_livraison'] as String?;
-    if ((e.statusCode ?? 0) >= 500) {
+    // Réseau coupé ou délai dépassé (ApiException sans code) et erreurs 5xx : la
+    // dernière position reste visible, signalée comme ancienne.
+    if (e.statusCode == null || e.statusCode! >= 500) {
       setState(() { _erreurReseau = true; if (_etat == EtatSuivi.chargement) _etat = EtatSuivi.sansPosition; });
       return _planifier(delaiAttente);
     }
