@@ -44,7 +44,7 @@ COPY public ./public
 COPY resources ./resources
 COPY routes ./routes
 COPY storage ./storage
-COPY artisan start.sh .env.example ./
+COPY artisan start.sh garde-base.sh .env.example ./
 
 # Le serveur tourne sans privilèges root (Sonar docker:S6471) : www-data ne peut
 # écrire que dans storage/, bootstrap/cache/ et le .env créé par start.sh.

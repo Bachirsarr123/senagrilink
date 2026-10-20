@@ -1,3 +1,11 @@
+# Livraison maîtrisée : aucun déploiement automatique à la fusion sur main.
+# Les déploiements de production se lancent à la main (tableau de bord Render
+# → Manual Deploy), après validation en préproduction (render-preproduction.yaml).
+# Ce réglage ne s'applique qu'à la synchronisation du Blueprint : vérifier aussi
+# « Auto-Deploy » dans les paramètres de chaque service (docs/livraison/preproduction.md).
+previews:
+  generation: off
+
 databases:
   - name: senagrilink-db
     databaseName: agri_platform
@@ -11,6 +19,7 @@ services:
   - type: web
     name: senagrilink-backend
     runtime: docker
+    autoDeployTrigger: off
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     plan: free
@@ -82,6 +91,7 @@ services:
   - type: web
     name: senagrilink-frontend
     runtime: static
+    autoDeployTrigger: off
     buildCommand: cd frontend-web && npm ci && npm run build -- --configuration production
     staticPublishPath: ./frontend-web/dist/sen-agri-link/browser
     envVars:
