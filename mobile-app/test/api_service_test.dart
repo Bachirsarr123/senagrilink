@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show HandshakeException;
 
 import 'package:agri_platform_mobile/services/api_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -166,6 +167,12 @@ void main() {
           throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 502)));
       expect(await ApiService.getToken(), 'jeton-fictif');
       expect(finsSession, isEmpty);
+    });
+
+    test('échec TLS (certificat, proxy) : ApiException, session conservée', () async {
+      ApiService.client = MockClient((req) async => throw const HandshakeException('certificat refusé'));
+      await expectLater(ApiService.getCatalogue(), throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', isNull)));
+      expect(await ApiService.getToken(), 'jeton-fictif');
     });
 
     test('réponse 200 non JSON : ApiException, jamais d\'exception brute', () async {

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show SocketException;
+import 'dart:io' show IOException;
 import 'dart:math';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -129,7 +129,8 @@ class ApiService {
       return await requete().timeout(delaiMaximal);
     } on TimeoutException {
       throw ApiException('Le serveur ne répond pas. Vérifiez votre connexion puis réessayez.');
-    } on SocketException {
+    } on IOException {
+      // SocketException, HandshakeException (TLS), HttpException… : connexion impossible.
       throw ApiException('Serveur injoignable. Vérifiez votre connexion puis réessayez.');
     } on http.ClientException {
       throw ApiException('Serveur injoignable. Vérifiez votre connexion puis réessayez.');
