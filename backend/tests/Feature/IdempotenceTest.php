@@ -80,8 +80,25 @@ class IdempotenceTest extends TestCase
             'empreinte' => hash('sha256', 'POST api/commandes '.$corps), 'created_at' => now(),
         ]);
 
-        $this->commander($acheteur, $stock, 5)->assertStatus(409);
+        $this->commander($acheteur, $stock, 5)->assertStatus(409)->assertJsonPath('code', 'requete_en_cours');
         $this->assertSame(0, Commande::count());
+    }
+
+    public function test_tentative_interrompue_signalee_sans_retraitement_automatique(): void
+    {
+        [$acheteur, $stock] = $this->acheteurEtStock();
+        $corps = json_encode(['stock_id' => $stock->id, 'quantite' => 5]);
+        // Requête restée « en cours » : serveur redémarré pendant le traitement.
+        DB::table('requetes_idempotentes')->insert([
+            'utilisateur_id' => $acheteur->id, 'cle' => self::CLE,
+            'empreinte' => hash('sha256', 'POST api/commandes '.$corps), 'created_at' => now()->subMinutes(5),
+        ]);
+
+        $this->commander($acheteur, $stock, 5)->assertStatus(409)->assertJsonPath('code', 'tentative_interrompue');
+        $this->assertSame(0, Commande::count()); // jamais retraitée automatiquement
+
+        // Formulaire rouvert : nouvelle clé, la commande peut être passée.
+        $this->commander($acheteur, $stock, 5, 'nouvelle-cle-0002')->assertStatus(201);
     }
 
     public function test_les_cles_sont_propres_a_chaque_utilisateur(): void

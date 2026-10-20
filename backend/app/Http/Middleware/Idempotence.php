@@ -15,7 +15,13 @@ use Symfony\Component\HttpFoundation\Response;
  * - Première requête : traitée normalement ; une réponse 2xx est mémorisée.
  * - Même clé, même contenu, réponse mémorisée : la réponse d'origine est
  *   renvoyée (en-tête Idempotent-Replayed) sans rien créer de nouveau.
- * - Même clé pendant que la première requête est encore traitée : 409.
+ * - Même clé pendant que la première requête est encore traitée : 409
+ *   (code « requete_en_cours ») ; si cette première requête a été interrompue
+ *   (redémarrage du serveur) depuis plus de 2 minutes : 409, code
+ *   « tentative_interrompue ». On ne retraite jamais automatiquement : on ne
+ *   sait pas si l'opération a été enregistrée, un retraitement pourrait créer le
+ *   doublon que ce mécanisme empêche. L'utilisateur vérifie sa liste et rouvre
+ *   le formulaire (nouvelle clé).
  * - Même clé avec un contenu différent : 422 (clé réutilisée par erreur).
  * - Échec (4xx/5xx) : rien n'est mémorisé, la soumission corrigée peut réessayer.
  *
@@ -24,6 +30,9 @@ use Symfony\Component\HttpFoundation\Response;
 class Idempotence
 {
     private const DUREE_CONSERVATION_HEURES = 24;
+
+    /** Au-delà, une requête « en cours » est considérée comme interrompue. */
+    private const DELAI_TRAITEMENT_SECONDES = 120;
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -89,7 +98,15 @@ class Idempotence
         }
 
         if ($existante->statut_http === null) {
-            return response()->json(['message' => 'Cette opération est déjà en cours de traitement.'], 409);
+            $interrompue = now()->diffInSeconds($existante->created_at, true) > self::DELAI_TRAITEMENT_SECONDES;
+
+            return response()->json($interrompue ? [
+                'message' => 'La tentative précédente a été interrompue. Vérifiez dans votre liste si l\'opération a bien été enregistrée avant de la recommencer.',
+                'code'    => 'tentative_interrompue',
+            ] : [
+                'message' => 'Cette opération est déjà en cours de traitement. Patientez quelques secondes puis vérifiez votre liste.',
+                'code'    => 'requete_en_cours',
+            ], 409);
         }
 
         return response($existante->reponse, (int) $existante->statut_http)

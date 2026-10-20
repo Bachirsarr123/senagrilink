@@ -254,4 +254,20 @@ class ConcurrencePostgresTest extends TestCase
 
         $this->assertSame('confirmee', $resa->fresh()->statut);
     }
+
+    public function test_idempotence_sans_transaction_englobante_sous_postgresql(): void
+    {
+        // Chemin de production : pas de transaction de test autour de la requête,
+        // la violation d'unicité est rattrapée au premier niveau de transaction.
+        $p   = $this->parcours();
+        $cle = 'concurrence-cle-0001';
+        $envoyer = fn () => $this->en($p->acheteur)->withHeader('Idempotency-Key', $cle)
+            ->postJson('/api/commandes', ['stock_id' => $p->stock->id, 'quantite' => 3]);
+
+        $premiere = $envoyer()->assertStatus(201);
+        $seconde  = $envoyer()->assertStatus(201)->assertHeader('Idempotent-Replayed', 'true');
+
+        $this->assertSame($premiere->json('commande.id'), $seconde->json('commande.id'));
+        $this->assertSame(1, \App\Models\Commande::where('quantite', 3)->count());
+    }
 }
