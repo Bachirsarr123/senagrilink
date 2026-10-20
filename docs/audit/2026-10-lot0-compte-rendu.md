@@ -131,7 +131,104 @@ Une précision sur le mot de passe : j'ai exigé le mot de passe actuel, ce qui 
    - administrateur : bouton « Se déconnecter » (P-19) ;
    - mode avion : message au lieu d'un chargement infini (P-20).
 7. Profil : changer le mot de passe (avec l'actuel). L'ancien est refusé, le nouveau accepté, et l'autre appareil est déconnecté. L'adresse est conservée.
-8. **Retour arrière :**
-   - redéployer le commit précédent (« Rollback » Render) ;
-   - la table `requetes_idempotentes` peut rester (inoffensive) ou être supprimée par `php artisan migrate:rollback --step=1` ;
-   - aucune autre donnée n'est modifiée par le lot.
+8. **Retour arrière :** voir §7.2, qui remplace la consigne `migrate:rollback --step=1` donnée initialement.
+
+---
+
+## 7. Revue technique avant fusion (20 octobre 2026)
+
+### 7.1 Idempotence : comportement exact
+
+Clé = en-tête `Idempotency-Key` (`[A-Za-z0-9_-]{8,100}`), propre à un utilisateur (unicité `utilisateur_id` + `cle`). Empreinte = SHA-256 de « méthode + chemin + corps brut ».
+
+| Situation | Réponse | Effet en base |
+|---|---|---|
+| Première requête | Traitement normal | Création ; réponse 2xx mémorisée |
+| Même clé, même contenu, réponse mémorisée | **Réponse d'origine** (même code, même corps) + `Idempotent-Replayed: true` | Aucune nouvelle ligne, aucune notification |
+| Même clé, **contenu différent** | **422** « Cette opération a déjà été enregistrée avec d'autres valeurs. Actualisez la page avant de recommencer. » | Rien. L'enregistrement d'origine est intact ; la seconde saisie n'est pas créée, l'utilisateur en est informé. |
+| Même clé, première requête encore en traitement | **409**, code `requete_en_cours` | Rien |
+| Même clé, première requête interrompue depuis plus de 2 min (serveur redémarré) | **409**, code `tentative_interrompue` : vérifier la liste puis rouvrir le formulaire | Rien. Jamais de retraitement automatique : on ne sait pas si l'opération a abouti. |
+| Première requête en échec (4xx/5xx) | — | Trace supprimée : la saisie corrigée peut réessayer avec la même clé |
+| Même clé, autre utilisateur | Traitement normal et indépendant | — |
+| Sans en-tête | Comportement d'avant le lot | — |
+
+**Clients :** une clé par **ouverture de formulaire**, conservée pour les nouveaux essais et renouvelée après un succès.
+- Web, 7 formulaires : commande, récolte, réservation, entrée de stock, sortie de stock, livraison, création d'utilisateur.
+- Mobile : commande, récolte (seuls formulaires de création du mobile).
+
+Rouvrir le formulaire équivaut à une nouvelle saisie.
+
+**Limite connue :** les actions sans clé (changement de statut d'une livraison, arrivée, annulation, modification de commande) sont protégées par les verrous et les contrôles d'état : aucun double effet possible. Un nouvel essai après un délai dépassé peut toutefois afficher « transition non autorisée » alors que la première tentative a réussi. Le message est trompeur, sans incohérence de données ; l'utilisateur voit l'état réel en actualisant.
+
+### 7.2 Migrations et retour arrière (simulés sur PostgreSQL 16 local)
+
+- **Dans `main` :** `000001` à `000017`. `000017` (`historique_operations`) vient de la PR #6, fusionnée le 20 octobre.
+- **Ajoutée par le lot 0 :** `000018_create_requetes_idempotentes_table` seulement (table technique ; `down()` = suppression de cette table).
+
+**Exécuté au déploiement** (`start.sh` lance `migrate --force`) :
+
+| État réel de la base Render | Migrations exécutées | Lot (*batch*) |
+|---|---|---|
+| A — PR #6 déjà déployée | `000018` seule | nouveau lot |
+| B — PR #6 jamais déployée | `000017` **et** `000018` | **le même lot** |
+
+Je ne peux pas savoir lequel des deux est réel sans accès à Render. Il faut lancer `php artisan migrate:status` dans le shell Render avant toute opération.
+
+**Retour arrière, simulé dans les deux cas :**
+
+| Commande | Cas A | Cas B |
+|---|---|---|
+| `migrate:rollback --path=database/migrations/2025_01_01_000018_create_requetes_idempotentes_table.php --force` | annule `000018` seule ✅ | annule `000018` seule ✅ |
+| `migrate:rollback --step=1 --force` | annule `000018` seule | annule `000018` seule |
+| `migrate:rollback --force` (sans option) | annule `000018` seule | ⚠️ **annule aussi `000017` : la table `historique_operations` et ses données sont supprimées** |
+
+**Procédure confirmée :**
+1. Redéployer le commit précédent (Rollback Render). L'ancien code ignore la table `requetes_idempotentes` : **aucun retour de migration n'est nécessaire**.
+2. Seulement si l'on veut supprimer la table technique : `php artisan migrate:status` (vérifier que `000018` est la dernière exécutée), puis la commande `--path=…000018…` ci-dessus.
+3. **Ne jamais lancer `migrate:rollback` sans `--path`.**
+
+La table ne contient que des traces techniques de moins de 24 h ; sa suppression ne fait perdre aucune donnée métier.
+
+### 7.3 Application Android : vérifiée sur l'APK release produit par la CI
+
+- Nouveau workflow `.github/workflows/mobile-verification.yml` : construction release, lecture du manifeste fusionné par `aapt2`, certificat affiché.
+  - Il **ne publie rien**, contrairement à `mobile-apk.yml` qui remplace la release `mobile-latest`.
+  - L'APK est conservé 7 jours comme artefact privé.
+- Exécution n° 1 (commit `868e98d`) : réussie. Sortie `aapt2 dump permissions` :
+  - `uses-permission: name='android.permission.INTERNET'` ✅
+  - `ACCESS_FINE_LOCATION` et `ACCESS_COARSE_LOCATION`.
+- **Signature :** `CN=Android Debug`. La clé de debug est utilisée, problème préexistant (P-23). Je n'ai ajouté aucune clé ; il faudra votre keystore de production.
+- **Reste à vérifier sur un appareil réel :** installation, connexion, appels réseau effectifs.
+
+### 7.4 Précision des nombres
+
+- **Colonnes PostgreSQL :** `double precision` pour les quantités, prix et capacités ; `numeric(10,7)` pour les coordonnées.
+- **Conversion :** le cast `float` produit le même double IEEE 754 que celui stocké, donc aucune perte. Les coordonnées (10 chiffres significatifs) tiennent dans un double. JSON au plus court exact (`serialize_precision=-1`) : `1499999.99`, `14.6937001`, `1234567.891` relus à l'identique.
+- **Arithmétique du stock :** identique avant et après (`0.3 − 0.1 − 0.2` donne `-2.78e-17` dans les deux cas), car PHP convertissait déjà les chaînes en `float`.
+- **Préexistant, non introduit par le lot (P-34) :** les montants et quantités sont stockés en `float`, d'où ces résidus (et un stock qui n'atteint jamais exactement 0). La correction suppose une migration en `decimal`, à planifier.
+- **Flutter :** `double.tryParse` donne le même double que la valeur JSON.
+
+### 7.5 Défauts trouvés à la revue et corrigés (avec test)
+
+| Défaut | Correction | Test |
+|---|---|---|
+| Clé bloquée 24 h si le serveur est interrompu en cours de requête | 409 `tentative_interrompue` après 2 min, sans retraitement | `IdempotenceTest` |
+| Web : 3 formulaires gardaient la même clé toute la page (422 sur une nouvelle saisie après une réponse perdue) | Une clé par ouverture | `lot0.spec` |
+| Mobile : erreurs TLS (`HandshakeException`) non converties, chargement infini | `on IOException` | `api_service_test` |
+| Mobile : un 200 non JSON (portail Wi-Fi captif) arrêtait le suivi GPS | ApiException sans code, traitée comme une coupure | `api_service_test` |
+| Mobile : un 401 HTML d'un proxy déconnectait l'utilisateur | Invalidation seulement sur une réponse JSON de l'API | `api_service_test` |
+| Mobile : déconnexion annulée si l'application est fermée pendant l'appel réseau | Session locale effacée avant l'appel | `api_service_test` |
+| Confirmation de réservation : capacité lue sur l'entrepôt chargé avant le verrou | Entrepôt verrouillé utilisé | `ConcurrencePostgresTest` (échoue sur l'ancienne version) |
+| Changement de mot de passe : erreur 500 si la session n'est pas un jeton personnel | Garde sur `PersonalAccessToken` | `ChangementMotDePasseTest` (échoue sur l'ancienne version) |
+| Web : réponse de confirmation perdue, le nouvel essai restait bloqué ; message erroné sur coupure | Reprise sur `statut_actuel: confirmee` ; message nuancé | `lot0.spec` |
+| Idempotence sous PostgreSQL sans transaction englobante (chemin de production) non testée | — | `ConcurrencePostgresTest` |
+
+### 7.6 Résultats finaux
+
+| Suite | Résultat |
+|---|---|
+| Laravel, SQLite | 145 réussis, 10 ignorés (PostgreSQL seulement) |
+| Laravel, PostgreSQL 16 (concurrence incluse) | **155 réussis** |
+| Angular | 76 réussis ; compilation OK |
+| Flutter | 207 réussis ; analyse sans erreur (4 remarques de style préexistantes) |
+| APK release (CI GitHub) | construit ; INTERNET présente dans le manifeste fusionné |
