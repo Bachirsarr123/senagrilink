@@ -22,22 +22,22 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     // ── Module Producteur ─────────────────────────────────────────────────────
     Route::middleware('role:producteur')->group(function () {
         Route::get('/productions',              [\App\Http\Controllers\Api\ProductionController::class, 'index']);
-        Route::post('/productions',             [\App\Http\Controllers\Api\ProductionController::class, 'store']);
+        Route::post('/productions',             [\App\Http\Controllers\Api\ProductionController::class, 'store'])->middleware('idempotence');
         Route::put('/productions/{id}',         [\App\Http\Controllers\Api\ProductionController::class, 'update']);
         Route::put('/productions/{id}/annuler', [\App\Http\Controllers\Api\ProductionController::class, 'annuler']);
         Route::get('/commandes/disponibles',    [\App\Http\Controllers\Api\ProductionController::class, 'commandesDisponibles']);
 
         // Réservation d'entrepôt
         Route::get('/entrepots/disponibles',    [\App\Http\Controllers\Api\ReservationController::class, 'entrepotsDisponibles']);
-        Route::post('/reservations',            [\App\Http\Controllers\Api\ReservationController::class, 'store']);
+        Route::post('/reservations',            [\App\Http\Controllers\Api\ReservationController::class, 'store'])->middleware('idempotence');
         Route::put('/reservations/{id}/annuler', [\App\Http\Controllers\Api\ReservationController::class, 'annuler']);
     });
 
     // ── Module Gestionnaire d'entrepôt ────────────────────────────────────────
     Route::middleware('role:gestionnaire_entrepot')->group(function () {
         Route::get('/stocks',                   [\App\Http\Controllers\Api\StockController::class, 'index']);
-        Route::post('/stocks/entree',           [\App\Http\Controllers\Api\StockController::class, 'entree']);
-        Route::post('/stocks/sortie',           [\App\Http\Controllers\Api\StockController::class, 'sortie']);
+        Route::post('/stocks/entree',           [\App\Http\Controllers\Api\StockController::class, 'entree'])->middleware('idempotence');
+        Route::post('/stocks/sortie',           [\App\Http\Controllers\Api\StockController::class, 'sortie'])->middleware('idempotence');
         Route::get('/stocks/alertes',           [\App\Http\Controllers\Api\StockController::class, 'alertes']);
         Route::get('/stocks/rapport',           [\App\Http\Controllers\Api\StockController::class, 'rapport']);
         Route::get('/commandes',                [\App\Http\Controllers\Api\CommandeController::class, 'indexEntrepot']);
@@ -45,7 +45,7 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::put('/commandes/{id}/refuser',   [\App\Http\Controllers\Api\CommandeController::class, 'refuser']);
         Route::put('/commandes/{id}/annuler-confirmation', [\App\Http\Controllers\Api\CommandeController::class, 'annulerConfirmation']);
         // Option B : création explicite de livraison après confirmation de commande
-        Route::post('/livraisons',              [\App\Http\Controllers\Api\LivraisonController::class, 'store']);
+        Route::post('/livraisons',              [\App\Http\Controllers\Api\LivraisonController::class, 'store'])->middleware('idempotence');
         Route::put('/livraisons/{id}/transporteur', [\App\Http\Controllers\Api\LivraisonController::class, 'changerTransporteur']);
 
         // Réservation d'entrepôt
@@ -61,7 +61,7 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     // ── Module Acheteur en gros ───────────────────────────────────────────────
     Route::middleware('role:acheteur_gros')->group(function () {
         Route::get('/catalogue',                [\App\Http\Controllers\Api\CommandeController::class, 'catalogue']);
-        Route::post('/commandes',               [\App\Http\Controllers\Api\CommandeController::class, 'store']);
+        Route::post('/commandes',               [\App\Http\Controllers\Api\CommandeController::class, 'store'])->middleware('idempotence');
         Route::put('/commandes/{id}',           [\App\Http\Controllers\Api\CommandeController::class, 'update']);
         Route::delete('/commandes/{id}',        [\App\Http\Controllers\Api\CommandeController::class, 'destroy']);
         Route::get('/commandes/historique',     [\App\Http\Controllers\Api\CommandeController::class, 'historique']);
@@ -83,7 +83,7 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     // ── Module Administrateur ─────────────────────────────────────────────────
     Route::middleware('role:administrateur')->prefix('admin')->group(function () {
         Route::get('/utilisateurs',             [\App\Http\Controllers\Api\AdminController::class, 'indexUtilisateurs']);
-        Route::post('/utilisateurs',            [\App\Http\Controllers\Api\AdminController::class, 'storeUtilisateur']);
+        Route::post('/utilisateurs',            [\App\Http\Controllers\Api\AdminController::class, 'storeUtilisateur'])->middleware('idempotence');
         Route::put('/utilisateurs/{id}/bloquer',   [\App\Http\Controllers\Api\AdminController::class, 'bloquer']);
         Route::put('/utilisateurs/{id}/debloquer', [\App\Http\Controllers\Api\AdminController::class, 'debloquer']);
         Route::get('/dashboard',               [\App\Http\Controllers\Api\AdminController::class, 'dashboard']);
