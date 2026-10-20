@@ -1,7 +1,6 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { of } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
@@ -361,34 +360,45 @@ export class CommandesEntrepotComponent implements OnInit {
     this.loadingModal.set(true);
     this.erreurModal.set(null);
 
-    const confirmation = c.statut === 'confirmee' ? of(null) : this.api.confirmerCommande(c.id);
-    confirmation.subscribe({
-      next: () => {
-        // P-16 — la confirmation est acquise (stock déduit) : si la création de la
-        // livraison échoue, le nouvel essai ne doit créer que la livraison, au lieu
-        // de reconfirmer (refus « seules les commandes en attente… »).
-        this.commandeSelectionnee.set({ ...c, statut: 'confirmee' });
-        const livData = { ...this.formLivraison.value, commande_id: c.id };
-        this.api.createLivraison(livData, this.cleLivraison.valeur).subscribe({
-          next: () => {
-            this.cleLivraison.renouveler();
-            this.loadingModal.set(false);
-            this.fermerModal();
-            this.message.set('Commande confirmée et livraison créée avec succès.');
-            this.charger();
-            setTimeout(() => this.message.set(null), 4000);
-          },
-          error: err => {
-            this.erreurModal.set(`La commande est confirmée (stock déduit), mais la livraison n'a pas été créée : ${err.error?.message ?? 'erreur réseau ou serveur'}. Corrigez si besoin puis réessayez.`);
-            this.loadingModal.set(false);
-            this.charger();
-          },
-        });
-      },
+    if (c.statut === 'confirmee') { this.creerLivraison(c); return; }
+
+    this.api.confirmerCommande(c.id).subscribe({
+      next: () => this.creerLivraison(c),
       error: err => {
+        // Réponse de confirmation perdue lors d'un essai précédent : la commande est
+        // déjà confirmée côté serveur ; on enchaîne sur la seule création de la livraison.
+        if (err.status === 422 && err.error?.statut_actuel === 'confirmee') { this.creerLivraison(c); return; }
         this.erreurModal.set(err.error?.message ?? 'Erreur lors de la confirmation.');
         this.loadingModal.set(false);
       },
     });
   }
+
+  /**
+   * P-16 — la confirmation est acquise (stock déduit) : si la création de la
+   * livraison échoue, le nouvel essai ne crée que la livraison (même clé
+   * d'idempotence), au lieu de reconfirmer (refus « seules les commandes en attente… »).
+   */
+  private creerLivraison(c: any): void {
+    this.commandeSelectionnee.set({ ...c, statut: 'confirmee' });
+    const livData = { ...this.formLivraison.value, commande_id: c.id };
+    this.api.createLivraison(livData, this.cleLivraison.valeur).subscribe({
+      next: () => {
+        this.cleLivraison.renouveler();
+        this.loadingModal.set(false);
+        this.fermerModal();
+        this.message.set('Commande confirmée et livraison créée avec succès.');
+        this.charger();
+        setTimeout(() => this.message.set(null), 4000);
+      },
+      error: err => {
+        this.erreurModal.set(err.status === 0
+          ? 'La commande est confirmée (stock déduit). Réponse du serveur perdue pour la livraison : réessayez, elle ne sera pas créée deux fois.'
+          : `La commande est confirmée (stock déduit), mais la livraison n'a pas été créée : ${err.error?.message ?? 'erreur serveur'}. Corrigez si besoin puis réessayez.`);
+        this.loadingModal.set(false);
+        this.charger();
+      },
+    });
+  }
+
 }

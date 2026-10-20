@@ -98,6 +98,32 @@ describe('Lot 0 — site web', () => {
     });
   });
 
+  describe('commandes de l\'entrepôt : réponse de confirmation perdue', () => {
+    it('le nouvel essai reconnaît la commande déjà confirmée et crée seulement la livraison', () => {
+      configurer();
+      const fixture = TestBed.createComponent(CommandesEntrepotComponent);
+      fixture.detectChanges();
+      const commande = { id: 4, numero_commande: 'CMD-4', produit: 'riz', quantite: 10, statut: 'en_attente', acheteur: {} };
+      http.expectOne(`${API}/commandes`).flush({ commandes: [commande] });
+      http.expectOne(`${API}/transporteurs`).flush({ transporteurs: [] });
+      const comp = fixture.componentInstance;
+
+      comp.ouvrirLivraison(commande);
+      comp.formLivraison.setValue({ transporteur_id: 1, origine: 'E', destination: 'D', date_depart: '2026-10-21T08:00', date_livraison: '' });
+      comp.confirmerAvecLivraison();
+      http.expectOne(`${API}/commandes/4/confirmer`).error(new ProgressEvent('error')); // réponse perdue
+      expect(comp.erreurModal()).toBeTruthy();
+
+      comp.confirmerAvecLivraison();
+      http.expectOne(`${API}/commandes/4/confirmer`).flush(
+        { message: 'Seules les commandes en attente peuvent être confirmées.', statut_actuel: 'confirmee' },
+        { status: 422, statusText: 'Unprocessable Entity' });
+      http.expectOne(`${API}/livraisons`).flush({ livraison: { id: 2 } }, { status: 201, statusText: 'Created' });
+      http.expectOne(`${API}/commandes`).flush({ commandes: [] });
+      expect(comp.message()).toContain('livraison créée');
+    });
+  });
+
   describe('alertes de stock (P-21)', () => {
     it('erreur de chargement : message et Réessayer, jamais « tout va bien »', () => {
       configurer();
