@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show HandshakeException;
 
@@ -175,9 +176,32 @@ void main() {
       expect(await ApiService.getToken(), 'jeton-fictif');
     });
 
-    test('réponse 200 non JSON : ApiException, jamais d\'exception brute', () async {
+    test('réponse 200 non JSON (portail captif) : ApiException sans code, traitée comme une coupure', () async {
       ApiService.client = MockClient((req) async => http.Response('<html>maintenance</html>', 200));
+      await expectLater(ApiService.getCatalogue(), throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', isNull)));
+    });
+
+    test('401 au corps HTML (proxy, pare-feu) : la session n\'est pas effacée', () async {
+      ApiService.client = MockClient((req) async => http.Response('<html>401</html>', 401));
       await expectLater(ApiService.getCatalogue(), throwsA(isA<ApiException>()));
+      expect(await ApiService.getToken(), 'jeton-fictif');
+      expect(finsSession, isEmpty);
+    });
+
+    test('déconnexion : session locale effacée avant la réponse du serveur', () async {
+      final reponse = Completer<http.Response>();
+      ApiService.client = MockClient((req) {
+        requetes.add(req);
+        return reponse.future;
+      });
+
+      final deconnexion = ApiService.logout();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(await ApiService.getToken(), isNull); // déjà effacée, appel encore en cours
+      reponse.complete(http.Response(jsonEncode({'message': 'ok'}), 200));
+      await deconnexion;
+      expect(requetes.single.headers['Authorization'], 'Bearer jeton-fictif');
     });
   });
 

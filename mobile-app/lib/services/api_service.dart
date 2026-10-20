@@ -93,7 +93,9 @@ class ApiService {
       body = null;
     }
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      if (body == null) throw ApiException('Réponse inattendue du serveur.', statusCode: res.statusCode);
+      // Sans code HTTP : un 200 illisible vient presque toujours d'un intermédiaire
+      // (portail Wi-Fi captif, proxy), à traiter comme une coupure réseau.
+      if (body == null) throw ApiException('Réponse inattendue du serveur. Vérifiez votre connexion puis réessayez.');
       return body;
     }
 
@@ -104,7 +106,9 @@ class ApiService {
     // requête émise avec un ancien jeton n'efface pas une session ouverte depuis.
     // Erreur réseau (levée avant _parse), 5xx ou réponse inattendue : session conservée.
     final code = body is Map ? body['code'] : null;
-    if (jeton != null &&
+    // Un 401 sans corps JSON vient d'un intermédiaire (proxy, pare-feu), pas de
+    // l'API : il ne doit pas déconnecter l'utilisateur.
+    if (jeton != null && body is Map &&
         (res.statusCode == 401 || (res.statusCode == 403 && code == 'compte_bloque')) &&
         jeton == await getToken()) {
       await removeToken();
@@ -177,9 +181,21 @@ class ApiService {
   static Future<Map<String, dynamic>> register(Map<String, dynamic> data) async =>
       await post('/register', data, auth: false);
 
+  /// Déconnexion volontaire : la session locale est effacée AVANT l'appel réseau
+  /// (qui peut durer jusqu'au délai maximal) ; une application fermée pendant cet
+  /// appel ne restaure donc pas la session au lancement suivant. Le jeton capturé
+  /// est ensuite révoqué côté serveur si le réseau le permet.
   static Future<void> logout() async {
-    try { await post('/logout', {}); } catch (_) {}
+    final jeton = await getToken();
     await removeToken();
+    if (jeton == null) return;
+    try {
+      await _envoyer(() => client.post(Uri.parse('$_baseUrl/logout'), headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $jeton',
+          }, body: '{}'));
+    } catch (_) {}
   }
 
   // ── Productions ──────────────────────────────────────────────────────────
