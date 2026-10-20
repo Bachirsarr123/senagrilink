@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -102,7 +103,16 @@ class AuthController extends Controller
             // un succès. Les autres sessions sont révoquées ; celle-ci reste ouverte.
             if ($request->filled('mot_de_passe')) {
                 $utilisateur->update(['mot_de_passe' => $request->input('mot_de_passe')]);
-                $utilisateur->tokens()->whereKeyNot($request->user()->currentAccessToken()->getKey())->delete();
+                $jetonCourant = $request->user()->currentAccessToken();
+                $autres       = $utilisateur->tokens();
+
+                // Authentification par jeton personnel (cas de l'API) : on garde la
+                // session courante. Autre garde (TransientToken) : tous les jetons sont révoqués.
+                if ($jetonCourant instanceof PersonalAccessToken) {
+                    $autres->whereKeyNot($jetonCourant->getKey());
+                }
+
+                $autres->delete();
             }
         });
 

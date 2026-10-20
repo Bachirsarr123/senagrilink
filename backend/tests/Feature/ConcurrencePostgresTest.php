@@ -270,4 +270,22 @@ class ConcurrencePostgresTest extends TestCase
         $this->assertSame($premiere->json('commande.id'), $seconde->json('commande.id'));
         $this->assertSame(1, \App\Models\Commande::where('quantite', 3)->count());
     }
+
+    public function test_confirmation_lit_la_capacite_de_lentrepot_verrouille(): void
+    {
+        $p = $this->parcours(); // 80 kg en stock
+        $p->gestionnaire->entrepot->update(['capacite' => 200]);
+        $resa = $this->reservation($this->production($p->producteur), $p->gestionnaire, 'en_attente'); // 100 kg
+
+        // Le gestionnaire réduit simultanément la capacité à 150 kg (disponible : 150 - 80 = 70 < 100)
+        $fin = $this->transactionConcurrente([
+            "SELECT id FROM entrepots WHERE id = {$p->gestionnaire->entrepot->id} FOR UPDATE",
+            "UPDATE entrepots SET capacite = 150 WHERE id = {$p->gestionnaire->entrepot->id}",
+        ]);
+
+        $this->en($p->gestionnaire)->putJson("/api/reservations/{$resa->id}/confirmer")->assertStatus(422);
+        $fin();
+
+        $this->assertSame('en_attente', $resa->fresh()->statut);
+    }
 }

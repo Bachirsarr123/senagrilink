@@ -77,4 +77,17 @@ class ChangementMotDePasseTest extends TestCase
         $this->profil($jeton, ['prenom' => 'Awa'])->assertOk()->assertJsonPath('utilisateur.adresse', 'Thiès, quartier Nord');
         $this->connecter('ancien-mdp-1');
     }
+
+    public function test_changement_sans_jeton_personnel_ne_provoque_pas_d_erreur(): void
+    {
+        // Garde « web » (TransientToken), par exemple via actingAs : tous les jetons sont révoqués, sans erreur 500.
+        $utilisateur = Utilisateur::where('email', 'u@test.sn')->first();
+        $this->connecter();
+
+        $this->actingAs($utilisateur, 'web')->putJson('/api/profile', [
+            'mot_de_passe_actuel' => 'ancien-mdp-1', 'mot_de_passe' => 'nouveau-mdp-2', 'mot_de_passe_confirmation' => 'nouveau-mdp-2',
+        ])->assertOk();
+
+        $this->assertSame(0, $utilisateur->tokens()->count());
+    }
 }

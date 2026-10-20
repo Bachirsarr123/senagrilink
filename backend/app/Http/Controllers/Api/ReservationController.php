@@ -163,14 +163,15 @@ class ReservationController extends Controller
         // verrou de l'entrepôt puis de la réservation : ni dépassement de capacité
         // par deux confirmations simultanées, ni double confirmation.
         $refus = DB::transaction(function () use ($reservation) {
-            Entrepot::whereKey($reservation->entrepot_id)->lockForUpdate()->first();
-            $r = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
+            $entrepot = Entrepot::whereKey($reservation->entrepot_id)->lockForUpdate()->first();
+            $r        = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
 
             if ($r->statut !== 'en_attente') {
                 return $this->refus('Seules les réservations en attente peuvent être confirmées.', $r);
             }
 
-            $disponible = $this->capaciteDisponible($reservation->entrepot, excluant: $r->id);
+            // Capacité lue sur l'entrepôt verrouillé (une baisse de capacité simultanée est prise en compte).
+            $disponible = $this->capaciteDisponible($entrepot, excluant: $r->id);
 
             if ($r->quantite_reservee > $disponible) {
                 return response()->json([
