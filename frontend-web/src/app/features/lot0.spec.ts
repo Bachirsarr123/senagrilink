@@ -8,6 +8,7 @@ import { CatalogueComponent } from './acheteur/catalogue/catalogue.component';
 import { CommandesEntrepotComponent } from './entrepot/commandes-entrepot/commandes-entrepot.component';
 import { AlertesComponent } from './entrepot/alertes/alertes.component';
 import { ProfilComponent } from './shared/profil/profil.component';
+import { ProductionsComponent } from './producteur/productions/productions.component';
 
 /** Non-régression des corrections du lot 0 côté site web. */
 const API = environment.apiUrl;
@@ -146,6 +147,32 @@ describe('Lot 0 — site web', () => {
       const req = http.expectOne(`${API}/profile`);
       expect(req.request.body).toMatchObject({ mot_de_passe_actuel: 'ancien-mdp-1', mot_de_passe: 'nouveau-mdp-2', mot_de_passe_confirmation: 'nouveau-mdp-2' });
       req.flush({ utilisateur: { id: 1, nom: 'Diallo', prenom: 'Awa', email: 'a@test.sn', role: 'acheteur_gros' } });
+    });
+  });
+  describe('récolte : une clé par ouverture du formulaire', () => {
+    it('même clé pour le nouvel essai, nouvelle clé à la réouverture', () => {
+      configurer();
+      const fixture = TestBed.createComponent(ProductionsComponent);
+      fixture.detectChanges();
+      http.expectOne(`${API}/productions`).flush({ productions: [] });
+      const comp = fixture.componentInstance;
+      const remplir = () => comp.formCreation.setValue({ type_culture: 'mil', superficie: null, date_recolte: '2026-06-01', quantite_estimee: 10, quantite_reelle: null });
+      const envoyer = () => { comp.soumettre(); return http.expectOne(`${API}/productions`); };
+
+      comp.toggleFormCreation(); remplir();
+      const e1 = envoyer(); const cle = e1.request.headers.get('Idempotency-Key');
+      e1.flush({ message: 'Erreur' }, { status: 503, statusText: 'Unavailable' });
+      const e2 = envoyer();
+      expect(e2.request.headers.get('Idempotency-Key')).toBe(cle);
+      e2.flush({ message: 'Erreur' }, { status: 503, statusText: 'Unavailable' });
+
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      comp.toggleFormCreation(); // fermeture
+      comp.toggleFormCreation(); // réouverture : nouvelle saisie
+      remplir();
+      const e3 = envoyer();
+      expect(e3.request.headers.get('Idempotency-Key')).not.toBe(cle);
+      e3.flush({ production: { id: 1, code_tracabilite: 'LOT-1' } }, { status: 201, statusText: 'Created' });
     });
   });
 });

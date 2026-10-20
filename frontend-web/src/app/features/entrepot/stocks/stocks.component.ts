@@ -15,10 +15,10 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
       <div class="page-header">
         <h1>Gestion des stocks</h1>
         <div class="btn-group">
-          <button class="btn-primary" (click)="modeFormulaire.set(modeFormulaire() === 'entree' ? null : 'entree')">
+          <button class="btn-primary" (click)="basculerFormulaire('entree')">
             + Entrée
           </button>
-          <button class="btn-secondary" (click)="modeFormulaire.set(modeFormulaire() === 'sortie' ? null : 'sortie')">
+          <button class="btn-secondary" (click)="basculerFormulaire('sortie')">
             − Sortie
           </button>
         </div>
@@ -147,6 +147,13 @@ export class StocksComponent implements OnInit {
       next: res => { this.stocks.set(res.stocks); this.chargement.set(false); },
       error: () => this.chargement.set(false),
     });
+  }
+
+  /** Une clé d'idempotence par ouverture de formulaire : chaque ouverture est une nouvelle saisie. */
+  basculerFormulaire(mode: 'entree' | 'sortie'): void {
+    const ouverture = this.modeFormulaire() !== mode;
+    this.modeFormulaire.set(ouverture ? mode : null);
+    if (ouverture) (mode === 'entree' ? this.cleEntree : this.cleSortie).renouveler();
   }
 
   enregistrerEntree(): void {

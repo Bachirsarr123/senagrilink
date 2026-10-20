@@ -15,7 +15,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
         <h1>Gestion des utilisateurs</h1>
         <div class="btn-group">
           <span class="subtitle">{{ utilisateurs().length }} utilisateur(s)</span>
-          <button class="btn-primary" (click)="showForm.set(!showForm())">
+          <button class="btn-primary" (click)="basculerFormulaire()">
             {{ showForm() ? 'Annuler' : '+ Ajouter un utilisateur' }}
           </button>
         </div>
@@ -172,6 +172,12 @@ export class UtilisateursComponent implements OnInit {
     const v = (e.target as HTMLSelectElement).value;
     if (v) this.params.statut = v; else delete this.params.statut;
     this.charger();
+  }
+
+  /** Une clé d'idempotence par ouverture du formulaire de création. */
+  basculerFormulaire(): void {
+    if (!this.showForm()) this.cleCreation.renouveler();
+    this.showForm.set(!this.showForm());
   }
 
   creerUtilisateur(): void {

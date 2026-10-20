@@ -199,6 +199,7 @@ export class ProductionsComponent implements OnInit {
     if (this.showFormCreation() && !abandonConfirme(this.formCreation)) return;
     if (!this.showFormCreation() && this.productionEnEdition() && !abandonConfirme(this.formEdition)) return;
     if (this.showFormCreation()) this.formCreation.reset();
+    else this.cleRecolte.renouveler(); // une clé par ouverture du formulaire
     this.showFormCreation.set(!this.showFormCreation());
     this.annulerEdition();
   }
