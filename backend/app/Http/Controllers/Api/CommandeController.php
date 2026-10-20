@@ -117,27 +117,40 @@ class CommandeController extends Controller
             return $commande;
         }
 
-        if ($commande->statut !== 'en_attente') {
-            return response()->json([
-                'message'       => 'Seules les commandes en attente peuvent être modifiées.',
-                'statut_actuel' => $commande->statut,
-            ], 422);
-        }
+        // Verrou + revérification : une modification envoyée pendant la
+        // confirmation ne peut plus s'appliquer à une commande déjà confirmée
+        // (stock déduit de l'ancienne quantité, commande affichant la nouvelle).
+        $refus = DB::transaction(function () use ($commande, $request) {
+            $c = Commande::whereKey($commande->id)->lockForUpdate()->first();
 
-        // Si la quantité change, re-vérifier la disponibilité (règle métier 1)
-        if ($request->has('quantite') && $request->quantite !== $commande->quantite) {
-            $stock = $commande->stock;
-
-            if ($request->quantite > $stock->quantite) {
+            if ($c->statut !== 'en_attente') {
                 return response()->json([
-                    'message'             => 'Quantité insuffisante en stock.',
-                    'quantite_disponible' => $stock->quantite,
-                    'quantite_demandee'   => $request->quantite,
+                    'message'       => 'Seules les commandes en attente peuvent être modifiées.',
+                    'statut_actuel' => $c->statut,
                 ], 422);
             }
-        }
 
-        $commande->update($request->validated());
+            // Si la quantité change, re-vérifier la disponibilité (règle métier 1)
+            if ($request->has('quantite')) {
+                $stock = Stock::whereKey($c->stock_id)->lockForUpdate()->first();
+
+                if ($request->quantite > $stock->quantite) {
+                    return response()->json([
+                        'message'             => 'Quantité insuffisante en stock.',
+                        'quantite_disponible' => $stock->quantite,
+                        'quantite_demandee'   => $request->quantite,
+                    ], 422);
+                }
+            }
+
+            $c->update($request->validated());
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
+        }
 
         return response()->json([
             'message'  => 'Commande mise à jour.',

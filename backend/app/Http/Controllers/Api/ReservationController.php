@@ -51,28 +51,36 @@ class ReservationController extends Controller
             return response()->json(['message' => 'Profil producteur introuvable.'], 404);
         }
 
-        $entrepot   = Entrepot::findOrFail($request->entrepot_id);
-        $disponible = $this->capaciteDisponible($entrepot);
+        // Verrou sur l'entrepôt : deux demandes simultanées ne peuvent pas
+        // dépasser à elles deux la capacité disponible.
+        $reservation = DB::transaction(function () use ($request, $producteur) {
+            $entrepot   = Entrepot::whereKey($request->entrepot_id)->lockForUpdate()->firstOrFail();
+            $disponible = $this->capaciteDisponible($entrepot);
 
-        if ($request->quantite_reservee > $disponible) {
-            return response()->json([
-                'message'             => 'Capacité insuffisante dans cet entrepôt. Réservation non créée.',
-                'capacite_disponible' => $disponible,
-                'quantite_demandee'   => $request->quantite_reservee,
-            ], 422);
+            if ($request->quantite_reservee > $disponible) {
+                return response()->json([
+                    'message'             => 'Capacité insuffisante dans cet entrepôt. Réservation non créée.',
+                    'capacite_disponible' => $disponible,
+                    'quantite_demandee'   => $request->quantite_reservee,
+                ], 422);
+            }
+
+            return Reservation::create([
+                'entrepot_id'       => $entrepot->id,
+                'producteur_id'     => $producteur->id,
+                'production_id'     => $request->production_id,
+                'produit'           => $request->produit,
+                'quantite_reservee' => $request->quantite_reservee,
+                'date_debut'        => $request->date_debut,
+                'date_fin'          => $request->date_fin,
+                'date_reservation'  => now(),
+                'statut'            => 'en_attente',
+            ]);
+        });
+
+        if ($reservation instanceof JsonResponse) {
+            return $reservation;
         }
-
-        $reservation = Reservation::create([
-            'entrepot_id'       => $entrepot->id,
-            'producteur_id'     => $producteur->id,
-            'production_id'     => $request->production_id,
-            'produit'           => $request->produit,
-            'quantite_reservee' => $request->quantite_reservee,
-            'date_debut'        => $request->date_debut,
-            'date_fin'          => $request->date_fin,
-            'date_reservation'  => now(),
-            'statut'            => 'en_attente',
-        ]);
 
         return response()->json([
             'message'     => 'Demande de réservation envoyée.',
@@ -151,22 +159,38 @@ class ReservationController extends Controller
             ], 422);
         }
 
-        // Re-vérification de la capacité au moment de la confirmation
-        $disponible = $this->capaciteDisponible($reservation->entrepot, excluant: $reservation->id);
+        // Re-vérification de la capacité au moment de la confirmation, sous
+        // verrou de l'entrepôt puis de la réservation : ni dépassement de capacité
+        // par deux confirmations simultanées, ni double confirmation.
+        $refus = DB::transaction(function () use ($reservation) {
+            Entrepot::whereKey($reservation->entrepot_id)->lockForUpdate()->first();
+            $r = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
 
-        if ($reservation->quantite_reservee > $disponible) {
-            return response()->json([
-                'message'             => 'Capacité insuffisante pour confirmer cette réservation.',
-                'capacite_disponible' => $disponible,
-                'quantite_demandee'   => $reservation->quantite_reservee,
-            ], 422);
-        }
+            if ($r->statut !== 'en_attente') {
+                return $this->refus('Seules les réservations en attente peuvent être confirmées.', $r);
+            }
 
-        DB::transaction(function () use ($reservation) {
-            $reservation->statut = 'confirmee';
-            $reservation->save();
+            $disponible = $this->capaciteDisponible($reservation->entrepot, excluant: $r->id);
+
+            if ($r->quantite_reservee > $disponible) {
+                return response()->json([
+                    'message'             => 'Capacité insuffisante pour confirmer cette réservation.',
+                    'capacite_disponible' => $disponible,
+                    'quantite_demandee'   => $r->quantite_reservee,
+                ], 422);
+            }
+
+            $r->statut = 'confirmee';
+            $r->save();
+
+            return null;
         });
 
+        if ($refus) {
+            return $refus;
+        }
+
+        $reservation->refresh();
         $reservation->producteur->utilisateur->notify(new ReservationConfirmeeNotification($reservation));
 
         return response()->json([
@@ -321,7 +345,15 @@ class ReservationController extends Controller
             ], 422);
         }
 
+        // Verrou + revérification : deux validations simultanées (double clic,
+        // nouvel essai) ne peuvent pas créer deux lignes de stock pour le même lot.
         $stock = DB::transaction(function () use ($reservation, $request) {
+            $verrouillee = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
+
+            if ($verrouillee->statut !== 'arrivee_entrepot') {
+                return $this->refus('Cette marchandise a déjà été enregistrée ou n\'est plus à l\'entrepôt.', $verrouillee);
+            }
+
             $stock = Stock::create([
                 'entrepot_id'   => $reservation->entrepot_id,
                 'production_id' => $reservation->production_id,
@@ -332,14 +364,18 @@ class ReservationController extends Controller
                 'statut'        => 'disponible',
             ]);
 
-            $reservation->statut = 'enregistree';
-            $reservation->save();
+            $verrouillee->statut = 'enregistree';
+            $verrouillee->save();
 
             // La récolte liée est désormais physiquement en entrepôt.
             $reservation->production?->update(['statut' => 'disponible']);
 
             return $stock;
         });
+
+        if ($stock instanceof JsonResponse) {
+            return $stock;
+        }
 
         $reservation->producteur->utilisateur->notify(new MarchandiseEnregistreeNotification($stock->load('entrepot')));
 
@@ -364,15 +400,30 @@ class ReservationController extends Controller
             return $reservation;
         }
 
-        if ($reservation->statut !== 'confirmee') {
-            return response()->json([
-                'message'       => 'Seule une réservation confirmée peut être marquée comme arrivée.',
-                'statut_actuel' => $reservation->statut,
-            ], 422);
+        // Verrou + revérification : ni double signalement, ni signalement par un
+        // transporteur à qui la mission vient d'être retirée (réassignation simultanée).
+        $refus = DB::transaction(function () use ($reservation, $request) {
+            $r = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
+
+            if ($request->user()->role !== 'administrateur' && $r->transporteur_id !== $request->user()->transporteur?->id) {
+                return response()->json(['message' => 'Cette mission ne vous est plus assignée.'], 403);
+            }
+
+            if ($r->statut !== 'confirmee') {
+                return $this->refus('Seule une réservation confirmée peut être marquée comme arrivée.', $r);
+            }
+
+            $r->statut = 'arrivee_entrepot';
+            $r->save();
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
         }
 
-        $reservation->statut = 'arrivee_entrepot';
-        $reservation->save();
+        $reservation->refresh();
 
         $reservation->entrepot->utilisateur?->notify(new ArriveeEntrepotNotification($reservation));
 

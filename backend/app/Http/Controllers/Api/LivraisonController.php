@@ -57,16 +57,40 @@ class LivraisonController extends Controller
             return response()->json(['message' => 'Ce transporteur ne peut pas recevoir de mission (compte bloqué).'], 422);
         }
 
-        $livraison = Livraison::create([
-            'commande_id'            => $commande->id,
-            'transporteur_id'        => $request->transporteur_id,
-            'origine'                => $request->origine,
-            'destination'            => $request->destination,
-            'destination_latitude'   => $request->destination_latitude,
-            'destination_longitude'  => $request->destination_longitude,
-            'date_depart'            => $request->date_depart,
-            'statut'                 => 'en_attente',
-        ]);
+        // Verrou sur la commande + revérification : deux créations simultanées
+        // (double clic, nouvel essai) ne produisent jamais deux livraisons.
+        $livraison = DB::transaction(function () use ($commande, $request) {
+            $c = Commande::whereKey($commande->id)->lockForUpdate()->first();
+
+            if ($c->statut !== 'confirmee') {
+                return response()->json([
+                    'message'       => 'Une livraison ne peut être créée que pour une commande confirmée.',
+                    'statut_actuel' => $c->statut,
+                ], 422);
+            }
+
+            if ($existante = Livraison::where('commande_id', $c->id)->first()) {
+                return response()->json([
+                    'message'          => 'Une livraison existe déjà pour cette commande.',
+                    'numero_livraison' => $existante->numero_livraison,
+                ], 422);
+            }
+
+            return Livraison::create([
+                'commande_id'            => $c->id,
+                'transporteur_id'        => $request->transporteur_id,
+                'origine'                => $request->origine,
+                'destination'            => $request->destination,
+                'destination_latitude'   => $request->destination_latitude,
+                'destination_longitude'  => $request->destination_longitude,
+                'date_depart'            => $request->date_depart,
+                'statut'                 => 'en_attente',
+            ]);
+        });
+
+        if ($livraison instanceof JsonResponse) {
+            return $livraison;
+        }
 
         $this->notifierTransporteur($livraison->transporteur_id, 'mission_assignee', sprintf(
             'Nouvelle livraison : %s vers %s — commande %s.', $commande->produit, $livraison->destination, $commande->numero_commande,
@@ -216,26 +240,44 @@ class LivraisonController extends Controller
             'en_cours'   => ['livree'],
         ];
 
-        $statutActuel    = $livraison->statut;
-        $nouveauStatut   = $request->statut;
-        $transitionsOk   = $transitions[$statutActuel] ?? [];
+        $nouveauStatut = $request->statut;
 
-        if (! in_array($nouveauStatut, $transitionsOk)) {
-            return response()->json([
-                'message'           => 'Transition de statut non autorisée.',
-                'statut_actuel'     => $statutActuel,
-                'transitions_valides' => $transitionsOk,
-            ], 422);
+        // Verrou + revérification : ni double transition, ni mise à jour par un
+        // transporteur à qui la livraison vient d'être retirée.
+        $resultat = DB::transaction(function () use ($livraison, $request, $transitions, $nouveauStatut) {
+            $l = $this->verrouillerPourLeTransporteur($request, $livraison);
+
+            if ($l instanceof JsonResponse) {
+                return $l;
+            }
+
+            $transitionsOk = $transitions[$l->statut] ?? [];
+
+            if (! in_array($nouveauStatut, $transitionsOk)) {
+                return response()->json([
+                    'message'             => 'Transition de statut non autorisée.',
+                    'statut_actuel'       => $l->statut,
+                    'transitions_valides' => $transitionsOk,
+                ], 422);
+            }
+
+            $l->statut = $nouveauStatut;
+
+            // Horodatage automatique à la livraison
+            if ($nouveauStatut === 'livree') {
+                $l->date_livraison = now();
+            }
+
+            $l->save();
+
+            return $l;
+        });
+
+        if ($resultat instanceof JsonResponse) {
+            return $resultat;
         }
 
-        $livraison->statut = $nouveauStatut;
-
-        // Horodatage automatique à la livraison
-        if ($nouveauStatut === 'livree') {
-            $livraison->date_livraison = now();
-        }
-
-        $livraison->save();
+        $livraison = $resultat;
 
         $this->notifierChangementStatut($livraison, $nouveauStatut);
 
@@ -288,20 +330,36 @@ class LivraisonController extends Controller
             return $livraison;
         }
 
-        if ($livraison->statut === 'livree') {
-            return response()->json([
-                'message' => 'Impossible de signaler un problème sur une livraison déjà livrée.',
-            ], 422);
+        $resultat = DB::transaction(function () use ($livraison, $request) {
+            $l = $this->verrouillerPourLeTransporteur($request, $livraison);
+
+            if ($l instanceof JsonResponse) {
+                return $l;
+            }
+
+            if ($l->statut === 'livree') {
+                return response()->json([
+                    'message' => 'Impossible de signaler un problème sur une livraison déjà livrée.',
+                ], 422);
+            }
+
+            if ($l->statut === 'probleme') {
+                return response()->json([
+                    'message' => 'Un problème est déjà signalé sur cette livraison.',
+                ], 422);
+            }
+
+            $l->statut = 'probleme';
+            $l->save();
+
+            return $l;
+        });
+
+        if ($resultat instanceof JsonResponse) {
+            return $resultat;
         }
 
-        if ($livraison->statut === 'probleme') {
-            return response()->json([
-                'message' => 'Un problème est déjà signalé sur cette livraison.',
-            ], 422);
-        }
-
-        $livraison->statut = 'probleme';
-        $livraison->save();
+        $livraison = $resultat;
 
         // Règle métier 4 — l'alerte visuelle est portée par le flag alerte_livraison
         // dans GET /api/commandes/historique. Aucun changement de statut commande ici.
@@ -313,6 +371,18 @@ class LivraisonController extends Controller
     }
 
     // ── Helper privé ──────────────────────────────────────────────────────────
+
+    /** Relit la livraison sous verrou et revérifie qu'elle appartient toujours au transporteur connecté. */
+    private function verrouillerPourLeTransporteur(Request $request, Livraison $livraison): Livraison|JsonResponse
+    {
+        $l = Livraison::whereKey($livraison->id)->lockForUpdate()->first();
+
+        if ($request->user()->role !== 'administrateur' && $l->transporteur_id !== $request->user()->transporteur?->id) {
+            return response()->json(['message' => 'Cette livraison ne vous est plus assignée.'], 403);
+        }
+
+        return $l;
+    }
 
     /**
      * Récupère une livraison appartenant au transporteur connecté.

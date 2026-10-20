@@ -88,15 +88,19 @@ class StockController extends Controller
             return response()->json(['message' => 'Stock introuvable dans votre entrepôt.'], 404);
         }
 
-        if ($request->quantite_sortie > $stock->quantite) {
-            return response()->json([
-                'message'             => 'Quantité insuffisante en stock.',
-                'quantite_disponible' => $stock->quantite,
-                'quantite_demandee'   => $request->quantite_sortie,
-            ], 422);
-        }
+        // Verrou + revérification : une sortie simultanée à une confirmation de
+        // commande (qui verrouille aussi le stock) ne peut plus écraser sa déduction.
+        $refus = DB::transaction(function () use (&$stock, $request) {
+            $stock = Stock::whereKey($stock->id)->lockForUpdate()->first();
 
-        DB::transaction(function () use ($stock, $request) {
+            if ($request->quantite_sortie > $stock->quantite) {
+                return response()->json([
+                    'message'             => 'Quantité insuffisante en stock.',
+                    'quantite_disponible' => $stock->quantite,
+                    'quantite_demandee'   => $request->quantite_sortie,
+                ], 422);
+            }
+
             $stock->quantite -= $request->quantite_sortie;
 
             if ($stock->quantite == 0) {
@@ -105,7 +109,13 @@ class StockController extends Controller
             }
 
             $stock->save();
+
+            return null;
         });
+
+        if ($refus) {
+            return $refus;
+        }
 
         return response()->json([
             'message'             => 'Sortie de stock enregistrée.',
