@@ -24,6 +24,9 @@ dependencies:
   geolocator: ^13.0.2
   # Bouton « Itinéraire » : ouvre la navigation (Google Maps) vers la prochaine adresse
   url_launcher: ^6.3.1
+  # Lot 5 (Q13) : QR code du lot, affiché et scanné à la réception
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^6.0.2
   # Carte de suivi de livraison (acheteur)
   flutter_map: ^7.0.2
   latlong2: ^0.9.1

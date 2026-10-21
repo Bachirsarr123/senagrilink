@@ -31,6 +31,7 @@ void main() {
     brancherFinSession(auth);
     await tester.pumpWidget(ChangeNotifierProvider.value(value: auth, child: const AgriPlatformApp()));
     await tester.pumpAndSettle();
+    await ouvrirOnglet(tester, const {'acheteur_gros': 'Catalogue', 'producteur': 'Récoltes'}[utilisateur['role']] ?? '');
   }
 
   Future<void> arreter(WidgetTester tester) => tester.pumpWidget(const SizedBox());
@@ -134,4 +135,12 @@ void main() {
     expect(find.textContaining('Serveur injoignable'), findsOneWidget);
     await arreter(tester);
   });
+}
+
+/// Lot 5 : l'application s'ouvre sur « À faire » ; on passe à l'onglet voulu.
+Future<void> ouvrirOnglet(WidgetTester tester, String libelle) async {
+  final onglet = find.descendant(of: find.byType(NavigationBar), matching: find.text(libelle));
+  if (onglet.evaluate().isEmpty) return;
+  await tester.tap(onglet);
+  await tester.pumpAndSettle();
 }

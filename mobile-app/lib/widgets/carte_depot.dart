@@ -4,6 +4,8 @@ import '../utils/depot.dart';
 import '../utils/nombres.dart';
 import 'app_theme.dart';
 import 'declarer_incident.dart';
+import 'choix_transporteur.dart';
+import 'reception_depot.dart';
 import 'itineraire.dart';
 import '../screens/acheteur/suivi_livraison_screen.dart';
 import '../services/suivi_gps_service.dart';
@@ -20,6 +22,8 @@ class CarteDepot extends StatelessWidget {
   final void Function(String action) onAction;
   /// Côté transporteur : coordonnées du producteur chez qui aller.
   final bool vueTransporteur;
+  /// Côté gestionnaire : producteur (contact) et quantité reçue.
+  final bool vueGestionnaire;
 
   const CarteDepot({
     super.key,
@@ -28,6 +32,7 @@ class CarteDepot extends StatelessWidget {
     required this.onAction,
     this.enCours = false,
     this.vueTransporteur = false,
+    this.vueGestionnaire = false,
   });
 
   @override
@@ -71,7 +76,7 @@ class CarteDepot extends StatelessWidget {
           Text('${r['produit'] ?? ''} — ${kg(quantite)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           if (recue != null && statut == 'enregistree') ligne(Icons.scale_outlined, '${kg(recue)} reçus'),
           if (lot != null) ligne(Icons.qr_code_2, 'Lot $lot'),
-          if (vueTransporteur && producteur != null) ...[
+          if ((vueTransporteur || vueGestionnaire) && producteur != null) ...[
             ligne(Icons.agriculture, 'Chez ${producteur['prenom'] ?? ''} ${producteur['nom'] ?? ''}'
                 '${producteur['telephone'] != null ? ' · ${producteur['telephone']}' : ''}'),
             if (producteur['adresse'] != null) ligne(Icons.place_outlined, producteur['adresse'] as String),
@@ -107,7 +112,7 @@ class CarteDepot extends StatelessWidget {
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final a in actions)
-                a == 'refuser_mission' || a == 'annuler' || a == 'declarer_incident'
+                const ['refuser_mission', 'annuler', 'declarer_incident', 'refuser', 'refuser_reception', 'remettre_en_attente', 'retirer_transporteur'].contains(a)
                     ? OutlinedButton(
                         key: Key('depot-${r['id']}-$a'),
                         onPressed: enCours ? null : () => onAction(a),
@@ -116,7 +121,7 @@ class CarteDepot extends StatelessWidget {
                     : ElevatedButton(
                         key: Key('depot-${r['id']}-$a'),
                         onPressed: enCours ? null : () => onAction(a),
-                        child: Text(enCours ? 'Envoi…' : (libelleAction[a] ?? a)),
+                        child: Text(enCours ? 'Envoi…' : (a == 'assigner' && r['transporteur_id'] != null ? 'Changer de transporteur' : (libelleAction[a] ?? a))),
                       ),
             ]),
           ],
@@ -148,6 +153,31 @@ Future<bool> executerActionDepot(BuildContext context, Map<String, dynamic> r, S
         'L\'entrepôt${r['transporteur_id'] != null ? ' et le transporteur seront prévenus' : ' sera prévenu'}. Cette annulation est définitive.', obligatoire: false);
     if (motif == null) return false;
     appel = () => ApiService.annulerDepot(id, motif: motif);
+  } else if (action == 'confirmer') {
+    if (!await _confirmer(context, 'Accepter le dépôt $numero : ${r['produit'] ?? ''} (${r['quantite_reservee'] ?? ''} kg) ?')) return false;
+    appel = () => ApiService.confirmerDepot(id);
+  } else if (action == 'refuser' || action == 'refuser_reception') {
+    if (!context.mounted) return false;
+    final motif = await _demanderMotif(context, action == 'refuser' ? 'Refuser le dépôt $numero ?' : 'Refuser la marchandise $numero ?',
+        action == 'refuser' ? 'Le producteur sera prévenu avec le motif.' : 'Aucun stock ne sera créé ; la quantité revient au lot du producteur.', obligatoire: true);
+    if (motif == null) return false;
+    appel = action == 'refuser' ? () => ApiService.refuserDepot(id, motif) : () => ApiService.refuserReceptionDepot(id, motif);
+  } else if (action == 'remettre_en_attente') {
+    if (!await _confirmer(context, 'Annuler l\'acceptation du dépôt $numero ? Il redevient une demande à examiner.')) return false;
+    appel = () => ApiService.remettreDepotEnAttente(id);
+  } else if (action == 'assigner') {
+    if (!context.mounted) return false;
+    final t = await choisirTransporteur(context, exclure: r['transporteur_id'] as int?);
+    if (t == null) return false;
+    appel = () => ApiService.assignerTransporteurDepot(id, t);
+  } else if (action == 'retirer_transporteur') {
+    if (!await _confirmer(context, 'Retirer la mission au transporteur ? Il sera prévenu.')) return false;
+    appel = () => ApiService.retirerTransporteurDepot(id);
+  } else if (action == 'receptionner') {
+    if (!context.mounted) return false;
+    final donnees = await saisirReception(context, r);
+    if (donnees == null) return false;
+    appel = () => ApiService.receptionnerDepot(id, donnees);
   } else if (action == 'declarer_incident') {
     return declarerIncident(context, sujetType: 'reservation', sujetId: id, numero: numero);
   } else if (etapeDeLAction.containsKey(action)) {

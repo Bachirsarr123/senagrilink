@@ -5,10 +5,7 @@ import '../services/api_service.dart';
 import '../services/auth_provider.dart';
 import '../services/suivi_gps_service.dart';
 import '../widgets/app_theme.dart';
-import 'producteur/productions_screen.dart';
-import 'transporteur/livraisons_screen.dart';
-import 'gestionnaire/stocks_screen.dart';
-import 'acheteur/catalogue_screen.dart';
+import 'espace_role.dart';
 
 const _intervallePollingNotifications = Duration(seconds: 10);
 
@@ -68,13 +65,8 @@ class _HomeRouterState extends State<HomeRouter> {
   @override
   Widget build(BuildContext context) {
     final role = context.read<AuthProvider>().role;
-    return switch (role) {
-      'producteur'            => const ProductionsScreen(),
-      'transporteur'          => const LivraisonsScreen(),
-      'gestionnaire_entrepot' => const StocksScreen(),
-      'acheteur_gros'         => const CatalogueScreen(),
-      _                       => const _AccessRefused(),
-    };
+    // Lot 5 : chaque rôle arrive sur « À faire », ses écrans en onglets.
+    return EspaceRole.onglets(role ?? '').isEmpty ? const _AccessRefused() : EspaceRole(role: role!);
   }
 }
 

@@ -19,6 +19,11 @@ import 'package:agri_platform_mobile/screens/shared/tracabilite_screen.dart';
 import 'package:agri_platform_mobile/screens/transporteur/detail_livraison_screen.dart';
 import 'package:agri_platform_mobile/screens/transporteur/livraisons_screen.dart';
 import 'package:agri_platform_mobile/screens/transporteur/reservations_screen.dart';
+import 'package:agri_platform_mobile/screens/gestionnaire/commandes_entrepot_screen.dart';
+import 'package:agri_platform_mobile/screens/gestionnaire/depots_entrepot_screen.dart';
+import 'package:agri_platform_mobile/screens/gestionnaire/incidents_screen.dart';
+import 'package:agri_platform_mobile/screens/shared/a_faire_screen.dart';
+import 'package:agri_platform_mobile/screens/shared/fiche_commande_screen.dart';
 import 'package:agri_platform_mobile/services/api_service.dart';
 import 'package:agri_platform_mobile/services/auth_provider.dart';
 import 'package:agri_platform_mobile/widgets/app_theme.dart';
@@ -78,6 +83,11 @@ void main() {
     'Acheminements':            ('transporteur', () => const ReservationsScreen(), 'Accepter la mission'),
     'Détail de livraison':      ('transporteur', () => DetailLivraisonScreen(livraison: livraison), 'Accepter la mission'),
     'Remise par code':          ('transporteur', () => DetailLivraisonScreen(livraison: remise), 'Remettre avec le code'),
+    'À faire':                  ('gestionnaire_entrepot', () => const AFaireScreen(), 'Incident à décider : panne'),
+    'Commandes de l\'entrepôt': ('gestionnaire_entrepot', () => const CommandesEntrepotScreen(), 'Organiser la livraison'),
+    'Dépôts de l\'entrepôt':    ('gestionnaire_entrepot', () => const DepotsEntrepotScreen(), 'Dépôts'),
+    'Incidents':                ('gestionnaire_entrepot', () => const IncidentsScreen(), 'Personne sur place'),
+    'Fiche de commande':        ('gestionnaire_entrepot', () => const FicheCommandeScreen(commandeId: 2), 'Réception à confirmer'),
     'Profil':                   ('producteur', () => const ProfilScreen(afficherTuiles: false), 'Position de votre exploitation'),
     'Traçabilité':              ('acheteur_gros', () => const TracabiliteScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
   };

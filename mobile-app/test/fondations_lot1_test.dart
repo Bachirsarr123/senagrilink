@@ -80,6 +80,7 @@ void main() {
       await auth.init();
       await tester.pumpWidget(ChangeNotifierProvider.value(value: auth, child: const AgriPlatformApp()));
       await tester.pumpAndSettle();
+      await ouvrirOnglet(tester, const {'gestionnaire_entrepot': 'Stocks', 'producteur': 'Récoltes'}[utilisateur['role']] ?? '');
     }
 
     http.Response json(Object corps, [int statut = 200]) =>
@@ -123,4 +124,12 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   });
+}
+
+/// Lot 5 : l'application s'ouvre sur « À faire » ; on passe à l'onglet voulu.
+Future<void> ouvrirOnglet(WidgetTester tester, String libelle) async {
+  final onglet = find.descendant(of: find.byType(NavigationBar), matching: find.text(libelle));
+  if (onglet.evaluate().isEmpty) return;
+  await tester.tap(onglet);
+  await tester.pumpAndSettle();
 }

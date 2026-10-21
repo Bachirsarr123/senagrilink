@@ -273,4 +273,31 @@ class ApiService {
   /// (transporteur de la mission, ou producteur qui livre lui-même).
   static Future<dynamic> etapeDepot(int id, String etape) =>
       put('/reservations/$id/etape', {'etape': etape});
+
+  // ── Écrans par rôle (lot 5) ───────────────────────────────────────────────
+  static Future<dynamic> getAFaire() => get('/a-faire');
+  static Future<dynamic> getFicheCommande(int id) => get('/fiches/commande/$id');
+
+  // ── Gestionnaire d'entrepôt ───────────────────────────────────────────────
+  static Future<dynamic> getCommandesEntrepot() => get('/commandes');
+  static Future<dynamic> confirmerCommande(int id) => put('/commandes/$id/confirmer', {});
+  static Future<dynamic> refuserCommande(int id, String motif) => put('/commandes/$id/refuser', {'motif': motif});
+  static Future<dynamic> preparerCommande(int id) => put('/commandes/$id/preparer', {});
+  static Future<dynamic> marquerCommandePrete(int id) => put('/commandes/$id/prete', {});
+  static Future<dynamic> annulerCommandeEntrepot(int id, String motif) => put('/commandes/$id/annuler-confirmation', {'motif': motif});
+  static Future<dynamic> organiserLivraison(int commandeId, int transporteurId, {String? cleIdempotence}) =>
+      post('/livraisons', {'commande_id': commandeId, 'transporteur_id': transporteurId}, cleIdempotence: cleIdempotence);
+  static Future<dynamic> changerTransporteurLivraison(int livraisonId, int transporteurId) =>
+      put('/livraisons/$livraisonId/transporteur', {'transporteur_id': transporteurId});
+  static Future<dynamic> getTransporteurs() => get('/transporteurs');
+  static Future<dynamic> confirmerDepot(int id) => put('/reservations/$id/confirmer', {});
+  static Future<dynamic> refuserDepot(int id, String motif) => put('/reservations/$id/refuser', {'motif': motif});
+  static Future<dynamic> remettreDepotEnAttente(int id) => put('/reservations/$id/remettre-en-attente', {});
+  static Future<dynamic> assignerTransporteurDepot(int id, int transporteurId) =>
+      put('/reservations/$id/assigner-transporteur', {'transporteur_id': transporteurId});
+  static Future<dynamic> retirerTransporteurDepot(int id) => delete('/reservations/$id/transporteur');
+  static Future<dynamic> receptionnerDepot(int id, Map<String, dynamic> data) => put('/reservations/$id/valider', data);
+  static Future<dynamic> refuserReceptionDepot(int id, String motif) => put('/reservations/$id/refuser-reception', {'motif': motif});
+  static Future<dynamic> getIncidents() => get('/incidents');
+  static Future<dynamic> resoudreIncident(int id, Map<String, dynamic> data) => put('/incidents/$id/resoudre', data);
 }

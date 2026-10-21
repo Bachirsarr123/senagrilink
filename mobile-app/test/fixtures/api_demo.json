@@ -877,5 +877,197 @@
   "attribution": "© les contributeurs d'OpenStreetMap",
   "routage_routier": true,
   "position_recente_s": 60
+ },
+ "/a-faire": {
+  "elements": [
+   {
+    "categorie": "incident",
+    "sujet_type": "livraison",
+    "sujet_id": 1,
+    "incident_id": 1,
+    "numero": "LIV-20261019-ZLEH",
+    "titre": "Le camion est tombé en panne sur la route nationale 2 à la sortie de Thiès",
+    "etape": "Incident à décider : panne",
+    "urgence": "haute",
+    "en_retard": true,
+    "depuis": "2026-10-19T09:30:00Z"
+   },
+   {
+    "categorie": "commande",
+    "sujet_type": "commande",
+    "sujet_id": 2,
+    "numero": "CMD-20261019-ZWIO",
+    "titre": "oignon violet de Galmi — 1 250,5 kg",
+    "etape": "Livraison à organiser",
+    "urgence": "normale",
+    "en_retard": false,
+    "depuis": "2026-10-19T11:30:00Z"
+   },
+   {
+    "categorie": "stock",
+    "sujet_type": "stock",
+    "sujet_id": 1,
+    "numero": "riz",
+    "titre": "riz : 12 kg disponibles (seuil 50 kg)",
+    "etape": "Stock sous le seuil d'alerte",
+    "urgence": "normale",
+    "en_retard": false,
+    "depuis": null
+   }
+  ]
+ },
+ "/commandes": {
+  "commandes": [
+   {
+    "id": 2,
+    "numero_commande": "CMD-20261019-ZWIO",
+    "produit": "oignon violet de Galmi",
+    "quantite": 1250.5,
+    "prix": 187500,
+    "statut": "prete",
+    "actions": [
+     "organiser_livraison",
+     "annuler_commande"
+    ],
+    "prochaine_etape": {
+     "libelle": "Livraison à organiser"
+    },
+    "incidents": [
+     {
+      "id": 3,
+      "type": "demande_annulation",
+      "statut": "ouvert"
+     }
+    ],
+    "acheteur": {
+     "utilisateur": {
+      "prenom": "Aminata Mariama",
+      "nom": "Ndiaye-Diop Fall",
+      "telephone": "770000003"
+     }
+    },
+    "livraison": null
+   },
+   {
+    "id": 3,
+    "numero_commande": "CMD-20261019-QTPS",
+    "produit": "riz",
+    "quantite": 100,
+    "prix": 15000,
+    "statut": "en_attente",
+    "actions": [
+     "confirmer",
+     "refuser"
+    ],
+    "prochaine_etape": {
+     "libelle": "Commande à confirmer par l'entrepôt"
+    },
+    "incidents": [],
+    "acheteur": {
+     "utilisateur": {
+      "prenom": "Moussa",
+      "nom": "Ba"
+     }
+    },
+    "livraison": null
+   }
+  ]
+ },
+ "/incidents": {
+  "incidents": [
+   {
+    "id": 1,
+    "type": "acheteur_absent",
+    "statut": "ouvert",
+    "description": "Personne sur place au marché central, téléphone sans réponse depuis 30 minutes",
+    "sujet": {
+     "numero": "LIV-20261019-ZLEH"
+    },
+    "declarant": {
+     "prenom": "Ousmane",
+     "nom": "Sarr-Diallo"
+    },
+    "decisions": [
+     "reprendre",
+     "changer_transporteur",
+     "retour_entrepot",
+     "annuler_commande"
+    ]
+   },
+   {
+    "id": 2,
+    "type": "demande_annulation",
+    "statut": "resolu",
+    "decision": "refuser_annulation",
+    "motif_decision": "Marchandise déjà chargée dans le camion",
+    "sujet": {
+     "numero": "CMD-20261019-ZWIO"
+    },
+    "decisions": []
+   }
+  ]
+ },
+ "/fiches/commande/2": {
+  "role": "gestionnaire",
+  "commande": {
+   "id": 2,
+   "numero_commande": "CMD-20261019-ZWIO",
+   "produit": "oignon violet de Galmi",
+   "quantite": 1250.5,
+   "statut": "en_livraison",
+   "prix": 187500,
+   "prix_unitaire": 150
+  },
+  "actions": [
+   "preparer"
+  ],
+  "prochaine_etape": {
+   "libelle": "Réception à confirmer par l'acheteur"
+  },
+  "code_reception": null,
+  "lot": {
+   "code_tracabilite": "LOT-2026-49RTEX",
+   "entrepot": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)"
+  },
+  "acheteur": {
+   "nom": "Aminata Mariama Ndiaye-Diop Fall",
+   "telephone": "770000003",
+   "adresse": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12"
+  },
+  "livraison": {
+   "id": 1,
+   "numero_livraison": "LIV-20261019-ZLEH",
+   "statut": "en_cours",
+   "destination": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12",
+   "suivi_disponible": true,
+   "transporteur": {
+    "nom": "Ousmane Sarr-Diallo",
+    "telephone": "770000004"
+   }
+  },
+  "incidents": [
+   {
+    "id": 1,
+    "libelle": "acheteur absent",
+    "description": "Personne sur place",
+    "statut": "ouvert",
+    "decision": null
+   }
+  ],
+  "etapes": [
+   {
+    "date": "2026-10-19T09:00:00Z",
+    "libelle": "Création",
+    "auteur": "Aminata Mariama Ndiaye-Diop Fall",
+    "sujet": "commande"
+   },
+   {
+    "date": "2026-10-19T10:00:00Z",
+    "libelle": "Transporteur changé",
+    "auteur": "Ibrahima Ndiaye",
+    "sujet": "livraison",
+    "motif": "Le premier véhicule est en révision au garage"
+   }
+  ]
  }
 }
