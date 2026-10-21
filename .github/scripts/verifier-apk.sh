@@ -54,6 +54,17 @@ grep -qE "uses-permission.*'android\.permission\.INTERNET'" /tmp/permissions-apk
   || echec "android.permission.INTERNET absente du manifeste fusionné"
 echo "OK : permission INTERNET présente."
 
+# Lot 4 : suivi GPS téléphone verrouillé par un service de premier plan ; la
+# localisation « en arrière-plan » n'est volontairement pas demandée.
+for p in FOREGROUND_SERVICE FOREGROUND_SERVICE_LOCATION ACCESS_FINE_LOCATION; do
+  grep -qE "uses-permission.*'android\.permission\.$p'" /tmp/permissions-apk.txt \
+    || echec "android.permission.$p absente : le suivi GPS s'arrêterait écran verrouillé"
+done
+if grep -qE "ACCESS_BACKGROUND_LOCATION" /tmp/permissions-apk.txt; then
+  echec "ACCESS_BACKGROUND_LOCATION présente : non nécessaire avec le service de premier plan"
+fi
+echo "OK : permissions du suivi GPS en premier plan présentes, pas de localisation en arrière-plan."
+
 # 2. Certificat
 EMPREINTE=$(empreinte "$APK")
 SUJET=$(sujet "$APK")

@@ -129,7 +129,7 @@ class SuiviGpsTest extends TestCase
         $this->assertSame([[14.78, -16.97], [14.7, -17.2], [14.69, -17.44]], $vue['trajet']);
         Http::assertSent(fn ($r) => str_contains($r->url(), '/route/v1/driving/-16.97,14.78;-17.44,14.69'));
 
-        // Recalcul après 2 minutes ; service en panne : estimation de repli, jamais d'erreur
+        // Recalcul après 1 minute ; service en panne : estimation de repli, jamais d'erreur
         $this->travelTo(now()->addMinutes(3));
         $this->envoyer($this->transporteurA, 'livraison', $lid, [['latitude' => 14.75, 'longitude' => -17.1]])->assertStatus(201);
         $vue = $this->voir($this->acheteur, 'livraison', $lid)->json();

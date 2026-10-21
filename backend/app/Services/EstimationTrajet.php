@@ -12,12 +12,12 @@ use Throwable;
  * Heure d'arrivée estimée et trajet routier. Avec un service de routage
  * compatible OSRM (services.routage.url), le trajet suit les routes ; sinon,
  * distance à vol d'oiseau × 1,3 et vitesse récente du véhicule (ou vitesse par
- * défaut). Recalcul au plus toutes les 2 minutes ; l'estimation est gardée sur
+ * défaut). Recalcul au plus une fois par minute ; l'estimation est gardée sur
  * la mission pour que tous les acteurs voient la même.
  */
 class EstimationTrajet
 {
-    public const INTERVALLE_S = 120;
+    public const INTERVALLE_S = 60;
     public const FACTEUR_ROUTE = 1.3;
 
     public function actualiser(Model $mission, PositionGps $position, bool $forcer = false): void
