@@ -20,7 +20,7 @@
 | Type | Où | Résultat |
 |---|---|---|
 | Tests automatiques du serveur, SQLite | Local | **200 réussis**, 10 ignorés (tests réservés à PostgreSQL) |
-| Tests automatiques du serveur, **PostgreSQL 16** | GitHub Actions | Voir §5 |
+| Tests automatiques du serveur, **PostgreSQL 16** | GitHub Actions | **Réussis** (§5) |
 | Tests du site, compilation de production | Local | **105 réussis**, compilation sans avertissement |
 | Tests de l'application, dont la mise en page des **5 nouveaux écrans** sur 5 formats et 2 tailles de texte | Local (Flutter 3.47.7) | **314 réussis** ; analyse sans erreur |
 | **Parcours réel dans un navigateur, 5 comptes distincts** (acheteur, gestionnaire, autre acheteur, transporteur, administrateur) | Chromium | **11 contrôles sur 11 réussis** |
@@ -58,4 +58,8 @@ Les tests de l'application ont révélé un débordement d'affichage dans la fen
 
 ## 5. Vérifications GitHub sur la branche
 
-À compléter après l'exécution des vérifications sur la branche poussée.
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16 (concurrence comprise), cycle des migrations, garde de démarrage (exécution 39652173293) | `f197ff5` | **Réussi** |
+| Site : tests et compilation de production (exécution 39652173305) | `f197ff5` | **Réussi** |
+| Mobile : analyse, tests, APK de test construit et contrôlé, sans publication (exécution 39652173285) | `f197ff5` | **Réussi** |
