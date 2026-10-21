@@ -50,7 +50,7 @@ services:
       - key: APP_URL
         value: https://senagrilink-backend-preprod.onrender.com
       - key: APP_LOCALE
-        value: en
+        value: fr
       - key: APP_FALLBACK_LOCALE
         value: en
       - key: LOG_CHANNEL

@@ -102,6 +102,7 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::put('/utilisateurs/{id}/bloquer',   [\App\Http\Controllers\Api\AdminController::class, 'bloquer']);
         Route::put('/utilisateurs/{id}/debloquer', [\App\Http\Controllers\Api\AdminController::class, 'debloquer']);
         Route::get('/dashboard',               [\App\Http\Controllers\Api\AdminController::class, 'dashboard']);
+        Route::get('/exceptions',              [\App\Http\Controllers\Api\TableauController::class, 'exceptions']);
     });
 
     // ── Module Traçabilité (tous les rôles authentifiés) ──────────────────────
@@ -126,6 +127,10 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     Route::get('/incidents',                [\App\Http\Controllers\Api\IncidentController::class, 'index']);
     Route::post('/incidents',               [\App\Http\Controllers\Api\IncidentController::class, 'store'])->middleware('idempotence');
     Route::put('/incidents/{id}/resoudre',  [\App\Http\Controllers\Api\IncidentController::class, 'resoudre'])->middleware('role:gestionnaire_entrepot');
+
+    // ── Écrans par rôle (lot 5) : à faire, fiche de commande (accès vérifié dans le contrôleur) ──
+    Route::get('/a-faire',                  [\App\Http\Controllers\Api\TableauController::class, 'aFaire']);
+    Route::get('/fiches/commande/{id}',     [\App\Http\Controllers\Api\TableauController::class, 'ficheCommande'])->whereNumber('id');
 
     // ── Notifications (communes à tous les rôles authentifiés) ────────────────
     Route::get('/notifications',            [\App\Http\Controllers\Api\NotificationController::class, 'index']);

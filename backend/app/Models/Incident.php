@@ -53,6 +53,20 @@ class Incident extends Model
         return $q->where('statut', 'ouvert');
     }
 
+    /** Libellé en clair d'un type d'incident ou d'une décision. */
+    public static function libelle(?string $code): string
+    {
+        return [
+            'panne' => 'panne', 'retard' => 'retard', 'acces_impossible' => 'accès impossible', 'acheteur_absent' => 'acheteur absent',
+            'marchandise_abimee' => 'marchandise abîmée', 'autre' => 'autre problème', 'demande_annulation' => 'demande d\'annulation',
+            'quantite_manquante' => 'quantité manquante', 'produit_abime' => 'produit abîmé', 'livraison_incorrecte' => 'livraison incorrecte',
+            'reprendre' => 'la livraison reprend', 'changer_transporteur' => 'un autre transporteur prend le relais',
+            'retour_entrepot' => 'retour à l\'entrepôt', 'annuler_commande' => 'commande annulée', 'annuler_depot' => 'dépôt annulé',
+            'accepter_annulation' => 'annulation acceptée', 'refuser_annulation' => 'annulation refusée',
+            'cloturer_litige' => 'litige clos', 'reprendre_marchandise' => 'marchandise reprise et commande annulée',
+        ][$code] ?? (string) $code;
+    }
+
     public function estBloquant(): bool
     {
         return $this->statut === 'ouvert' && in_array($this->type, self::BLOQUANTS, true);
