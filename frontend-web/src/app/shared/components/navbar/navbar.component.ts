@@ -48,6 +48,7 @@ import { EchoService } from '../../../core/services/echo.service';
           @if (role() === 'administrateur') {
             <li><a routerLink="/admin/dashboard" routerLinkActive="active">Tableau de bord</a></li>
             <li><a routerLink="/admin/utilisateurs" routerLinkActive="active">Utilisateurs</a></li>
+            <li><a routerLink="/admin/journal" routerLinkActive="active">Journal</a></li>
           }
           <!-- Traçabilité : tous les rôles -->
           <li><a routerLink="/tracabilite" routerLinkActive="active">Traçabilité</a></li>
@@ -63,7 +64,9 @@ import { EchoService } from '../../../core/services/echo.service';
             </button>
             @if (menuOuvert()) {
               <div class="notif-panel">
-                <div class="notif-panel-header">Notifications</div>
+                <div class="notif-panel-header">Notifications
+                  @if (nonLues() > 0) { <button type="button" class="notif-tout-lire" (click)="toutMarquerLu(); $event.stopPropagation()">Tout marquer comme lu</button> }
+                </div>
                 @if (notifications().length === 0) {
                   <p class="notif-empty">Aucune notification.</p>
                 } @else {
@@ -157,6 +160,7 @@ import { EchoService } from '../../../core/services/echo.service';
     }
     .notif-item:hover { background: #f9fafb; }
     .notif-item.non-lue { background: #f0fdf4; font-weight: 600; }
+    .notif-tout-lire { float:right; background:none; border:none; color:#2d6a4f; font-size:.75rem; cursor:pointer; text-decoration:underline; }
     .notif-item small { color: #9ca3af; font-weight: 400; }
 
     /* Menu hamburger sous 1200 px : au-delà, liens et infos utilisateur tiennent
@@ -266,6 +270,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   fermerMenuMobile(): void {
     this.menuMobileOuvert.set(false);
+  }
+
+  toutMarquerLu(): void {
+    this.api.toutMarquerLu().subscribe({
+      next: () => this.notifications.update(list => list.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() }))),
+      error: () => {},
+    });
   }
 
   marquerLue(notification: any): void {

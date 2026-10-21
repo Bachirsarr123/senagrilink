@@ -25,6 +25,8 @@ export interface AuthResponse {
   message: string;
   utilisateur: Utilisateur;
   access_token: string;
+  /** Lot 6 : gestionnaire ou transporteur inscrit, en attente de validation (aucune session ouverte). */
+  en_attente_validation?: boolean;
   token_type: string;
 }
 

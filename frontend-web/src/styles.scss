@@ -135,6 +135,8 @@ app-root { display: block; min-height: 100vh; }
   &-retournee         { background: #f3f4f6; color: #6b7280; }
   &-ouvert            { background: #fee2e2; color: #dc2626; }
   &-resolu            { background: #d1fae5; color: #065f46; }
+  &-en_attente_validation { background: #fef9c3; color: #854d0e; }
+  &-refuse            { background: #fee2e2; color: #991b1b; }
 }
 
 .badge-success  { background: #d1fae5; color: #065f46; }

@@ -22,6 +22,7 @@ import { ApiService } from '../../../core/services/api.service';
             <span class="exception__texte"><code class="code-lot">{{ e.numero }}</code> {{ e.message }}
               @if (e.depuis) { <small>· depuis le {{ e.depuis | date:'dd/MM à HH:mm' }}</small> }</span>
             @if (e.lien?.sujet_type === 'commande') { <a class="btn-ghost btn-sm" [routerLink]="['/commandes', e.lien.sujet_id]">Voir</a> }
+            @if (e.lien?.sujet_type === 'utilisateur') { <a class="btn-ghost btn-sm" routerLink="/admin/utilisateurs" [queryParams]="{ statut: 'en_attente_validation' }">Valider</a> }
           </li>
         }
       </ul>

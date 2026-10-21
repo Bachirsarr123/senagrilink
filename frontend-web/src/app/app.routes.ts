@@ -169,6 +169,10 @@ export const routes: Routes = [
             path: 'utilisateurs',
             loadComponent: () => import('./features/admin/utilisateurs/utilisateurs.component').then(m => m.UtilisateursComponent),
           },
+          {
+            path: 'journal',
+            loadComponent: () => import('./features/admin/journal/journal.component').then(m => m.JournalComponent),
+          },
         ],
       },
     ],

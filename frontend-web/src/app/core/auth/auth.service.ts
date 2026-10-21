@@ -28,7 +28,8 @@ export class AuthService {
 
   register(payload: RegisterPayload): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${environment.apiUrl}/register`, payload).pipe(
-      tap(res => this.persistSession(res))
+      // Compte en attente de validation : pas de jeton, pas de session.
+      tap(res => { if (!res.en_attente_validation) this.persistSession(res); })
     );
   }
 

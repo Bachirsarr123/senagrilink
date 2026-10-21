@@ -16,6 +16,9 @@ import { Role } from '../../../core/auth/auth.model';
         </div>
         <h2>Créer un compte</h2>
 
+        @if (enAttente()) {
+          <div class="alert alert-success" role="status">{{ enAttente() }} <a routerLink="/login">Retour à la connexion</a></div>
+        }
         @if (erreur()) {
           <div class="alert alert-error" role="alert">{{ erreur() }}</div>
         }
@@ -143,6 +146,8 @@ export class RegisterComponent {
   // Signaux : affichage mis à jour dès la réponse de l'API (application sans zone.js)
   loading       = signal(false);
   erreur        = signal<string | null>(null);
+  /** Lot 6 : demande envoyée, compte en attente de validation. */
+  enAttente = signal<string | null>(null);
   selectedRole: Role | '' = '';
 
   // Champs métier propres à chaque rôle, requis uniquement quand ce rôle est sélectionné.
@@ -193,7 +198,14 @@ export class RegisterComponent {
     this.erreur.set(null);
 
     this.auth.register(this.form.value).subscribe({
-      next: () => this.auth.redirectAfterLogin(),
+      next: res => {
+        if (res.en_attente_validation) {
+          this.loading.set(false);
+          this.enAttente.set(res.message ?? 'Compte créé : il sera activé après validation par l\'administrateur.');
+          return;
+        }
+        this.auth.redirectAfterLogin();
+      },
       error: err => {
         this.erreur.set(err.error?.message ?? 'Erreur lors de l\'inscription.');
         this.loading.set(false);

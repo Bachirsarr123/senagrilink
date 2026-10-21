@@ -75,6 +75,9 @@ export class ApiService {
   createUtilisateur(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/admin/utilisateurs`, data, this.idempotence(cle)); }
   bloquerUtilisateur(id: number): Observable<any> { return this.http.put(`${this.base}/admin/utilisateurs/${id}/bloquer`, {}); }
   debloquerUtilisateur(id: number): Observable<any> { return this.http.put(`${this.base}/admin/utilisateurs/${id}/debloquer`, {}); }
+  validerUtilisateur(id: number): Observable<any> { return this.http.put(`${this.base}/admin/utilisateurs/${id}/valider`, {}); }
+  refuserUtilisateur(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/admin/utilisateurs/${id}/refuser`, { motif }); }
+  getJournal(params: Record<string, string | number>): Observable<any> { return this.http.get(`${this.base}/admin/journal`, { params }); }
 
   // ── Traçabilité ────────────────────────────────────────────────────────────
   getTracabilite(code: string): Observable<any> { return this.http.get(`${this.base}/tracabilite/${code}`); }
@@ -91,6 +94,7 @@ export class ApiService {
   // ── Notifications ──────────────────────────────────────────────────────────
   getNotifications(): Observable<any> { return this.http.get(`${this.base}/notifications`); }
   marquerNotificationLue(id: string): Observable<any> { return this.http.put(`${this.base}/notifications/${id}/lue`, {}); }
+  toutMarquerLu(): Observable<any> { return this.http.put(`${this.base}/notifications/lues`, {}); }
 
   // ── Réservations d'entrepôt ────────────────────────────────────────────────
   getEntrepotsDisponibles(): Observable<any> { return this.http.get(`${this.base}/entrepots/disponibles`); }

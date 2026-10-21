@@ -28,6 +28,8 @@ const LIBELLES: Record<string, string> = {
   arrivee:               'Arrivée chez l\'acheteur',
   retournee:             'Revenue à l\'entrepôt',
   ouvert:                'Ouvert',
+  en_attente_validation: 'En attente de validation',
+  refuse:                'Refusé',
   resolu:                'Traité',
   producteur:            'Producteur',
   gestionnaire_entrepot: 'Gestionnaire d\'entrepôt',
