@@ -76,8 +76,12 @@ export class ApiService {
   refuserReservation(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/refuser`, { motif }); }
   remettreReservationEnAttente(id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/remettre-en-attente`, { motif }); }
   annulerReservation(id: number, motif?: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/annuler`, { motif }); }
-  signalerArriveeReservation(id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/arrivee`, {}); }
+  accepterMission(id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/accepter-mission`, {}); }
+  refuserMission(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/refuser-mission`, { motif }); }
+  /** Étape de transport : au_point_collecte, chargee, en_route, arrivee_entrepot (transporteur ou producteur qui livre). */
+  etapeReservation(id: number, etape: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/etape`, { etape }); }
   validerMarchandise(id: number, data: any): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/valider`, data); }
+  refuserReception(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/refuser-reception`, { motif }); }
   getTransporteurs(): Observable<any> { return this.http.get(`${this.base}/transporteurs`); }
 
   // ── Profil ─────────────────────────────────────────────────────────────────

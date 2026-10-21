@@ -8,7 +8,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 import { EtapeChronologie, construireChronologie, resumerLot } from '../../../shared/suivi/chronologie';
 
 const ICONES: Record<EtapeChronologie['type'], string> = {
-  recolte: '🌱', entree: '🏭', sortie: '📤', commande: '🛒', depart: '🚚', livree: '✅', planifiee: '🗓️', probleme: '⚠️',
+  recolte: '🌱', acheminement: '🛻', entree: '🏭', sortie: '📤', commande: '🛒', depart: '🚚', livree: '✅', planifiee: '🗓️', probleme: '⚠️',
 };
 
 @Component({

@@ -3,11 +3,12 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { ChoixPositionComponent, Position } from '../../../shared/position/choix-position';
 
 @Component({
   selector: 'app-profil',
   standalone: true,
-  imports: [LibelleStatutPipe, ReactiveFormsModule],
+  imports: [LibelleStatutPipe, ReactiveFormsModule, ChoixPositionComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -110,16 +111,13 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                 <label>Localisation</label>
                 <input type="text" formControlName="localisation" placeholder="Dakar, Sénégal" />
               </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Latitude (pour la carte de suivi)</label>
-                  <input type="number" formControlName="latitude" step="0.0000001" placeholder="ex : 14.7167" />
-                </div>
-                <div class="form-group">
-                  <label>Longitude (pour la carte de suivi)</label>
-                  <input type="number" formControlName="longitude" step="0.0000001" placeholder="ex : -17.4677" />
-                </div>
-              </div>
+            </div>
+          }
+
+          <!-- Position sur la carte : préremplit les missions, permet l'itinéraire du transporteur -->
+          @if (aUnePosition()) {
+            <div class="form-group">
+              <app-choix-position [libelle]="libellePosition()" [initiale]="positionDepart" (changement)="positionChoisie($event)" />
             </div>
           }
 
@@ -240,8 +238,6 @@ export class ProfilComponent implements OnInit {
       nom_entrepot:   [entrepot?.nom_entrepot ?? ''],
       capacite:       [entrepot?.capacite ?? null],
       localisation:   [entrepot?.localisation ?? ''],
-      latitude:       [entrepot?.latitude ?? null],
-      longitude:      [entrepot?.longitude ?? null],
 
       type_activite:         [acheteur?.type_activite ?? ''],
       volume_achat_mensuel:  [acheteur?.volume_achat_mensuel ?? null],
@@ -249,7 +245,34 @@ export class ProfilComponent implements OnInit {
       type_vehicule:    [transporteur?.type_vehicule ?? ''],
       capacite_charge:  [transporteur?.capacite_charge ?? null],
       zone:             [transporteur?.zone ?? ''],
+
+      latitude:  [this.profilMetier()?.latitude ?? null],
+      longitude: [this.profilMetier()?.longitude ?? null],
     });
+    const { latitude, longitude } = this.form.value;
+    this.positionDepart = latitude != null && longitude != null ? { latitude, longitude } : null;
+  }
+
+  /** Profil métier qui porte une position (producteur, entrepôt, acheteur). */
+  private profilMetier(): any {
+    const u = this.utilisateur();
+    return u?.producteur ?? u?.entrepot ?? u?.acheteur_gros ?? null;
+  }
+
+  aUnePosition = () => ['producteur', 'gestionnaire_entrepot', 'acheteur_gros'].includes(this.role() ?? '');
+
+  libellePosition = () => ({
+    producteur:            'Position de votre exploitation (lieu de collecte)',
+    gestionnaire_entrepot: 'Position de l\'entrepôt',
+    acheteur_gros:         'Adresse de livraison sur la carte',
+  } as Record<string, string>)[this.role() ?? ''] ?? 'Position sur la carte';
+
+  /** Position enregistrée à l'ouverture de la page (point de départ de la carte). */
+  positionDepart: Position | null = null;
+
+  positionChoisie(p: Position | null): void {
+    this.form.patchValue({ latitude: p?.latitude ?? null, longitude: p?.longitude ?? null });
+    this.form.markAsDirty();
   }
 
   sauvegarder(): void {
@@ -286,6 +309,8 @@ export class ProfilComponent implements OnInit {
           region: this.form.value.region,
           types_cultures: this.form.value.types_cultures,
           superficie: this.form.value.superficie,
+          latitude: this.form.value.latitude,
+          longitude: this.form.value.longitude,
         });
         break;
       case 'gestionnaire_entrepot':
@@ -301,6 +326,8 @@ export class ProfilComponent implements OnInit {
         Object.assign(data, {
           type_activite: this.form.value.type_activite,
           volume_achat_mensuel: this.form.value.volume_achat_mensuel,
+          latitude: this.form.value.latitude,
+          longitude: this.form.value.longitude,
         });
         break;
       case 'transporteur':

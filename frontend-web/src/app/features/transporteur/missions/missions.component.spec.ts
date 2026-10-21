@@ -7,9 +7,9 @@ import { INTERVALLE_ACTUALISATION_MS, TransporteurMissionsComponent } from './mi
 const API = environment.apiUrl;
 const MISSION = {
   id: 7, numero_reservation: 'RES-20260601-ABCD', produit: 'oignon', quantite_reservee: 50, date_debut: '2026-06-02',
-  statut: 'confirmee', transporteur_id: 3,
+  statut: 'en_route', transporteur_id: 3, actions: ['arriver'],
   producteur: { utilisateur: { prenom: 'Awa', nom: 'Diallo', telephone: '770000000' } },
-  entrepot: { nom_entrepot: 'Entrepôt Nord', localisation: 'Thiès' },
+  entrepot: { nom_entrepot: 'Entrepôt Nord', localisation: 'Thiès', latitude: 14.79, longitude: -16.93 },
 };
 const LIVRAISON = { id: 4, numero_livraison: 'LIV-1', statut: 'en_attente', origine: 'Entrepôt Nord', destination: 'Dakar', commande: { produit: 'riz', quantite: 10 } };
 
@@ -105,21 +105,47 @@ describe('TransporteurMissionsComponent — missions assignées', () => {
     expect(el.textContent).toContain('Serveur injoignable');
   });
 
-  it('signaler l\'arrivée : confirmation demandée, puis appel à l\'API ; refus = aucun appel', () => {
+  it('arrivée à l\'entrepôt : confirmation demandée, puis étape envoyée ; refus = aucun appel', () => {
     const { fixture, el } = creer();
     repondre([MISSION]);
     fixture.detectChanges();
-    const bouton = () => Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Signaler l\'arrivée')) as HTMLButtonElement;
+    const bouton = () => Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Je suis arrivé à l\'entrepôt')) as HTMLButtonElement;
+    // En route : l'itinéraire mène à l'entrepôt
+    expect(el.querySelector('a.lien-itineraire')?.getAttribute('href')).toContain('destination=14.79,-16.93');
 
     vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
     bouton().click();
-    http.expectNone(`${API}/reservations/7/arrivee`);
+    http.expectNone(`${API}/reservations/7/etape`);
 
     bouton().click();
-    http.expectOne(r => r.method === 'PUT' && r.url === `${API}/reservations/7/arrivee`).flush({ message: 'ok' });
-    repondre([{ ...MISSION, statut: 'arrivee_entrepot' }]);
+    const req = http.expectOne(r => r.method === 'PUT' && r.url === `${API}/reservations/7/etape`);
+    expect(req.request.body).toEqual({ etape: 'arrivee_entrepot' });
+    req.flush({ message: 'ok' });
+    repondre([{ ...MISSION, statut: 'arrivee_entrepot', actions: [] }]);
     fixture.detectChanges();
-    expect(el.textContent).toContain('Arrivée signalée');
+    expect(el.textContent).toContain('Étape enregistrée');
     expect(el.textContent).toContain('Missions terminées');
+  });
+
+  it('mission proposée : mise en avant, acceptée ou refusée avec un motif', () => {
+    const { fixture, el } = creer();
+    repondre([{ ...MISSION, statut: 'confirmee', actions: ['accepter_mission', 'refuser_mission'] }]);
+    fixture.detectChanges();
+    expect(el.textContent).toContain('Nouvelle mission à accepter');
+    expect(el.textContent).not.toContain('Je suis arrivé');
+    const bouton = (t: string) => Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes(t)) as HTMLButtonElement;
+
+    vi.spyOn(window, 'prompt').mockReturnValueOnce('Camion en panne');
+    bouton('Refuser la mission').click();
+    const refus = http.expectOne(`${API}/reservations/7/refuser-mission`);
+    expect(refus.request.body).toEqual({ motif: 'Camion en panne' });
+    refus.flush({});
+    repondre([{ ...MISSION, statut: 'confirmee', actions: ['accepter_mission', 'refuser_mission'] }]);
+    fixture.detectChanges();
+
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
+    bouton('Accepter la mission').click();
+    http.expectOne(`${API}/reservations/7/accepter-mission`).flush({});
+    repondre([{ ...MISSION, statut: 'prise_en_charge', actions: ['arriver_collecte'] }]);
   });
 });

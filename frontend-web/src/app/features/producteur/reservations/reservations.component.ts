@@ -6,6 +6,7 @@ import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
+import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, ActionDepot, peut } from '../../../shared/depot/depot';
 
 @Component({
   selector: 'app-producteur-reservations',
@@ -14,8 +15,8 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
   template: `
     <div class="page">
       <div class="page-header">
-        <h1>Réserver un entrepôt</h1>
-        <span class="subtitle">Réservez de la place pour votre récolte avant de l'acheminer</span>
+        <h1>Déposer ma récolte</h1>
+        <span class="subtitle">Choisissez un entrepôt qui a de la place, puis qui transporte la marchandise</span>
       </div>
 
       @if (message()) { <div class="alert alert-success">{{ message() }}</div> }
@@ -73,8 +74,20 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
                 }
               </div>
               <div class="form-group">
-                <label>Produit *</label>
-                <input type="text" formControlName="produit" placeholder="ex : Maïs, Mil, Arachide..." />
+                <label>Qui transporte la marchandise ? *</label>
+                <div class="choix-mode">
+                  <label class="choix"><input type="radio" formControlName="mode_transport" value="transporteur" />
+                    <span><strong>Un transporteur vient la chercher</strong><br><small>L'entrepôt affecte un transporteur ; vous suivez son arrivée.</small></span></label>
+                  <label class="choix"><input type="radio" formControlName="mode_transport" value="producteur" />
+                    <span><strong>Je la livre moi-même</strong><br><small>Vous indiquez votre départ puis votre arrivée à l'entrepôt.</small></span></label>
+                </div>
+                @if (form.get('mode_transport')?.invalid && form.get('mode_transport')?.touched) {
+                  <span class="field-error">Choisis qui transporte la marchandise.</span>
+                }
+              </div>
+              <div class="form-group">
+                <label>Produit</label>
+                <input type="text" formControlName="produit" placeholder="Repris de la récolte" />
               </div>
               <div class="form-row">
                 <div class="form-group">
@@ -115,7 +128,7 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
             <thead>
               <tr>
                 <th>Numéro</th><th>Entrepôt</th><th>Produit</th>
-                <th>Quantité</th><th>Date début</th><th>Statut</th><th>Actions</th>
+                <th>Quantité</th><th>Transport</th><th>Étape</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -124,15 +137,25 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
                   <td><code class="code-lot">{{ r.numero_reservation }}</code></td>
                   <td>{{ r.entrepot?.nom_entrepot }}</td>
                   <td>{{ r.produit }}</td>
-                  <td>{{ r.quantite_reservee | number }} kg</td>
-                  <td>{{ r.date_debut | date:'dd/MM/yyyy' }}</td>
-                  <td><span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span></td>
+                  <td>{{ r.quantite_reservee | number }} kg
+                    @if (r.statut === 'enregistree' && r.quantite_recue !== null) { <br><small>{{ r.quantite_recue | number }} kg reçus</small> }</td>
+                  <td>{{ mode(r) }}
+                    @if (r.transporteur) { <br><small>{{ r.transporteur.utilisateur?.prenom }} {{ r.transporteur.utilisateur?.nom }}
+                      @if (r.transporteur.utilisateur?.telephone) { · <a [href]="'tel:' + r.transporteur.utilisateur.telephone">{{ r.transporteur.utilisateur.telephone }}</a> }</small> }</td>
+                  <td><span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span>
+                    @if (r.prochaine_etape) { <br><small class="text-muted">{{ r.prochaine_etape.libelle }}</small> }</td>
                   <td>
-                    @if (r.statut === 'en_attente' || (r.statut === 'confirmee' && !r.transporteur_id)) {
-                      <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === r.id" (click)="annuler(r)">Annuler</button>
-                    } @else if (r.statut === 'confirmee') {
-                      <span class="text-muted">Transporteur assigné : contactez l'entrepôt pour annuler</span>
-                    }
+                    <div class="btn-group">
+                      @if (peut(r, 'partir')) {
+                        <button class="btn-primary btn-sm" [disabled]="actionEnCours() === r.id" (click)="etape(r, 'partir')">{{ libelle('partir') }}</button>
+                      }
+                      @if (peut(r, 'arriver')) {
+                        <button class="btn-success btn-sm" [disabled]="actionEnCours() === r.id" (click)="etape(r, 'arriver')">{{ libelle('arriver') }}</button>
+                      }
+                      @if (peut(r, 'annuler')) {
+                        <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === r.id" (click)="annuler(r)">{{ libelle('annuler') }}</button>
+                      }
+                    </div>
                   </td>
                 </tr>
               }
@@ -145,6 +168,9 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
   styles: [`
     .modal-box { --modal-largeur: 480px; }
     .text-muted { color:#6b7280; font-size:.85rem; }
+    .choix-mode { display:grid; gap:.5rem; }
+    .choix { display:flex; gap:.6rem; align-items:flex-start; padding:.6rem .75rem; border:1px solid #e5e7eb; border-radius:8px; cursor:pointer; font-weight:normal; }
+    .choix input { margin-top:.2rem; }
     select {
       padding:.55rem .8rem;border:1px solid #e5e7eb;border-radius:6px;
       font-size:.9rem;width:100%;
@@ -167,6 +193,32 @@ export class ProducteurReservationsComponent implements OnInit {
   /** Une récolte annulée ne peut plus être réservée. */
   productionsReservables = computed(() => this.productions().filter(p => p.statut !== 'annulee'));
 
+  readonly peut = peut;
+
+  libelle(a: ActionDepot): string { return LIBELLE_ACTION[a]; }
+
+  mode(r: any): string { return LIBELLE_MODE[r.mode_transport] ?? r.mode_transport; }
+
+  /** Producteur qui livre lui-même : départ puis arrivée, avec confirmation. */
+  etape(r: any, a: ActionDepot): void {
+    if (!confirm(CONFIRMATION_ETAPE[a] ?? 'Confirmer ?')) return;
+    this.actionEnCours.set(r.id);
+    this.erreur.set(null);
+    this.api.etapeReservation(r.id, ETAPE_DE_L_ACTION[a]!).subscribe({
+      next: res => {
+        this.actionEnCours.set(null);
+        this.message.set(res?.message ?? 'Étape enregistrée.');
+        this.chargerReservations();
+        setTimeout(() => this.message.set(null), 4000);
+      },
+      error: err => {
+        this.actionEnCours.set(null);
+        this.erreur.set(err.status === 0 ? 'Serveur injoignable : étape non enregistrée, réessayez.' : err.error?.message ?? 'Étape impossible.');
+        this.chargerReservations();
+      },
+    });
+  }
+
   /** Reprend le produit et la quantité de la récolte choisie : pas de ressaisie (modifiables avant envoi). */
   recolteChoisie(): void {
     const p = this.productions().find(x => x.id === this.form.value.production_id);
@@ -182,7 +234,8 @@ export class ProducteurReservationsComponent implements OnInit {
   ngOnInit(): void {
     this.form = this.fb.group({
       production_id:     [null, Validators.required],
-      produit:           ['', Validators.required],
+      produit:           [''],
+      mode_transport:    [null, Validators.required],
       quantite_reservee: [null, [Validators.required, Validators.min(0.01)]],
       date_debut:        ['', Validators.required],
       date_fin:          [''],
@@ -226,9 +279,9 @@ export class ProducteurReservationsComponent implements OnInit {
   }
 
   annuler(r: any): void {
-    const consequence = r.statut === 'confirmee'
-      ? `Annuler la réservation ${r.numero_reservation}, déjà confirmée par ${r.entrepot?.nom_entrepot ?? 'l\'entrepôt'} ?\nLa place réservée sera libérée et l'entrepôt notifié. Cette annulation est définitive.`
-      : `Annuler la demande ${r.numero_reservation} ?\nL'entrepôt sera notifié. Cette annulation est définitive.`;
+    const consequence = r.statut === 'en_attente'
+      ? `Annuler la demande ${r.numero_reservation} ?\nL'entrepôt sera notifié. Cette annulation est définitive.`
+      : `Annuler le dépôt ${r.numero_reservation}, déjà accepté par ${r.entrepot?.nom_entrepot ?? 'l\'entrepôt'} ?\nLa place sera libérée et l'entrepôt${r.transporteur_id ? ' ainsi que le transporteur' : ''} prévenu. Cette annulation est définitive.`;
     const motif = demanderMotif(consequence, false);
     if (motif === null) return;
     this.actionEnCours.set(r.id);

@@ -3,6 +3,13 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { demanderMotif } from '../../../shared/confirmation/confirmation';
+import { ActionDepot, CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, peut } from '../../../shared/depot/depot';
+
+/** Acheminement en cours pour le transporteur : proposé, accepté, en collecte ou en route. */
+const ACHEMINEMENT_ACTIF = ['confirmee', 'prise_en_charge', 'au_point_collecte', 'chargee', 'en_route'];
+/** Avant le chargement, le transporteur se rend chez le producteur ; ensuite, à l'entrepôt. */
+const VERS_LE_PRODUCTEUR = ['confirmee', 'prise_en_charge', 'au_point_collecte'];
 
 /** Actualisation automatique de la liste (une assignation faite par l'entrepôt apparaît sans action). */
 export const INTERVALLE_ACTUALISATION_MS = 60_000;
@@ -40,21 +47,31 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
           } @else {
             <div class="cards-grid">
               @for (r of acheminementsActifs(); track r.id) {
-                <article class="product-card mission">
+                <article class="product-card mission" [class.a-accepter]="peut(r, 'accepter_mission')">
                   <div class="product-header">
                     <h3>{{ r.produit }} — {{ r.quantite_reservee | number }} kg</h3>
-                    <span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span>
+                    @if (peut(r, 'accepter_mission')) { <span class="badge badge-en_attente">Nouvelle mission à accepter</span> }
+                    @else { <span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span> }
                   </div>
                   <div class="product-info">
                     <div class="info-row"><span>Réservation</span><span><code class="code-lot">{{ r.numero_reservation }}</code></span></div>
+                    @if (r.production?.code_tracabilite) { <div class="info-row"><span>Lot</span><span><code class="code-lot">{{ r.production.code_tracabilite }}</code></span></div> }
                     <div class="info-row"><span>Chez le producteur</span><span>{{ r.producteur?.utilisateur?.prenom }} {{ r.producteur?.utilisateur?.nom }}
-                      @if (r.producteur?.utilisateur?.telephone) { · <a [href]="'tel:' + r.producteur.utilisateur.telephone">{{ r.producteur.utilisateur.telephone }}</a> }</span></div>
+                      @if (r.producteur?.utilisateur?.telephone) { · <a [href]="'tel:' + r.producteur.utilisateur.telephone">{{ r.producteur.utilisateur.telephone }}</a> }
+                      @if (r.producteur?.utilisateur?.adresse) { <br><small>{{ r.producteur.utilisateur.adresse }}</small> }</span></div>
                     <div class="info-row"><span>Vers l'entrepôt</span><span>{{ r.entrepot?.nom_entrepot }}@if (r.entrepot?.localisation) { · {{ r.entrepot.localisation }} }</span></div>
-                    <div class="info-row"><span>À partir du</span><span>{{ r.date_debut | date:'dd/MM/yyyy' }}</span></div>
+                    @if (r.prochaine_etape) { <div class="info-row"><span>Étape suivante</span><span>{{ r.prochaine_etape.libelle }}</span></div> }
                   </div>
-                  <button class="btn-success btn-full" [disabled]="actionEnCours() === 'r' + r.id" (click)="signalerArrivee(r)">
-                    {{ actionEnCours() === 'r' + r.id ? 'Envoi…' : 'Signaler l\\'arrivée à l\\'entrepôt' }}
-                  </button>
+                  @if (itineraire(r); as lien) {
+                    <a class="btn-secondary btn-full lien-itineraire" [href]="lien" target="_blank" rel="noopener">{{ versLeProducteur(r) ? 'Itinéraire vers le producteur' : "Itinéraire vers l'entrepôt" }}</a>
+                  }
+                  <div class="btn-group">
+                    @for (a of actionsTransporteur(r); track a) {
+                      <button [class]="a === 'refuser_mission' ? 'btn-ghost' : 'btn-success'" [disabled]="actionEnCours() === 'r' + r.id" (click)="agir(r, a)">
+                        {{ actionEnCours() === 'r' + r.id ? 'Envoi…' : libelle(a) }}
+                      </button>
+                    }
+                  </div>
                 </article>
               }
             </div>
@@ -116,6 +133,8 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
     .mission .btn-group { margin-top:.75rem; }
     .note { margin:.75rem 0 0; font-size:.8rem; color:#6b7280; }
     .terminees { margin:0; padding-left:1.1rem; display:grid; gap:.4rem; }
+    .a-accepter { border:2px solid #f59e0b; }
+    .lien-itineraire { margin-top:.75rem; text-align:center; text-decoration:none; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })
@@ -129,10 +148,13 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
   message       = signal<string | null>(null);
   actionEnCours = signal<string | null>(null);
 
-  acheminementsActifs = computed(() => this.reservations().filter(r => r.statut === 'confirmee'));
+  /** Missions à accepter en premier, puis celles en cours. */
+  acheminementsActifs = computed(() => this.reservations()
+    .filter(r => ACHEMINEMENT_ACTIF.includes(r.statut))
+    .sort((a, b) => Number(peut(b, 'accepter_mission')) - Number(peut(a, 'accepter_mission'))));
   livraisonsActives   = computed(() => this.livraisons().filter(l => ['en_attente', 'en_cours', 'probleme'].includes(l.statut)));
   terminees = computed(() => [
-    ...this.reservations().filter(r => r.statut !== 'confirmee')
+    ...this.reservations().filter(r => !ACHEMINEMENT_ACTIF.includes(r.statut))
       .map(r => ({ cle: 'r' + r.id, numero: r.numero_reservation, libelle: `${r.produit} → ${r.entrepot?.nom_entrepot ?? ''}`, statut: r.statut })),
     ...this.livraisons().filter(l => l.statut === 'livree')
       .map(l => ({ cle: 'l' + l.id, numero: l.numero_livraison, libelle: `${l.commande?.produit ?? ''} → ${l.destination}`, statut: l.statut })),
@@ -175,9 +197,36 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
     });
   }
 
-  signalerArrivee(r: any): void {
-    if (!confirm(`Confirmer l'arrivée de ${r.produit} (${r.quantite_reservee} kg) à l'entrepôt ${r.entrepot?.nom_entrepot ?? ''} ?\n\nLe gestionnaire sera notifié pour vérifier la marchandise. Cette action ne peut pas être annulée.`)) return;
-    this.executer('r' + r.id, this.api.signalerArriveeReservation(r.id), 'Arrivée signalée. Le gestionnaire a été notifié.');
+  readonly peut = peut;
+
+  libelle(a: ActionDepot): string { return LIBELLE_ACTION[a]; }
+
+  actionsTransporteur(r: any): ActionDepot[] {
+    return (['accepter_mission', 'refuser_mission', 'arriver_collecte', 'charger', 'partir', 'arriver'] as ActionDepot[]).filter(a => peut(r, a));
+  }
+
+  versLeProducteur(r: any): boolean { return VERS_LE_PRODUCTEUR.includes(r.statut); }
+
+  /** Lien de navigation (Google Maps) vers la prochaine adresse, si sa position est connue. */
+  itineraire(r: any): string | null {
+    const point = this.versLeProducteur(r) ? r.producteur : r.entrepot;
+    if (point?.latitude == null || point?.longitude == null) return null;
+    return `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`;
+  }
+
+  agir(r: any, a: ActionDepot): void {
+    const cle = 'r' + r.id;
+    if (a === 'accepter_mission') {
+      if (!confirm(`Accepter la mission ${r.numero_reservation} : ${r.produit} (${r.quantite_reservee} kg) à aller chercher chez le producteur ?`)) return;
+      return this.executer(cle, this.api.accepterMission(r.id), "Mission acceptée. L'entrepôt et le producteur ont été prévenus.");
+    }
+    if (a === 'refuser_mission') {
+      const motif = demanderMotif(`Refuser la mission ${r.numero_reservation} ?\nElle sera rendue à l'entrepôt, qui affectera un autre transporteur.`, true);
+      if (motif === null) return;
+      return this.executer(cle, this.api.refuserMission(r.id, motif), "Mission refusée. L'entrepôt a été prévenu.");
+    }
+    if (!confirm(CONFIRMATION_ETAPE[a] ?? 'Confirmer ?')) return;
+    this.executer(cle, this.api.etapeReservation(r.id, ETAPE_DE_L_ACTION[a]!), 'Étape enregistrée.');
   }
 
   changerStatut(l: any, statut: 'en_cours' | 'livree'): void {
