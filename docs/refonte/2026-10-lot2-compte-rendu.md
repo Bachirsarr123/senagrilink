@@ -88,4 +88,10 @@
 
 ## 5. Vérifications GitHub sur la branche
 
-*(complété après l'exécution, avec le SHA vérifié)*
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16 (concurrence comprise), cycle des migrations 000020 → 000018, garde de démarrage (exécution 39591335062) | `8f4fd57` | **Réussi** |
+| Mobile : analyse, tests, garde de signature, APK de test vérifié (exécution 39591335046) | `8f4fd57` | **Réussi** |
+| Site : tests et compilation de production (exécution 39613594184) | `cc65428` | **Réussi** |
+
+Après `8f4fd57`, seuls les libellés de menu du site et la documentation ont changé : le code du serveur et de l'application est identique.
