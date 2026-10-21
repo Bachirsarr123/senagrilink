@@ -239,8 +239,18 @@ class ApiService {
   // ── Notifications ────────────────────────────────────────────────────────
   static Future<dynamic> getNotifications() => get('/notifications');
 
-  // ── Réservations d'entrepôt (Transporteur) ──────────────────────────────
+  // ── Dépôts en entrepôt (réservations) ─────────────────────────────────────
   static Future<dynamic> getReservations() => get('/reservations');
-  static Future<dynamic> marquerArriveeReservation(int id) =>
-      put('/reservations/$id/arrivee', {});
+  static Future<dynamic> getEntrepotsDisponibles() => get('/entrepots/disponibles');
+  static Future<dynamic> demanderDepot(Map<String, dynamic> data, {String? cleIdempotence}) =>
+      post('/reservations', data, cleIdempotence: cleIdempotence);
+  static Future<dynamic> annulerDepot(int id, {String? motif}) =>
+      put('/reservations/$id/annuler', {if (motif != null && motif.isNotEmpty) 'motif': motif});
+  static Future<dynamic> accepterMission(int id) => put('/reservations/$id/accepter-mission', {});
+  static Future<dynamic> refuserMission(int id, String motif) =>
+      put('/reservations/$id/refuser-mission', {'motif': motif});
+  /// Étape de transport : au_point_collecte, chargee, en_route, arrivee_entrepot
+  /// (transporteur de la mission, ou producteur qui livre lui-même).
+  static Future<dynamic> etapeDepot(int id, String etape) =>
+      put('/reservations/$id/etape', {'etape': etape});
 }

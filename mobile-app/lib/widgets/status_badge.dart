@@ -28,6 +28,11 @@ class StatusBadge extends StatelessWidget {
     'arrivee_entrepot' => (const Color(0xFFDBEAFE), const Color(0xFF1E40AF), 'Arrivée entrepôt'),
     'enregistree'      => (const Color(0xFFD1FAE5), const Color(0xFF065F46), 'Enregistrée'),
     'refusee'          => (const Color(0xFFFEE2E2), const Color(0xFF991B1B), 'Refusée'),
+    'prise_en_charge'   => (const Color(0xFFE0E7FF), const Color(0xFF3730A3), 'Mission acceptée'),
+    'au_point_collecte' => (const Color(0xFFE0E7FF), const Color(0xFF3730A3), 'Chez le producteur'),
+    'chargee'           => (const Color(0xFFE0E7FF), const Color(0xFF3730A3), 'Chargée'),
+    'en_route'          => (const Color(0xFFE0E7FF), const Color(0xFF3730A3), 'En route'),
+    'reception_refusee' => (const Color(0xFFFEE2E2), const Color(0xFF991B1B), 'Réception refusée'),
     _             => (const Color(0xFFF3F4F6), const Color(0xFF6B7280), s),
   };
 }

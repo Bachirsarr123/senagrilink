@@ -9,6 +9,8 @@ import 'package:agri_platform_mobile/screens/auth/login_screen.dart';
 import 'package:agri_platform_mobile/screens/auth/register_screen.dart';
 import 'package:agri_platform_mobile/screens/gestionnaire/stocks_screen.dart';
 import 'package:agri_platform_mobile/screens/producteur/commandes_disponibles_screen.dart';
+import 'package:agri_platform_mobile/screens/producteur/depots_screen.dart';
+import 'package:agri_platform_mobile/screens/producteur/nouveau_depot_screen.dart';
 import 'package:agri_platform_mobile/screens/producteur/nouvelle_recolte_screen.dart';
 import 'package:agri_platform_mobile/screens/producteur/planifier_ventes_screen.dart';
 import 'package:agri_platform_mobile/screens/producteur/productions_screen.dart';
@@ -66,14 +68,16 @@ void main() {
     'Nouvelle récolte':         ('producteur', () => const NouvelleRecolteScreen(), 'Enregistrer la récolte'),
     'Planifier mes ventes':     ('producteur', () => const PlanifierVentesScreen(), 'LOT-2026-H83OSV'),
     'Commandes disponibles':    ('producteur', () => const CommandesDisponiblesScreen(), 'Acheteur : Moussa Ba'),
+    'Mes dépôts':               ('producteur', () => const DepotsScreen(), 'Je pars vers l\'entrepôt'),
+    'Déposer une récolte':      ('producteur', () => const NouveauDepotScreen(), 'Envoyer la demande'),
     'Stocks':                   ('gestionnaire_entrepot', () => const StocksScreen(), '1340'),
     'Catalogue':                ('acheteur_gros', () => const CatalogueScreen(), 'oignon'),
     'Mes commandes':            ('acheteur_gros', () => const MesCommandesScreen(), 'CMD-20261019-OFXJ'),
     'Suivi de livraison':       ('acheteur_gros', () => const SuiviLivraisonScreen(livraisonId: 1), 'En cours'),
     'Livraisons':               ('transporteur', () => const LivraisonsScreen(), 'LIV-20261019-ZLEH'),
-    'Réservations à acheminer': ('transporteur', () => const ReservationsScreen(), 'RES-20261019-Y7UB'),
+    'Acheminements':            ('transporteur', () => const ReservationsScreen(), 'Accepter la mission'),
     'Détail de livraison':      ('transporteur', () => DetailLivraisonScreen(livraison: livraison), 'Statut actuel'),
-    'Profil':                   ('producteur', () => const ProfilScreen(), 'Modifier mes informations'),
+    'Profil':                   ('producteur', () => const ProfilScreen(afficherTuiles: false), 'Position de votre exploitation'),
     'Traçabilité':              ('acheteur_gros', () => const TracabiliteScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
   };
 

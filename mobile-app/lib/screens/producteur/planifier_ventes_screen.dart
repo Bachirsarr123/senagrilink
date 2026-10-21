@@ -118,7 +118,7 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
                   Icon(Icons.info_outline, size: 18, color: Colors.grey),
                   SizedBox(width: 6),
                   Expanded(child: Text(
-                    'Pour vendre ce lot, réservez une place en entrepôt (espace web). '
+                    'Pour vendre ce lot, déposez-le en entrepôt (menu « Mes dépôts »). '
                     'Il apparaîtra au catalogue dès que l\'entrepôt aura validé sa réception.',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   )),

@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
+import '../../widgets/choix_position.dart';
 
 class ProfilScreen extends StatefulWidget {
-  const ProfilScreen({super.key});
+  /// Fond de carte de la position (désactivé dans les tests, sans réseau).
+  final bool afficherTuiles;
+  const ProfilScreen({super.key, this.afficherTuiles = true});
   @override
   State<ProfilScreen> createState() => _ProfilScreenState();
 }
@@ -33,8 +38,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
   final _nomEntrepotCtl = TextEditingController();
   final _localisationCtl = TextEditingController();
   final _capaciteCtl = TextEditingController();
-  final _latitudeCtl = TextEditingController();
-  final _longitudeCtl = TextEditingController();
+  /// Position du lieu sur la carte (producteur, entrepôt, acheteur).
+  LatLng? _position;
   // Acheteur
   final _typeActiviteCtl = TextEditingController();
   final _volumeAchatCtl = TextEditingController();
@@ -67,13 +72,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
         _culturesCtl.text = p['types_cultures']?.toString() ?? '';
         _superficieCtl.text = p['superficie']?.toString() ?? '';
       }
+      final metier = u.producteur ?? u.entrepot ?? u.acheteurGros;
+      final lat = nombre(metier?['latitude']);
+      final lng = nombre(metier?['longitude']);
+      if (lat != null && lng != null) _position = LatLng(lat, lng);
       final e = u.entrepot;
       if (e != null) {
         _nomEntrepotCtl.text = e['nom_entrepot']?.toString() ?? '';
         _localisationCtl.text = e['localisation']?.toString() ?? '';
         _capaciteCtl.text = e['capacite']?.toString() ?? '';
-        _latitudeCtl.text = e['latitude']?.toString() ?? '';
-        _longitudeCtl.text = e['longitude']?.toString() ?? '';
       }
       final a = u.acheteurGros;
       if (a != null) {
@@ -95,11 +102,18 @@ class _ProfilScreenState extends State<ProfilScreen> {
     _telCtl.dispose(); _mdpActuelCtl.dispose(); _mdpCtl.dispose(); _mdpConfCtl.dispose();
     _regionCtl.dispose(); _culturesCtl.dispose(); _superficieCtl.dispose();
     _nomEntrepotCtl.dispose(); _localisationCtl.dispose(); _capaciteCtl.dispose();
-    _latitudeCtl.dispose(); _longitudeCtl.dispose();
     _typeActiviteCtl.dispose(); _volumeAchatCtl.dispose();
     _typeVehiculeCtl.dispose(); _capaciteChargeCtl.dispose(); _zoneCtl.dispose();
     super.dispose();
   }
+
+  static const _libellesPosition = {
+    'producteur': 'Position de votre exploitation (lieu de collecte)',
+    'gestionnaire_entrepot': 'Position de l\'entrepôt',
+    'acheteur_gros': 'Adresse de livraison sur la carte',
+  };
+
+  Map<String, dynamic> _coordonnees() => {'latitude': _position?.latitude, 'longitude': _position?.longitude};
 
   Future<void> _sauvegarder() async {
     if (!_formKey.currentState!.validate()) return;
@@ -135,6 +149,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
           'region': _regionCtl.text.trim(),
           'types_cultures': _culturesCtl.text.trim(),
           'superficie': double.tryParse(_superficieCtl.text.trim()),
+          ..._coordonnees(),
         });
         break;
       case 'gestionnaire_entrepot':
@@ -142,14 +157,14 @@ class _ProfilScreenState extends State<ProfilScreen> {
           'nom_entrepot': _nomEntrepotCtl.text.trim(),
           'localisation': _localisationCtl.text.trim(),
           'capacite': double.tryParse(_capaciteCtl.text.trim()),
-          'latitude': double.tryParse(_latitudeCtl.text.trim()),
-          'longitude': double.tryParse(_longitudeCtl.text.trim()),
+          ..._coordonnees(),
         });
         break;
       case 'acheteur_gros':
         data.addAll({
           'type_activite': _typeActiviteCtl.text.trim(),
           'volume_achat_mensuel': double.tryParse(_volumeAchatCtl.text.trim()),
+          ..._coordonnees(),
         });
         break;
       case 'transporteur':
@@ -295,8 +310,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   _champ(_nomEntrepotCtl, 'Nom de l\'entrepôt'),
                   _champ(_localisationCtl, 'Localisation'),
                   _champ(_capaciteCtl, 'Capacité de stockage (kg)', type: TextInputType.number),
-                  _champ(_latitudeCtl, 'Latitude (pour la carte de suivi)', type: const TextInputType.numberWithOptions(decimal: true, signed: true)),
-                  _champ(_longitudeCtl, 'Longitude (pour la carte de suivi)', type: const TextInputType.numberWithOptions(decimal: true, signed: true)),
                 ],
 
                 if (u?.role == 'acheteur_gros') ...[
@@ -305,6 +318,19 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   const SizedBox(height: 8),
                   _champ(_typeActiviteCtl, 'Type d\'activité'),
                   _champ(_volumeAchatCtl, 'Volume d\'achat mensuel (kg)', type: TextInputType.number),
+                ],
+
+                // Position sur la carte : préremplit les missions, sert à l'itinéraire du transporteur
+                if (_libellesPosition.containsKey(u?.role)) ...[
+                  const SizedBox(height: 4),
+                  ChoixPosition(
+                    key: const Key('choix-position'),
+                    libelle: _libellesPosition[u?.role]!,
+                    initiale: _position,
+                    afficherTuiles: widget.afficherTuiles,
+                    onChange: (p) => _position = p,
+                  ),
+                  const SizedBox(height: 16),
                 ],
 
                 if (u?.role == 'transporteur') ...[

@@ -57,7 +57,7 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.warehouse_outlined),
-            tooltip: 'Réservations entrepôt',
+            tooltip: 'Acheminements vers l\'entrepôt',
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReservationsScreen())),
           ),
           IconButton(

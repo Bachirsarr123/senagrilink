@@ -222,7 +222,7 @@ class _Etape extends StatelessWidget {
   const _Etape({required this.etape, required this.derniere, required this.suivantePrevue, required this.peutSuivre, required this.ouvrirCarte});
 
   static const _icones = {
-    'recolte': Icons.eco, 'entree': Icons.warehouse, 'sortie': Icons.output, 'commande': Icons.shopping_cart,
+    'recolte': Icons.eco, 'acheminement': Icons.local_shipping_outlined, 'entree': Icons.warehouse, 'sortie': Icons.output, 'commande': Icons.shopping_cart,
     'depart': Icons.local_shipping, 'livree': Icons.check_circle, 'planifiee': Icons.event, 'probleme': Icons.warning_amber_rounded,
   };
 

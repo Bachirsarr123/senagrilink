@@ -9,6 +9,7 @@ import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
 import 'nouvelle_recolte_screen.dart';
 import 'commandes_disponibles_screen.dart';
+import 'depots_screen.dart';
 import 'planifier_ventes_screen.dart';
 import '../shared/tracabilite_screen.dart';
 import '../shared/profil_screen.dart';
@@ -138,6 +139,12 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
       appBar: AppBar(
         title: Text('Bonjour, ${auth.utilisateur?.prenom ?? ''}'),
         actions: [
+          IconButton(
+            key: const Key('menu-depots'),
+            icon: const Icon(Icons.warehouse_outlined),
+            tooltip: 'Mes dépôts en entrepôt',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DepotsScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.storefront_outlined),
             tooltip: 'Planifier mes ventes',
