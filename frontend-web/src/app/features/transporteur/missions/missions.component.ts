@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { PartagePositionService } from '../../../shared/suivi/partage-position';
 import { DecimalPipe } from '@angular/common';
@@ -26,7 +27,7 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
 @Component({
   selector: 'app-transporteur-missions',
   standalone: true,
-  imports: [LibelleStatutPipe, DecimalPipe, IncidentFormComponent],
+  imports: [RouterLink, LibelleStatutPipe, DecimalPipe, IncidentFormComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -117,7 +118,7 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
                     <div class="alert alert-error" role="status">Incident déclaré : {{ libelleIncident(l.incidents[0].type) }}. L'entrepôt décide de la suite.</div>
                   }
                   <div class="product-info">
-                    <div class="info-row"><span>Livraison</span><span><code class="code-lot">{{ l.numero_livraison }}</code></span></div>
+                    <div class="info-row"><span>Livraison</span><span><a [routerLink]="['/commandes', l.commande_id]" title="Ouvrir la fiche"><code class="code-lot">{{ l.numero_livraison }}</code></a></span></div>
                     <div class="info-row"><span>Charger à</span><span>{{ l.commande?.stock?.entrepot?.nom_entrepot ?? l.origine }}
                       @if (l.commande?.stock?.entrepot?.utilisateur?.telephone; as tel) { · <a [href]="'tel:' + tel">{{ tel }}</a> }</span></div>
                     <div class="info-row"><span>Livrer à</span><span>{{ l.commande?.acheteur?.utilisateur?.prenom }} {{ l.commande?.acheteur?.utilisateur?.nom }}

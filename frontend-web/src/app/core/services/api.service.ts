@@ -64,6 +64,11 @@ export class ApiService {
   preparerCommande(id: number): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/preparer`, {}); }
   marquerCommandePrete(id: number): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/prete`, {}); }
 
+  // ── Écrans par rôle (lot 5) ────────────────────────────────────────────────
+  getAFaire(): Observable<any> { return this.http.get(`${this.base}/a-faire`); }
+  getFicheCommande(id: number): Observable<any> { return this.http.get(`${this.base}/fiches/commande/${id}`); }
+  getExceptions(): Observable<any> { return this.http.get(`${this.base}/admin/exceptions`); }
+
   // ── Admin ──────────────────────────────────────────────────────────────────
   getDashboard(): Observable<any> { return this.http.get(`${this.base}/admin/dashboard`); }
   getUtilisateurs(params?: any): Observable<any> { return this.http.get(`${this.base}/admin/utilisateurs`, { params }); }

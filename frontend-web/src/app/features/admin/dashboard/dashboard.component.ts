@@ -1,15 +1,17 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { DecimalPipe, KeyValuePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { ExceptionsComponent } from './exceptions.component';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [LibelleStatutPipe, DecimalPipe, KeyValuePipe],
+  imports: [LibelleStatutPipe, DecimalPipe, KeyValuePipe, ExceptionsComponent],
   template: `
     <div class="page">
       <div class="page-header"><h1>Tableau de bord</h1></div>
+      <app-exceptions />
 
       @if (chargement()) { <p class="loading">Chargement des statistiques...</p> }
       @else if (stats()) {

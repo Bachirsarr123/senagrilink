@@ -21,6 +21,9 @@ import { EchoService } from '../../../core/services/echo.service';
       </div>
       <div class="navbar-collapsible" id="navbar-menu" [class.open]="menuMobileOuvert()">
         <ul class="navbar-links" (click)="fermerMenuMobile()">
+          @if (role() !== 'administrateur') {
+            <li><a routerLink="/a-faire" routerLinkActive="active">À faire</a></li>
+          }
           @if (role() === 'producteur') {
             <li><a routerLink="/producteur/productions" routerLinkActive="active">Mes productions</a></li>
             <li><a routerLink="/producteur/reservations" routerLinkActive="active">Déposer ma récolte</a></li>

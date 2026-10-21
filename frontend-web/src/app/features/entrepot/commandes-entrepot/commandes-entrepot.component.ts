@@ -48,7 +48,7 @@ const SECTIONS: { titre: string; statuts: string[]; vide: string }[] = [
                 <tbody>
                   @for (c of parSection(section.statuts); track c.id) {
                     <tr>
-                      <td><code class="code-lot">{{ c.numero_commande }}</code>
+                      <td><a [routerLink]="['/commandes', c.id]" title="Ouvrir la fiche"><code class="code-lot">{{ c.numero_commande }}</code></a>
                         <br><small class="text-muted">{{ c.date_commande | date:'dd/MM/yyyy' }}</small>
                         @if (c.panier) { <br><small class="text-muted">Panier {{ c.panier }}</small> }</td>
                       <td><strong>{{ c.produit }}</strong></td>

@@ -23,7 +23,11 @@
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "allowedCommonJsDependencies": ["leaflet", "pusher-js"],
+            "allowedCommonJsDependencies": [
+              "leaflet",
+              "pusher-js",
+              "qrcode"
+            ],
             "assets": [
               {
                 "glob": "**/*",

@@ -39,7 +39,7 @@ import { ANOMALIES, ActionCommande, DECISION_PRISE, LIBELLE_ACTION_COMMANDE, lib
             <tbody>
               @for (c of commandes(); track c.id) {
                 <tr>
-                  <td><code class="code-lot">{{ c.numero_commande }}</code></td>
+                  <td><a [routerLink]="['/commandes', c.id]" title="Ouvrir la fiche"><code class="code-lot">{{ c.numero_commande }}</code></a></td>
                   <td>{{ c.produit }}</td>
                   <td>{{ c.quantite | number }} kg</td>
                   <td>{{ c.prix_unitaire ? (c.prix_unitaire | number) + ' FCFA' : '—' }}</td>

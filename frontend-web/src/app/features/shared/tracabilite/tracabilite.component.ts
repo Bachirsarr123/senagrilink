@@ -1,3 +1,4 @@
+import { QrLotComponent } from '../../../shared/qr/qr-lot.component';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe } from '@angular/common';
@@ -14,7 +15,7 @@ const ICONES: Record<EtapeChronologie['type'], string> = {
 @Component({
   selector: 'app-tracabilite',
   standalone: true,
-  imports: [LibelleStatutPipe, ReactiveFormsModule, DatePipe, RouterLink],
+  imports: [LibelleStatutPipe, ReactiveFormsModule, DatePipe, RouterLink, QrLotComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -48,6 +49,7 @@ const ICONES: Record<EtapeChronologie['type'], string> = {
                 <p class="lot__origine">Produit par <strong>{{ r.producteur }}</strong>@if (r.region) { · {{ r.region }} }</p>
               }
             </div>
+            <app-qr-lot [code]="r.code" />
             @if (r.etatActuel) { <span class="lot__etat">{{ r.etatActuel }}</span> }
           </div>
           <dl class="lot__faits">

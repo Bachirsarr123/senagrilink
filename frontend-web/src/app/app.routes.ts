@@ -32,6 +32,16 @@ export const routes: Routes = [
         loadComponent: () => import('./features/shared/tracabilite/tracabilite.component').then(m => m.TracabiliteComponent),
       },
 
+      // Lot 5 : page « À faire » de chaque rôle, fiche commune d'une commande (accès vérifié par le serveur)
+      {
+        path: 'a-faire',
+        loadComponent: () => import('./features/shared/a-faire/a-faire.component').then(m => m.AFaireComponent),
+      },
+      {
+        path: 'commandes/:id',
+        loadComponent: () => import('./features/shared/fiche-commande/fiche-commande.component').then(m => m.FicheCommandeComponent),
+      },
+
       // Profil — accessible à tous les rôles authentifiés
       {
         path: 'profil',

@@ -46,11 +46,12 @@ export class AuthService {
   /** Page d'accueil de l'espace du rôle connecté. */
   routeAccueil(): string {
     const routes: Record<string, string> = {
-      producteur:            '/producteur/productions',
-      gestionnaire_entrepot: '/entrepot/stocks',
-      acheteur_gros:         '/acheteur/catalogue',
+      // Lot 5 : chaque rôle arrive sur ce qui l'attend ; l'administrateur sur ses exceptions.
+      producteur:            '/a-faire',
+      gestionnaire_entrepot: '/a-faire',
+      acheteur_gros:         '/a-faire',
       administrateur:        '/admin/dashboard',
-      transporteur:          '/transporteur/missions',
+      transporteur:          '/a-faire',
     };
     // Repli sur le profil (protégé) et non sur /login, pour éviter toute boucle.
     return routes[this.role() ?? ''] ?? '/profil';
