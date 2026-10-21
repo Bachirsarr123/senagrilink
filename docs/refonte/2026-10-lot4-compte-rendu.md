@@ -91,7 +91,11 @@ Certains fabricants (Xiaomi, Huawei, Tecno, Infinix, Samsung…) arrêtent les a
 
 ## 6. Vérifications GitHub sur la branche
 
-À compléter après l'exécution des vérifications sur la branche poussée.
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16 (concurrence comprise), cycle des migrations 000022 → 000018, garde de démarrage (exécution 39628512664) | `0459253` | **Réussi** |
+| Site : tests et compilation de production (exécution 39628512712) | `0459253` | **Réussi** |
+| Mobile : analyse, tests, APK de test construit ; **permissions du suivi GPS contrôlées dans l'APK** (service de premier plan présent, pas de localisation en arrière-plan) ; sans publication (exécution 39628512845) | `0459253` | **Réussi** |
 
 ## 7. Limites connues
 
