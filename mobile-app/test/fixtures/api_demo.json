@@ -787,8 +787,27 @@
   "genere_le": "2026-10-19T11:30:24.000000Z"
  },
  "/notifications": {
-  "notifications": [],
-  "non_lues": 0
+  "notifications": [
+   {
+    "id": "n1",
+    "data": {
+     "type": "incident",
+     "message": "Incident « acheteur absent » déclaré sur LIV-20261019-ZLEH : personne sur place au marché central de Dakar. Une décision est attendue."
+    },
+    "read_at": null,
+    "created_at": "2026-10-19T09:00:00Z"
+   },
+   {
+    "id": "n2",
+    "data": {
+     "type": "compte_valide",
+     "message": "Votre compte SenAgriLink est activé : vous pouvez vous connecter."
+    },
+    "read_at": "2026-10-19T09:10:00Z",
+    "created_at": "2026-10-19T09:05:00Z"
+   }
+  ],
+  "non_lues": 1
  },
  "/entrepots/disponibles": {
   "entrepots": [

@@ -185,7 +185,8 @@ class ApiService {
   /// (qui peut durer jusqu'au délai maximal) ; une application fermée pendant cet
   /// appel ne restaure donc pas la session au lancement suivant. Le jeton capturé
   /// est ensuite révoqué côté serveur si le réseau le permet.
-  static Future<void> logout() async {
+  /// [jetonAppareil] : ce téléphone ne recevra plus les notifications de ce compte (lot 6).
+  static Future<void> logout({String? jetonAppareil}) async {
     final jeton = await getToken();
     await removeToken();
     if (jeton == null) return;
@@ -194,7 +195,7 @@ class ApiService {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'Authorization': 'Bearer $jeton',
-          }, body: '{}'));
+          }, body: jsonEncode({'jeton_appareil': ?jetonAppareil})));
     } catch (_) {}
   }
 
@@ -300,4 +301,9 @@ class ApiService {
   static Future<dynamic> refuserReceptionDepot(int id, String motif) => put('/reservations/$id/refuser-reception', {'motif': motif});
   static Future<dynamic> getIncidents() => get('/incidents');
   static Future<dynamic> resoudreIncident(int id, Map<String, dynamic> data) => put('/incidents/$id/resoudre', data);
+
+  // ── Notifications (lot 6) ─────────────────────────────────────────────────
+  static Future<dynamic> marquerNotificationLue(String id) => put('/notifications/$id/lue', {});
+  static Future<dynamic> toutMarquerLu() => put('/notifications/lues', {});
+  static Future<dynamic> enregistrerAppareil(String jeton) => post('/appareils', {'jeton': jeton, 'plateforme': 'android'});
 }

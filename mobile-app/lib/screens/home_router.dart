@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../services/auth_provider.dart';
 import '../services/suivi_gps_service.dart';
+import '../services/notifications_push.dart';
 import '../widgets/app_theme.dart';
 import 'espace_role.dart';
 
@@ -30,6 +31,8 @@ class _HomeRouterState extends State<HomeRouter> {
     // Mission en route (application relancée, téléphone redémarré) : le partage de position reprend.
     final role = context.read<AuthProvider>().utilisateur?.role;
     if (role == 'transporteur' || role == 'producteur') SuiviGpsService.instance.reprendre();
+    // Lot 6 : ce téléphone reçoit les notifications de ce compte (si Firebase est configuré).
+    NotificationsPush.activer();
     _timer = Timer.periodic(_intervallePollingNotifications, (_) => _verifierNotifications());
   }
 

@@ -5,6 +5,7 @@ import '../../services/auth_provider.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/info_card.dart';
 import 'fiche_commande_screen.dart';
+import 'notifications_screen.dart';
 import 'profil_screen.dart';
 
 /// Page « À faire » (lot 5), premier onglet de chaque rôle : ce qui attend
@@ -64,6 +65,12 @@ class _AFaireScreenState extends State<AFaireScreen> {
       appBar: AppBar(
         title: Text('À faire — ${auth.utilisateur?.prenom ?? ''}'),
         actions: [
+          IconButton(
+            key: const Key('ouvrir-notifications'),
+            tooltip: 'Notifications',
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+          ),
           PopupMenuButton<String>(
             onSelected: (v) {
               if (v == 'profil') Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilScreen()));

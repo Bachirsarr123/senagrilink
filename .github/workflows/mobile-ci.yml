@@ -78,11 +78,16 @@ jobs:
       - name: Construire l'APK de test
         env:
           API_URL: ${{ inputs.api_url }}
+          # Lot 6 : configuration Firebase (variables du dépôt, non secrètes) ; vides = notifications push désactivées
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
         run: |
           if [ -n "$API_URL" ]; then
-            flutter build apk --release --dart-define=API_URL="$API_URL"
+            flutter build apk --release --dart-define=API_URL="$API_URL" --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
           else
-            flutter build apk --release
+            flutter build apk --release --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
           fi
 
       - name: Vérifier l'APK (permissions, certificat)

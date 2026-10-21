@@ -44,7 +44,7 @@ class EnvoiPush
                         'notification' => ['title' => $titre, 'body' => mb_strimwidth($message, 0, 240, '…')],
                         // Valeurs texte uniquement (exigence FCM)
                         'data'         => array_map('strval', array_filter($donnees, fn ($v) => is_scalar($v))),
-                        'android'      => ['priority' => 'high', 'notification' => ['channel_id' => 'senagrilink']],
+                        'android'      => ['priority' => 'high'],
                     ]]);
 
                 if ($reponse->successful()) {

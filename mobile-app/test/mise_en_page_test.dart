@@ -23,6 +23,7 @@ import 'package:agri_platform_mobile/screens/gestionnaire/commandes_entrepot_scr
 import 'package:agri_platform_mobile/screens/gestionnaire/depots_entrepot_screen.dart';
 import 'package:agri_platform_mobile/screens/gestionnaire/incidents_screen.dart';
 import 'package:agri_platform_mobile/screens/shared/a_faire_screen.dart';
+import 'package:agri_platform_mobile/screens/shared/notifications_screen.dart';
 import 'package:agri_platform_mobile/screens/shared/fiche_commande_screen.dart';
 import 'package:agri_platform_mobile/services/api_service.dart';
 import 'package:agri_platform_mobile/services/auth_provider.dart';
@@ -88,6 +89,7 @@ void main() {
     'Dépôts de l\'entrepôt':    ('gestionnaire_entrepot', () => const DepotsEntrepotScreen(), 'Dépôts'),
     'Incidents':                ('gestionnaire_entrepot', () => const IncidentsScreen(), 'Personne sur place'),
     'Fiche de commande':        ('gestionnaire_entrepot', () => const FicheCommandeScreen(commandeId: 2), 'Réception à confirmer'),
+    'Notifications':            ('acheteur_gros', () => const NotificationsScreen(), 'Tout lire'),
     'Profil':                   ('producteur', () => const ProfilScreen(afficherTuiles: false), 'Position de votre exploitation'),
     'Traçabilité':              ('acheteur_gros', () => const TracabiliteScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
   };

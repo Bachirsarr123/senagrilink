@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/utilisateur.dart';
 import 'api_service.dart';
+import 'notifications_push.dart';
 
 class AuthProvider extends ChangeNotifier {
   Utilisateur? _utilisateur;
@@ -77,6 +78,12 @@ class AuthProvider extends ChangeNotifier {
     _loading = true; _erreur = null; _messageSession = null; notifyListeners();
     try {
       final res = await ApiService.register(data);
+      // Lot 6 (Q9) : gestionnaire ou transporteur en attente de validation, sans session.
+      if (res['en_attente_validation'] == true) {
+        _messageInscription = res['message'] as String? ?? 'Compte créé : il sera activé après validation par l\'administrateur.';
+        _loading = false; notifyListeners();
+        return false;
+      }
       await _persistSession(res);
       _loading = false; notifyListeners();
       return true;
@@ -97,10 +104,14 @@ class AuthProvider extends ChangeNotifier {
     _utilisateur = null;
     _messageSession = null;
     notifyListeners();
-    await ApiService.logout();
+    await ApiService.logout(jetonAppareil: await NotificationsPush.jetonEnregistre());
   }
 
   void clearError() { _erreur = null; notifyListeners(); }
+
+  /// Message de l'inscription en attente de validation (null sinon).
+  String? _messageInscription;
+  String? get messageInscription => _messageInscription;
 
   // ── Persistance ──────────────────────────────────────────────────────────
   Future<void> _persistSession(Map<String, dynamic> res) async {

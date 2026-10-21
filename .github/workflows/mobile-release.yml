@@ -90,12 +90,17 @@ jobs:
           API_URL: ${{ inputs.api_url }}
           VERSION_NAME: ${{ inputs.version_name }}
           VERSION_CODE: ${{ inputs.version_code }}
+          # Lot 6 : configuration Firebase (variables du dépôt, non secrètes) ; vides = notifications push désactivées
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
         run: |
           [ -n "$KEYSTORE_BASE64" ] || { echo "::error::secret ANDROID_KEYSTORE_BASE64 absent"; exit 1; }
           export SENAGRILINK_KEYSTORE_PATH="$RUNNER_TEMP/distribution.jks"
           echo "$KEYSTORE_BASE64" | base64 --decode > "$SENAGRILINK_KEYSTORE_PATH"
           chmod 600 "$SENAGRILINK_KEYSTORE_PATH"
-          flutter build apk --release --build-name="$VERSION_NAME" --build-number="$VERSION_CODE" --dart-define=API_URL="$API_URL"
+          flutter build apk --release --build-name="$VERSION_NAME" --build-number="$VERSION_CODE" --dart-define=API_URL="$API_URL" --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
 
       - name: Supprimer le keystore du runner
         if: always()

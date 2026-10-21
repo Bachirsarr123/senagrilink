@@ -155,6 +155,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
 
+                    if (auth.messageInscription != null)
+                      Container(
+                        key: const Key('inscription-en-attente'),
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(color: AppTheme.vertClair, borderRadius: BorderRadius.circular(8)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(auth.messageInscription!, style: const TextStyle(color: AppTheme.vertFonce)),
+                          TextButton(onPressed: () => Navigator.pushReplacementNamed(context, '/login'), child: const Text('Retour à la connexion')),
+                        ]),
+                      ),
+
                     if (auth.erreur != null)
                       Container(
                         padding: const EdgeInsets.all(12),
