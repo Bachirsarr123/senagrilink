@@ -51,6 +51,13 @@ services:
         value: https://senagrilink-backend-preprod.onrender.com
       - key: APP_LOCALE
         value: fr
+      # Fond de carte du suivi GPS (lot 4) : MapTiler, offre gratuite. La clé
+      # est publique par nature (elle part avec chaque tuile affichée) ; on
+      # pourra la restreindre à l'adresse du site une fois celle-ci définitive.
+      - key: CARTE_TUILES_URL
+        value: https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=yudqv6lhTMnEvCpCwt7t
+      - key: CARTE_ATTRIBUTION
+        value: © MapTiler © les contributeurs d'OpenStreetMap
       - key: APP_FALLBACK_LOCALE
         value: en
       - key: LOG_CHANNEL

@@ -106,3 +106,10 @@ Certains fabricants (Xiaomi, Huawei, Tecno, Infinix, Samsung…) arrêtent les a
 | iPhone : le site fonctionne, mais le partage en arrière-plan n'y est pas possible (Q16) | Hors périmètre |
 | Les positions arrivent par interrogation toutes les 10 secondes, pas en temps réel par WebSocket | Suffisant pour le suivi, à revoir si besoin |
 | Notifications push sur le téléphone (Firebase, Q15) | Lot 5 ou 6 |
+
+## 8. Fond de carte MapTiler (ajouté après le lot 5)
+
+- Clé MapTiler créée par vous (sans restriction d'origine ni de User-Agent, pour servir à la fois au site et à l'application Android).
+- **Vérifié** : la clé renvoie bien des tuiles, et Dakar s'affiche correctement dans un navigateur Leaflet. La page de suivi utilise la configuration du serveur (attribution « © MapTiler » affichée).
+- **Préproduction** : `CARTE_TUILES_URL` et `CARTE_ATTRIBUTION` sont renseignées dans `render-preproduction.yaml`.
+- **Production** : rien n'est modifié. À la mise en production, il faudra ajouter les deux mêmes variables dans Render, avec votre accord.
