@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/info_card.dart';
 import 'formulaire_commande.dart';
@@ -99,9 +100,15 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(color: AppTheme.vertClair, borderRadius: BorderRadius.circular(12)),
-                                    child: Text('${p['quantite']} kg', style: const TextStyle(color: AppTheme.vertFonce, fontWeight: FontWeight.bold)),
+                                    child: Text('${kg(nombre(p['quantite_disponible']) ?? nombre(p['quantite']) ?? 0)} dispo.',
+                                        style: const TextStyle(color: AppTheme.vertFonce, fontWeight: FontWeight.bold)),
                                   ),
                                 ]),
+                                if (nombre(p['prix_unitaire']) != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text('${fcfa(nombre(p['prix_unitaire'])!)} / kg',
+                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                                ],
                                 const SizedBox(height: 8),
                                 if (entrepot != null) ...[
                                   Row(children: [

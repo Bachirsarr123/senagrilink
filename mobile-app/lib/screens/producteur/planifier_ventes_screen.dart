@@ -109,7 +109,7 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
                 if (p.dateRecolte != null)
                   Text('Récolte : ${p.dateRecolte}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 if (p.quantiteEstimee != null)
-                  Text('${p.quantiteEstimee!.toStringAsFixed(0)} kg estimés',
+                  Text('${kg(p.quantiteEstimee!)} estimés',
                       style: const TextStyle(fontSize: 13)),
                 const SizedBox(height: 10),
                 // La mise en vente n'est pas une action du producteur : le lot devient
@@ -139,7 +139,7 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
             child: ListTile(
               leading: const CircleAvatar(backgroundColor: AppTheme.vertClair, child: Icon(Icons.check, color: AppTheme.vert)),
               title: Text(p.typeCulture ?? '—', style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('${p.quantiteEstimee?.toStringAsFixed(0) ?? '—'} kg — ${p.codeTracabilite}',
+              subtitle: Text('${p.quantiteEstimee != null ? kg(p.quantiteEstimee!) : '— kg'} — ${p.codeTracabilite}',
                   style: const TextStyle(fontSize: 12)),
               trailing: StatusBadge(p.statut),
             ),
@@ -169,8 +169,8 @@ class _PlanifierVentesScreenState extends State<PlanifierVentesScreen>
               ),
               title: Text(d['produit'] ?? '—', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${(nombre(d['quantite']) ?? 0).toStringAsFixed(0)} kg'
-                    '${d['prix'] != null ? ' — ${(nombre(d['prix']) ?? 0).toStringAsFixed(0)} FCFA' : ''}'),
+                Text(kg(nombre(d['quantite']) ?? 0) +
+                    (nombre(d['prix']) != null ? ' — ${fcfa(nombre(d['prix'])!)}' : '')),
                 if (d['numero_commande'] != null)
                   Text('Commande : ${d['numero_commande']}',
                       style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppTheme.vert)),

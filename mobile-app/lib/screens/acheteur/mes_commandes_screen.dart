@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/commande.dart';
 import '../../services/api_service.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
@@ -66,7 +67,7 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
   }
 
   Future<void> _modifier(Commande c) async {
-    final ctl = TextEditingController(text: c.quantite.toStringAsFixed(0));
+    final ctl = TextEditingController(text: nombreLisible(c.quantite));
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -74,6 +75,9 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('Commande : ${c.numeroCommande}',
               style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          if (c.prixUnitaire != null)
+            Text('Prix figé à la commande : ${fcfa(c.prixUnitaire!)} / kg',
+                style: const TextStyle(fontSize: 13, color: Colors.grey)),
           const SizedBox(height: 12),
           TextField(
             controller: ctl,
@@ -94,7 +98,7 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
       ),
     );
     if (ok != true) return;
-    final qte = double.tryParse(ctl.text.trim());
+    final qte = nombre(ctl.text.trim().replaceAll(',', '.'));
     if (qte == null || qte <= 0) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Quantité invalide.'), backgroundColor: AppTheme.rouge));
@@ -142,8 +146,9 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
                               ]),
                               const SizedBox(height: 6),
                               Text(c.produit, style: const TextStyle(fontSize: 15)),
-                              Text('${c.quantite.toStringAsFixed(0)} kg'
-                                  '${c.prix != null ? ' — ${c.prix!.toStringAsFixed(0)} FCFA' : ''}',
+                              Text('${kg(c.quantite)}'
+                                  '${c.prixUnitaire != null ? ' × ${fcfa(c.prixUnitaire!)}/kg' : ''}'
+                                  '${c.prix != null ? ' = ${fcfa(c.prix!)}' : ''}',
                                   style: const TextStyle(color: Colors.grey, fontSize: 13)),
 
                               if (c.alerteLivraison)

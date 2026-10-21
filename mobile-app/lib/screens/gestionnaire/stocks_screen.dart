@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/stock.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
@@ -50,7 +51,7 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthProvider>();
-    final totalQte = _stocks.fold(0.0, (s, e) => s + e.quantite);
+    final totalDisponible = _stocks.fold(0.0, (s, e) => s + e.quantiteDisponible);
 
     return Scaffold(
       appBar: AppBar(
@@ -93,7 +94,7 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Row(children: [
                       Expanded(child: InfoCard(icon: Icons.inventory_2_outlined, label: 'Lignes', value: '${_stocks.length}')),
-                      Expanded(child: InfoCard(icon: Icons.scale_outlined, label: 'Total (kg)', value: totalQte.toStringAsFixed(0))),
+                      Expanded(child: InfoCard(icon: Icons.scale_outlined, label: 'Disponible (kg)', value: nombreLisible(totalDisponible))),
                       Expanded(child: InfoCard(icon: Icons.warning_amber_outlined, label: 'Alertes', value: '${_alertes.length}', color: _alertes.isNotEmpty ? AppTheme.rouge : AppTheme.vert)),
                     ]),
                   ),
@@ -130,8 +131,11 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
                 if (s.enAlerte) const Icon(Icons.warning_amber, color: AppTheme.orange, size: 16),
               ]),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${s.quantite.toStringAsFixed(0)} kg disponibles'),
-                if (s.seuilAlerte != null) Text('Seuil : ${s.seuilAlerte!.toStringAsFixed(0)} kg', style: const TextStyle(fontSize: 11)),
+                Text('${kg(s.quantiteDisponible)} disponibles',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text('En entrepôt : ${kg(s.quantite)} · Réservé : ${kg(s.quantiteReservee)}',
+                    style: const TextStyle(fontSize: 11)),
+                if (s.seuilAlerte != null) Text('Seuil : ${kg(s.seuilAlerte!)}', style: const TextStyle(fontSize: 11)),
                 if (s.dateEntree != null) Text('Entré le : ${s.dateEntree}', style: const TextStyle(fontSize: 11)),
               ]),
               trailing: StatusBadge(s.statut),
@@ -153,7 +157,7 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
       itemCount: _alertes.length,
       itemBuilder: (_, i) {
         final s = _alertes[i];
-        final deficit = (s.seuilAlerte ?? 0) - s.quantite;
+        final deficit = (s.seuilAlerte ?? 0) - s.quantiteDisponible;
         return Card(
           color: Colors.red.shade50,
           child: ListTile(
@@ -163,9 +167,9 @@ class _StocksScreenState extends State<StocksScreen> with SingleTickerProviderSt
             ),
             title: Text(s.produit, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Quantité actuelle : ${s.quantite.toStringAsFixed(0)} kg',
+              Text('Disponible : ${kg(s.quantiteDisponible)} (réservé : ${kg(s.quantiteReservee)})',
                   style: const TextStyle(color: AppTheme.rouge)),
-              Text('Seuil : ${s.seuilAlerte!.toStringAsFixed(0)} kg — Déficit : ${deficit.toStringAsFixed(0)} kg'),
+              Text('Seuil : ${kg(s.seuilAlerte!)} — Déficit : ${kg(deficit)}'),
             ]),
           ),
         );

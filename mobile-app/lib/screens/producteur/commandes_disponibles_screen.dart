@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/commande.dart';
 import '../../services/api_service.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/info_card.dart';
 
 class CommandesDisponiblesScreen extends StatefulWidget {
@@ -51,8 +52,8 @@ class _CommandesDisponiblesScreenState extends State<CommandesDisponiblesScreen>
                             leading: const CircleAvatar(child: Icon(Icons.shopping_basket_outlined)),
                             title: Text(c.produit, style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('${c.quantite.toStringAsFixed(0)} kg demandés'),
-                              if (c.prix != null) Text('${c.prix!.toStringAsFixed(0)} FCFA'),
+                              Text('${kg(c.quantite)} demandés'),
+                              if (c.prix != null) Text('${fcfa(c.prix!)}${c.prixUnitaire != null ? ' (${fcfa(c.prixUnitaire!)}/kg)' : ''}'),
                               if (acheteur != null) Text('Acheteur : ${acheteur['prenom']} ${acheteur['nom']}'),
                             ]),
                           ),

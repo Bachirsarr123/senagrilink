@@ -40,7 +40,7 @@ void main() {
 
   const acheteur = {'id': 4, 'nom': 'Ba', 'prenom': 'Moussa', 'email': 'a@test.sn', 'role': 'acheteur_gros', 'statut': 'actif'};
   final catalogue = {'catalogue': [
-    {'stock_id': 5, 'produit': 'riz', 'quantite': '40', 'entrepot': {'nom_entrepot': 'Thiès-Nord', 'localisation': 'Thiès'},
+    {'stock_id': 5, 'produit': 'riz', 'quantite': '40', 'quantite_disponible': '40', 'prix_unitaire': '150', 'entrepot': {'nom_entrepot': 'Thiès-Nord', 'localisation': 'Thiès'},
      'production': {'code_tracabilite': 'LOT-2026-AAAAAA'}},
   ]};
 
@@ -49,7 +49,8 @@ void main() {
         ? json({'commande': {'id': 9, 'numero_commande': 'CMD-20261020-ABCD'}}, 201)
         : json(catalogue));
 
-    expect(find.text('40 kg'), findsOneWidget); // quantité « 40 » (chaîne PostgreSQL) affichée
+    expect(find.text('40 kg dispo.'), findsOneWidget); // quantité « 40 » (chaîne PostgreSQL) affichée
+    expect(find.text('150 FCFA / kg'), findsOneWidget); // prix fixé par le producteur
     await tester.tap(find.text('Commander'));
     await tester.pumpAndSettle();
 
@@ -60,6 +61,9 @@ void main() {
     expect(requetes.where((r) => r.method == 'POST'), isEmpty);
 
     await tester.enterText(find.byKey(const Key('commande-quantite')), '12,5');
+    await tester.pump();
+    expect(find.text('Total : 1875 FCFA'), findsOneWidget);
+    expect(find.byKey(const Key('commande-prix')), findsNothing); // l'acheteur ne saisit pas de prix
     await tester.tap(find.text('Confirmer la commande'));
     await tester.pumpAndSettle();
 
