@@ -14,7 +14,7 @@ class ReservationsScreen extends StatefulWidget {
 }
 
 class _ReservationsScreenState extends State<ReservationsScreen> {
-  static const _actions = ['accepter_mission', 'refuser_mission', 'arriver_collecte', 'charger', 'partir', 'arriver'];
+  static const _actions = ['accepter_mission', 'refuser_mission', 'arriver_collecte', 'charger', 'partir', 'arriver', 'declarer_incident'];
 
   List<Map<String, dynamic>> _reservations = [];
   bool _loading = true;

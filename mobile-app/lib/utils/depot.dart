@@ -27,6 +27,7 @@ const libelleAction = {
   'partir': 'Je pars vers l\'entrepôt',
   'arriver': 'Je suis arrivé à l\'entrepôt',
   'annuler': 'Annuler le dépôt',
+  'declarer_incident': 'Déclarer un incident',
 };
 
 /// Confirmation demandée avant une étape de transport (action sur le terrain).

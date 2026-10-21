@@ -33,6 +33,15 @@ class StatusBadge extends StatelessWidget {
     'chargee'           => (const Color(0xFFE0E7FF), const Color(0xFF3730A3), 'Chargée'),
     'en_route'          => (const Color(0xFFE0E7FF), const Color(0xFF3730A3), 'En route'),
     'reception_refusee' => (const Color(0xFFFEE2E2), const Color(0xFF991B1B), 'Réception refusée'),
+    'en_preparation'    => (const Color(0xFFFEF9C3), const Color(0xFF854D0E), 'En préparation'),
+    'prete'             => (const Color(0xFFD1FAE5), const Color(0xFF065F46), 'Prête'),
+    'en_livraison'      => (const Color(0xFFE0E7FF), const Color(0xFF3730A3), 'En livraison'),
+    'arrivee'           => (const Color(0xFFDBEAFE), const Color(0xFF1E40AF), 'Arrivée'),
+    'receptionnee'      => (const Color(0xFFDBEAFE), const Color(0xFF1E40AF), 'Reçue'),
+    'litige'            => (const Color(0xFFFEE2E2), const Color(0xFFDC2626), '⚠ Litige'),
+    'retournee'         => (const Color(0xFFF3F4F6), const Color(0xFF6B7280), 'Revenue à l\'entrepôt'),
+    'ouvert'            => (const Color(0xFFFEE2E2), const Color(0xFFDC2626), 'Ouvert'),
+    'resolu'            => (const Color(0xFFD1FAE5), const Color(0xFF065F46), 'Traité'),
     _             => (const Color(0xFFF3F4F6), const Color(0xFF6B7280), s),
   };
 }

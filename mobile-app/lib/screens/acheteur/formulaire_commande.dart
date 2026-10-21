@@ -13,16 +13,18 @@ import '../../widgets/app_theme.dart';
 /// commande déjà enregistrée n'est jamais créée deux fois.
 ///
 /// Renvoie le numéro de commande créé, ou null si l'acheteur renonce.
-Future<String?> ouvrirFormulaireCommande(BuildContext context, Map<String, dynamic> produit) =>
+/// Avec [surPanier], un second bouton ajoute la quantité au panier au lieu de commander.
+Future<String?> ouvrirFormulaireCommande(BuildContext context, Map<String, dynamic> produit, {ValueChanged<double>? surPanier}) =>
     showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => FormulaireCommande(produit: produit),
+      builder: (_) => FormulaireCommande(produit: produit, surPanier: surPanier),
     );
 
 class FormulaireCommande extends StatefulWidget {
   final Map<String, dynamic> produit;
-  const FormulaireCommande({super.key, required this.produit});
+  final ValueChanged<double>? surPanier;
+  const FormulaireCommande({super.key, required this.produit, this.surPanier});
   @override
   State<FormulaireCommande> createState() => _FormulaireCommandeState();
 }
@@ -109,6 +111,17 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
               onPressed: _envoi ? null : _envoyer,
               child: Text(_envoi ? 'Envoi…' : 'Confirmer la commande'),
             ),
+            if (widget.surPanier != null)
+              OutlinedButton.icon(
+                key: const Key('ajouter-panier'),
+                icon: const Icon(Icons.add_shopping_cart),
+                label: const Text('Ajouter au panier'),
+                onPressed: _envoi ? null : () {
+                  if (!_form.currentState!.validate()) return;
+                  widget.surPanier!(_quantite!);
+                  Navigator.pop(context);
+                },
+              ),
             TextButton(onPressed: _envoi ? null : () => Navigator.pop(context), child: const Text('Annuler')),
           ]),
         ),

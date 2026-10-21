@@ -54,9 +54,9 @@ void main() {
     'telephone': '770000001', 'adresse': 'Quartier Médina, rue 22 x 15, Thiès', 'role': role, 'statut': 'actif',
   };
 
-  final livraison = Livraison.fromJson(
-    Map<String, dynamic>.from((reponses['/livraisons']['livraisons'] as List).first as Map)..['statut'] = 'en_attente',
-  );
+  final livraisons = (reponses['/livraisons']['livraisons'] as List).cast<Map<String, dynamic>>();
+  final livraison = Livraison.fromJson(livraisons[2]);
+  final remise = Livraison.fromJson(livraisons[0]);
 
   // Écran → (rôle connecté, construction, texte attendu une fois les données chargées).
   // Le texte attendu garantit que l'écran a bien rendu son contenu réel, et non
@@ -72,11 +72,12 @@ void main() {
     'Déposer une récolte':      ('producteur', () => const NouveauDepotScreen(), 'Envoyer la demande'),
     'Stocks':                   ('gestionnaire_entrepot', () => const StocksScreen(), '1340'),
     'Catalogue':                ('acheteur_gros', () => const CatalogueScreen(), 'oignon'),
-    'Mes commandes':            ('acheteur_gros', () => const MesCommandesScreen(), 'CMD-20261019-OFXJ'),
+    'Mes commandes':            ('acheteur_gros', () => const MesCommandesScreen(), 'J\'ai bien reçu ma commande'),
     'Suivi de livraison':       ('acheteur_gros', () => const SuiviLivraisonScreen(livraisonId: 1), 'En cours'),
     'Livraisons':               ('transporteur', () => const LivraisonsScreen(), 'LIV-20261019-ZLEH'),
     'Acheminements':            ('transporteur', () => const ReservationsScreen(), 'Accepter la mission'),
-    'Détail de livraison':      ('transporteur', () => DetailLivraisonScreen(livraison: livraison), 'Statut actuel'),
+    'Détail de livraison':      ('transporteur', () => DetailLivraisonScreen(livraison: livraison), 'Accepter la mission'),
+    'Remise par code':          ('transporteur', () => DetailLivraisonScreen(livraison: remise), 'Remettre avec le code'),
     'Profil':                   ('producteur', () => const ProfilScreen(afficherTuiles: false), 'Position de votre exploitation'),
     'Traçabilité':              ('acheteur_gros', () => const TracabiliteScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
   };

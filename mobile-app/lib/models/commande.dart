@@ -15,6 +15,13 @@ class Commande {
   final Map<String, dynamic>? livraison;
   final Map<String, dynamic>? stock;
   final Map<String, dynamic>? acheteur;
+  /// Actions possibles pour l'utilisateur connecté (décidées par le serveur).
+  final List<String> actions;
+  final String? prochaineEtape;
+  /// Code à donner au transporteur à la remise (acheteur seulement, pendant la livraison).
+  final String? codeReception;
+  final String? panier;
+  final List<Map<String, dynamic>> incidents;
 
   const Commande({
     required this.id,
@@ -29,7 +36,14 @@ class Commande {
     this.livraison,
     this.stock,
     this.acheteur,
+    this.actions = const [],
+    this.prochaineEtape,
+    this.codeReception,
+    this.panier,
+    this.incidents = const [],
   });
+
+  bool peut(String action) => actions.contains(action);
 
   factory Commande.fromJson(Map<String, dynamic> j) => Commande(
         id: j['id'],
@@ -44,5 +58,10 @@ class Commande {
         livraison: j['livraison'],
         stock: j['stock'],
         acheteur: j['acheteur'],
+        actions: ((j['actions'] as List?) ?? const []).cast<String>(),
+        prochaineEtape: (j['prochaine_etape'] as Map?)?['libelle'] as String?,
+        codeReception: j['code_reception'] as String?,
+        panier: j['panier'] as String?,
+        incidents: ((j['incidents'] as List?) ?? const []).cast<Map<String, dynamic>>(),
       );
 }

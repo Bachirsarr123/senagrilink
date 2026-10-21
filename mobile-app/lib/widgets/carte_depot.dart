@@ -3,6 +3,8 @@ import '../services/api_service.dart';
 import '../utils/depot.dart';
 import '../utils/nombres.dart';
 import 'app_theme.dart';
+import 'declarer_incident.dart';
+import '../utils/livraison.dart' show libelleIncident;
 import 'status_badge.dart';
 
 /// Carte d'un dépôt (réservation d'entrepôt), commune au transporteur et au
@@ -80,12 +82,14 @@ class CarteDepot extends StatelessWidget {
               ligne(Icons.person_outline, '${transporteur['prenom'] ?? ''} ${transporteur['nom'] ?? ''}'
                   '${transporteur['telephone'] != null ? ' · ${transporteur['telephone']}' : ''}'),
           ],
+          for (final i in (r['incidents'] as List?) ?? const [])
+            ligne(Icons.warning_amber_outlined, 'Incident : ${libelleIncident((i as Map)['type'] ?? '')} — en attente de l\'entrepôt'),
           if (prochaine != null) ligne(Icons.flag_outlined, 'Étape suivante : $prochaine'),
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final a in actions)
-                a == 'refuser_mission' || a == 'annuler'
+                a == 'refuser_mission' || a == 'annuler' || a == 'declarer_incident'
                     ? OutlinedButton(
                         key: Key('depot-${r['id']}-$a'),
                         onPressed: enCours ? null : () => onAction(a),
@@ -126,6 +130,8 @@ Future<bool> executerActionDepot(BuildContext context, Map<String, dynamic> r, S
         'L\'entrepôt${r['transporteur_id'] != null ? ' et le transporteur seront prévenus' : ' sera prévenu'}. Cette annulation est définitive.', obligatoire: false);
     if (motif == null) return false;
     appel = () => ApiService.annulerDepot(id, motif: motif);
+  } else if (action == 'declarer_incident') {
+    return declarerIncident(context, sujetType: 'reservation', sujetId: id, numero: numero);
   } else if (etapeDeLAction.containsKey(action)) {
     if (!await _confirmer(context, confirmationEtape[action] ?? 'Confirmer ?')) return false;
     appel = () => ApiService.etapeDepot(id, etapeDeLAction[action]!);
@@ -141,6 +147,13 @@ Future<bool> executerActionDepot(BuildContext context, Map<String, dynamic> r, S
     return false;
   }
 }
+
+/// Confirmation simple (Oui / Non), commune aux écrans de transport.
+Future<bool> confirmerAction(BuildContext context, String question) => _confirmer(context, question);
+
+/// Motif saisi (obligatoire ou non) ; null si l'utilisateur renonce.
+Future<String?> demanderMotifAction(BuildContext context, String titre, String consequence, {required bool obligatoire}) =>
+    _demanderMotif(context, titre, consequence, obligatoire: obligatoire);
 
 Future<bool> _confirmer(BuildContext context, String question) async =>
     await showDialog<bool>(

@@ -216,6 +216,11 @@ class ApiService {
   static Future<dynamic> updateCommande(int id, Map<String, dynamic> data) => put('/commandes/$id', data);
   static Future<dynamic> annulerCommande(int id) => delete('/commandes/$id');
   static Future<dynamic> getHistoriqueCommandes() => get('/commandes/historique');
+  static Future<dynamic> confirmerReception(int id) => put('/commandes/$id/reception', {});
+  static Future<dynamic> demanderAnnulation(int id, {String? motif}) =>
+      post('/commandes/$id/demande-annulation', {if (motif != null && motif.isNotEmpty) 'motif': motif});
+  static Future<dynamic> declarerAnomalie(int id, String type, String description) =>
+      post('/commandes/$id/anomalie', {'type': type, 'description': description});
 
   // ── Livraisons (Transporteur) ────────────────────────────────────────────
   static Future<dynamic> getLivraisons() => get('/livraisons');
@@ -223,6 +228,15 @@ class ApiService {
       put('/livraisons/$id/statut', {'statut': statut});
   static Future<dynamic> signalerProbleme(int id) =>
       post('/livraisons/$id/probleme', {});
+  static Future<dynamic> accepterLivraison(int id) => put('/livraisons/$id/accepter-mission', {});
+  static Future<dynamic> refuserLivraison(int id, String motif) => put('/livraisons/$id/refuser-mission', {'motif': motif});
+  /// Étape de livraison : chargee, en_cours, arrivee.
+  static Future<dynamic> etapeLivraison(int id, String etape) => put('/livraisons/$id/etape', {'etape': etape});
+  static Future<dynamic> remettreLivraison(int id, String code) => put('/livraisons/$id/remise', {'code': code});
+
+  // ── Incidents ─────────────────────────────────────────────────────────────
+  static Future<dynamic> declarerIncident(Map<String, dynamic> data, {String? cleIdempotence}) =>
+      post('/incidents', data, cleIdempotence: cleIdempotence);
 
   // ── Traçabilité ──────────────────────────────────────────────────────────
   static Future<dynamic> getTracabilite(String code) => get('/tracabilite/$code');

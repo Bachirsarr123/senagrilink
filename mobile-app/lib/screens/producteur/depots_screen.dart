@@ -15,7 +15,7 @@ class DepotsScreen extends StatefulWidget {
 }
 
 class _DepotsScreenState extends State<DepotsScreen> {
-  static const _actions = ['partir', 'arriver', 'annuler'];
+  static const _actions = ['partir', 'arriver', 'declarer_incident', 'annuler'];
 
   List<Map<String, dynamic>> _depots = [];
   bool _loading = true;

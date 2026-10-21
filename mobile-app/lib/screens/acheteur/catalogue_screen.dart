@@ -37,8 +37,58 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     }
   }
 
+  /// Panier : plusieurs produits commandés en une fois, tout ou rien.
+  final List<({int stockId, String produit, double quantite, double prix})> _panier = [];
+  String _clePanier = ApiService.nouvelleCleIdempotence();
+
+  double get _totalPanier => (_panier.fold<double>(0, (t, l) => t + l.quantite * l.prix) * 100).round() / 100;
+
+  void _ajouter(Map<String, dynamic> p, double quantite) => setState(() {
+    _panier.removeWhere((l) => l.stockId == p['stock_id']);
+    _panier.add((stockId: p['stock_id'] as int, produit: p['produit'] as String? ?? '', quantite: quantite, prix: nombre(p['prix_unitaire']) ?? 0));
+    _clePanier = ApiService.nouvelleCleIdempotence();
+  });
+
+  Future<void> _ouvrirPanier() async {
+    final messager = ScaffoldMessenger.of(context);
+    final commande = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(builder: (c, setSheet) => SafeArea(child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const Text('Mon panier', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          for (final l in _panier) ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('${l.produit} — ${kg(l.quantite)}'),
+            subtitle: Text('${fcfa(l.prix)} / kg = ${fcfa((l.quantite * l.prix * 100).round() / 100)}'),
+            trailing: IconButton(icon: const Icon(Icons.delete_outline), tooltip: 'Retirer', onPressed: () {
+              setState(() { _panier.remove(l); _clePanier = ApiService.nouvelleCleIdempotence(); });
+              _panier.isEmpty ? Navigator.pop(c) : setSheet(() {});
+            }),
+          ),
+          Text('Total : ${fcfa(_totalPanier)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text('Tout ou rien : si un produit n\'est plus disponible en quantité suffisante, aucune commande n\'est passée.',
+              style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 12),
+          ElevatedButton(key: const Key('commander-panier'), onPressed: () => Navigator.pop(c, true), child: const Text('Commander le panier')),
+        ]),
+      ))),
+    );
+    if (commande != true || _panier.isEmpty) return;
+    try {
+      final res = await ApiService.passerCommande({
+        'lignes': [for (final l in _panier) {'stock_id': l.stockId, 'quantite': l.quantite}],
+      }, cleIdempotence: _clePanier);
+      setState(() { _panier.clear(); _clePanier = ApiService.nouvelleCleIdempotence(); });
+      messager.showSnackBar(SnackBar(content: Text('${res['message'] ?? 'Panier commandé.'} Suivez-le dans « Mes commandes ».'), backgroundColor: AppTheme.vert));
+      _charger();
+    } on ApiException catch (e) {
+      messager.showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));
+    }
+  }
+
   Future<void> _commander(Map<String, dynamic> produit) async {
-    final numero = await ouvrirFormulaireCommande(context, produit);
+    final numero = await ouvrirFormulaireCommande(context, produit, surPanier: (q) => _ajouter(produit, q));
     if (numero == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('Commande $numero passée. Suivez-la dans « Mes commandes ».'), backgroundColor: AppTheme.vert));
@@ -49,6 +99,12 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   Widget build(BuildContext context) {
     final auth = context.read<AuthProvider>();
     return Scaffold(
+      floatingActionButton: _panier.isEmpty ? null : FloatingActionButton.extended(
+        key: const Key('panier'),
+        onPressed: _ouvrirPanier,
+        icon: const Icon(Icons.shopping_cart_outlined),
+        label: Text('Panier (${_panier.length}) · ${fcfa(_totalPanier)}'),
+      ),
       appBar: AppBar(
         title: Text('Catalogue — ${auth.utilisateur?.prenom ?? ''}'),
         actions: [
