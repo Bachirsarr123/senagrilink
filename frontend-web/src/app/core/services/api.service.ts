@@ -76,6 +76,12 @@ export class ApiService {
 
   // ── Suivi GPS ──────────────────────────────────────────────────────────────
   getPositionLivraison(id: number): Observable<any> { return this.http.get(`${this.base}/livraisons/${id}/position`); }
+  /** Lot 4 : suivi d'une mission (livraison ou reservation) — position, trace, trajet, arrivée estimée. */
+  getSuivi(type: string, id: number): Observable<any> { return this.http.get(`${this.base}/suivi/${type}/${id}`); }
+  getConfigurationCarte(): Observable<any> { return this.http.get(`${this.base}/suivi/configuration`); }
+  /** Positions prises par le navigateur du conducteur (paquets, avec l'heure de prise). */
+  envoyerPositions(type: string, id: number, positions: any[]): Observable<any> { return this.http.post(`${this.base}/suivi/${type}/${id}/positions`, { positions }); }
+  getSuivisActifs(): Observable<any> { return this.http.get(`${this.base}/suivi/actifs`); }
 
   // ── Notifications ──────────────────────────────────────────────────────────
   getNotifications(): Observable<any> { return this.http.get(`${this.base}/notifications`); }

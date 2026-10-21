@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
@@ -13,7 +14,7 @@ import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, Ac
 @Component({
   selector: 'app-producteur-reservations',
   standalone: true,
-  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DecimalPipe, IncidentFormComponent],
+  imports: [RouterLink, LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DecimalPipe, IncidentFormComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -148,6 +149,9 @@ import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, Ac
                     @if (r.prochaine_etape) { <br><small class="text-muted">{{ r.prochaine_etape.libelle }}</small> }</td>
                   <td>
                     <div class="btn-group">
+                      @if (r.statut === 'en_route' && r.mode_transport === 'transporteur') {
+                        <a class="btn-secondary btn-sm" [routerLink]="['/suivi', 'reservation', r.id]">📍 Suivre</a>
+                      }
                       @if (peut(r, 'partir')) {
                         <button class="btn-primary btn-sm" [disabled]="actionEnCours() === r.id" (click)="etape(r, 'partir')">{{ libelle('partir') }}</button>
                       }

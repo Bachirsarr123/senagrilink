@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
@@ -13,7 +14,7 @@ const EN_ACHEMINEMENT = ['prise_en_charge', 'au_point_collecte', 'chargee', 'en_
 @Component({
   selector: 'app-entrepot-reservations',
   standalone: true,
-  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe, NgTemplateOutlet],
+  imports: [RouterLink, LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe, NgTemplateOutlet],
   template: `
     <div class="page">
       <div class="page-header">
@@ -99,6 +100,9 @@ const EN_ACHEMINEMENT = ['prise_en_charge', 'au_point_collecte', 'chargee', 'en_
                   @if (r.prochaine_etape) { <br><small class="text-muted">{{ r.prochaine_etape.libelle }}</small> }</td>
                 <td>
                   <div class="btn-group">
+                    @if (r.statut === 'en_route') {
+                      <a class="btn-secondary btn-sm" [routerLink]="['/suivi', 'reservation', r.id]">📍 Suivre</a>
+                    }
                     @for (a of actionsGestionnaire(r); track a) {
                       <button [class]="classeBouton(a)" [disabled]="actionEnCours() === r.id" (click)="agir(r, a)">{{ libelle(a, r) }}</button>
                     }

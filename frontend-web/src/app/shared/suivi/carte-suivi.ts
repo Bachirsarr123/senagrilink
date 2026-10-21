@@ -6,11 +6,18 @@ export interface PointsSuivi {
   vehicule: Point;
   origine: Point;
   destination: Point;
+  /** Positions reçues depuis le départ ([lat, lng]) : trace réellement parcourue. */
+  trace?: [number, number][];
+  /** Trajet restant par la route, calculé par le serveur ([lat, lng]). */
+  trajet?: [number, number][] | null;
 }
+
+/** Fond de carte configuré par le serveur (fournisseur autorisé en production). */
+export interface FondDeCarte { tuiles_url?: string; attribution?: string; }
 
 /** Carte de suivi : isolée du composant pour pouvoir être remplacée en test. */
 export interface CarteSuivi {
-  monter(element: HTMLElement, surTuilesIndisponibles: (ko: boolean) => void, surDeplacementManuel: () => void): void;
+  monter(element: HTMLElement, surTuilesIndisponibles: (ko: boolean) => void, surDeplacementManuel: () => void, fond?: FondDeCarte): void;
   afficher(points: PointsSuivi, suivreVehicule: boolean): void;
   vueEnsemble(): void;
   centrerVehicule(): void;
@@ -49,11 +56,11 @@ export class CarteSuiviLeaflet implements CarteSuivi {
   private restant: L.Polyline | null = null;
   private points: PointsSuivi | null = null;
 
-  monter(element: HTMLElement, surTuilesIndisponibles: (ko: boolean) => void, surDeplacementManuel: () => void): void {
+  monter(element: HTMLElement, surTuilesIndisponibles: (ko: boolean) => void, surDeplacementManuel: () => void, fond?: FondDeCarte): void {
     this.carte = L.map(element, { zoomControl: false, attributionControl: true }).setView([14.69, -17.44], 12);
     L.control.zoom({ position: 'bottomright' }).addTo(this.carte);
-    const tuiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap', maxZoom: 19,
+    const tuiles = L.tileLayer(fond?.tuiles_url || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: fond?.attribution || '© OpenStreetMap', maxZoom: 19,
     }).addTo(this.carte);
     // Une tuile en échec n'empêche pas l'affichage des marqueurs et du panneau.
     tuiles.on('tileerror', () => surTuilesIndisponibles(true));
@@ -70,13 +77,22 @@ export class CarteSuiviLeaflet implements CarteSuivi {
     this.origine = this.placer(this.origine, points.origine, ICONE_DEPART, 'Départ : entrepôt', 500);
     this.destination = this.placer(this.destination, points.destination, ICONE_ARRIVEE, 'Arrivée : adresse de livraison', 600);
 
-    // Tracé indicatif à vol d'oiseau (aucun calcul d'itinéraire routier n'est disponible) :
-    // trait plein jusqu'au véhicule, pointillés jusqu'à la destination.
-    const parcouru = [points.origine, points.vehicule].filter(aDesCoordonnees).map(p => [p.latitude, p.longitude] as L.LatLngTuple);
-    const restant = [points.vehicule, points.destination].filter(aDesCoordonnees).map(p => [p.latitude, p.longitude] as L.LatLngTuple);
+    // Trait plein : trace réellement parcourue (ou, à défaut, départ → véhicule).
+    // Reste du trajet : par la route si le serveur l'a calculé (tirets), sinon à vol d'oiseau (pointillés).
+    const v = [points.vehicule.latitude, points.vehicule.longitude] as L.LatLngTuple;
+    const parcouru = points.trace && points.trace.length >= 2
+      ? [...points.trace, v] as L.LatLngTuple[]
+      : [points.origine, points.vehicule].filter(aDesCoordonnees).map(p => [p.latitude, p.longitude] as L.LatLngTuple);
+    const routier = !!points.trajet && points.trajet.length >= 2;
+    const restant = routier
+      ? [v, ...points.trajet!] as L.LatLngTuple[]
+      : [points.vehicule, points.destination].filter(aDesCoordonnees).map(p => [p.latitude, p.longitude] as L.LatLngTuple);
     this.parcouruBord = this.ligne(this.parcouruBord, parcouru, { color: VERT_FONCE, weight: 9, opacity: .35 });
     this.parcouru = this.ligne(this.parcouru, parcouru, { color: '#40916c', weight: 6 });
-    this.restant = this.ligne(this.restant, restant, { color: VERT, weight: 4, dashArray: '2 10', lineCap: 'round' });
+    this.restant?.remove();
+    this.restant = this.ligne(null, restant, routier
+      ? { color: VERT, weight: 5, dashArray: '10 8' }
+      : { color: VERT, weight: 4, dashArray: '2 10', lineCap: 'round' });
 
     if (premierAffichage) this.vueEnsemble();
     else if (suivreVehicule) this.centrerVehicule(false);

@@ -16,22 +16,28 @@ class CarteFactice implements CarteSuivi {
   detruire() {}
 }
 
-const INFOS = { numero_livraison: 'LIV-1', produit: 'riz', quantite: 10, date_depart: '2026-10-19 08:00:00', date_livraison: null, code_tracabilite: 'LOT-2026-TEST' };
+const DETAILS = { produit: 'riz', quantite: 10, parti_le: '2026-10-19T08:00:00Z', arrive_le: null, code_tracabilite: 'LOT-2026-TEST' };
 
-function reponse(ageS = 5) {
+function reponse(ageS = 5, extra: any = {}) {
   const maintenant = new Date('2026-10-19T10:00:00Z');
   return {
-    livraison_id: 1, statut_livraison: 'en_cours', livraison: INFOS, genere_le: maintenant.toISOString(),
+    sujet_type: 'livraison', sujet_id: 1, numero: 'LIV-1', statut: 'en_cours', en_route: true, details: DETAILS, genere_le: maintenant.toISOString(),
+    conducteur: { nom: 'Moussa Fall', telephone: '771112233' },
     origine: { nom: 'Entrepôt Nord', latitude: 14.79, longitude: -16.93 },
     destination: { adresse: 'Marché central, Dakar', latitude: 14.69, longitude: -17.44 },
     position: { latitude: 14.75, longitude: -17.1, timestamp: new Date(maintenant.getTime() - ageS * 1000).toISOString() },
+    trace: [[14.79, -16.93], [14.77, -17.0]], trajet: null, arrivee_estimee_le: null, distance_restante_km: null, estimation_routiere: false,
+    ...extra,
   };
 }
+/** Hors trajet : aucune position transmise (Q11). */
+const horsTrajet = (statut: string, details: any = {}) => of({ ...reponse(), statut, en_route: false, position: null, trace: [], details: { ...DETAILS, ...details } });
 const erreur = (status: number, error: any = {}) => throwError(() => ({ status, error }));
 
 describe('SuiviLivraisonComponent — états du suivi', () => {
   let carte: CarteFactice;
   let appels: number;
+  let dernierAppel: [string, number];
 
   function creer(...reponses: (() => any)[]) {
     appels = 0;
@@ -40,9 +46,12 @@ describe('SuiviLivraisonComponent — états du suivi', () => {
       imports: [SuiviLivraisonComponent],
       providers: [
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => '1' } } } },
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: (k: string) => (k === 'id' ? '1' : null) } } } },
         { provide: CARTE_SUIVI, useValue: () => carte },
-        { provide: ApiService, useValue: { getPositionLivraison: () => reponses[Math.min(appels++, reponses.length - 1)]() } },
+        { provide: ApiService, useValue: {
+          getConfigurationCarte: () => of({ tuiles_url: 'https://tuiles.test/{z}/{x}/{y}.png', attribution: '© Test' }),
+          getSuivi: (type: string, id: number) => { dernierAppel = [type, id]; return reponses[Math.min(appels++, reponses.length - 1)](); },
+        } },
       ],
     });
     const fixture = TestBed.createComponent(SuiviLivraisonComponent);
@@ -64,6 +73,9 @@ describe('SuiviLivraisonComponent — états du suivi', () => {
     expect(texte(f)).toContain('En direct');
     expect(texte(f)).not.toContain('indisponible');
     expect(texte(f)).toContain('jusqu\'à la destination');
+    expect(texte(f)).toContain('Moussa Fall');
+    expect(dernierAppel).toEqual(['livraison', 1]);
+    expect(carte.affichages[0].trace).toEqual([[14.79, -16.93], [14.77, -17.0]]);
     expect(f.nativeElement.querySelector('a[href*="tracabilite?code=LOT-2026-TEST"]')).not.toBeNull();
   });
 
@@ -85,21 +97,21 @@ describe('SuiviLivraisonComponent — états du suivi', () => {
   });
 
   it('livraison terminée : plus de position, état clair, lien vers la traçabilité, suivi arrêté', () => {
-    const f = creer(() => erreur(404, { statut_livraison: 'livree', livraison: { ...INFOS, date_livraison: '2026-10-19 11:00:00' } }));
+    const f = creer(() => horsTrajet('livree', { arrive_le: '2026-10-19T11:00:00Z' }));
     f.detectChanges();
     vi.advanceTimersByTime(DELAI_ATTENTE_MS * 3);
 
     expect(appels).toBe(1);
     expect(carte.montages).toBe(0);
-    expect(texte(f)).toContain('Livraison effectuée');
-    expect(texte(f)).toContain('Livré le');
+    expect(texte(f)).toContain('Trajet terminé');
+    expect(texte(f)).toContain('Arrivé le');
     expect(f.nativeElement.querySelector('a[href*="tracabilite?code=LOT-2026-TEST"]')).not.toBeNull();
   });
 
   it('livraison pas encore partie : le suivi reprend seul dès le départ', () => {
-    const f = creer(() => erreur(404, { statut_livraison: 'en_attente', livraison: INFOS }), () => of(reponse()));
+    const f = creer(() => horsTrajet('chargee'), () => of(reponse()));
     f.detectChanges();
-    expect(texte(f)).toContain('pas encore partie');
+    expect(texte(f)).toContain('Pas encore parti');
 
     vi.advanceTimersByTime(DELAI_ATTENTE_MS);
     f.detectChanges();
@@ -131,5 +143,18 @@ describe('SuiviLivraisonComponent — états du suivi', () => {
     f.detectChanges();
     expect(texte(f)).toContain('Chargement du suivi');
     expect(texte(f)).not.toContain('indisponible');
+  });
+
+  it('arrivée estimée et trajet par la route, calculés par le serveur', () => {
+    const f = creer(() => of(reponse(5, {
+      arrivee_estimee_le: '2026-10-19T10:35:00Z', distance_restante_km: 42.3, estimation_routiere: true,
+      trajet: [[14.73, -17.2], [14.69, -17.44]],
+    })));
+    f.detectChanges();
+    expect(texte(f)).toMatch(/Arrivée vers \d\d:35/);
+    expect(texte(f)).toContain('dans 35 min');
+    expect(texte(f)).toContain('estimation par la route');
+    expect(texte(f)).toContain('Trajet par la route');
+    expect(carte.affichages[0].trajet).toEqual([[14.73, -17.2], [14.69, -17.44]]);
   });
 });

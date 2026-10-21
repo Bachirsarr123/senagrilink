@@ -1,4 +1,5 @@
-import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { PartagePositionService } from '../../../shared/suivi/partage-position';
 import { DecimalPipe } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
@@ -71,6 +72,18 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
                     @if (r.incidents?.length) { <div class="info-row"><span>Incident</span><span>{{ libelleIncident(r.incidents[0].type) }} — en attente de l'entrepôt</span></div> }
                     @if (r.prochaine_etape) { <div class="info-row"><span>Étape suivante</span><span>{{ r.prochaine_etape.libelle }}</span></div> }
                   </div>
+                  @if (r.statut === 'en_route') {
+                    <div class="partage" [class.partage--actif]="partage.partage('reservation', r.id)">
+                      @if (partage.partage('reservation', r.id)) {
+                        <span>📡 Position partagée depuis ce navigateur — gardez la page ouverte@if (partage.enAttente()) { ({{ partage.enAttente() }} en attente d'envoi) }.</span>
+                        <button class="btn-ghost btn-sm" (click)="partage.arreter()">Arrêter</button>
+                      } @else {
+                        <span>Sur téléphone, l'application partage votre position même écran verrouillé.</span>
+                        <button class="btn-secondary btn-sm" (click)="partager('reservation', r.id, r.numero_reservation)">Partager ma position depuis ce navigateur</button>
+                      }
+                      @if (partage.erreur(); as e) { <span class="partage__erreur">{{ e }}</span> }
+                    </div>
+                  }
                   @if (itineraire(r); as lien) {
                     <a class="btn-secondary btn-full lien-itineraire" [href]="lien" target="_blank" rel="noopener">{{ versLeProducteur(r) ? 'Itinéraire vers le producteur' : "Itinéraire vers l'entrepôt" }}</a>
                   }
@@ -112,6 +125,18 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
                       <br><small>{{ l.destination }}</small></span></div>
                     @if (l.prochaine_etape) { <div class="info-row"><span>Étape suivante</span><span>{{ l.prochaine_etape.libelle }}</span></div> }
                   </div>
+                  @if (l.statut === 'en_cours') {
+                    <div class="partage" [class.partage--actif]="partage.partage('livraison', l.id)">
+                      @if (partage.partage('livraison', l.id)) {
+                        <span>📡 Position partagée depuis ce navigateur — gardez la page ouverte@if (partage.enAttente()) { ({{ partage.enAttente() }} en attente d'envoi) }.</span>
+                        <button class="btn-ghost btn-sm" (click)="partage.arreter()">Arrêter</button>
+                      } @else {
+                        <span>Sur téléphone, l'application partage votre position même écran verrouillé.</span>
+                        <button class="btn-secondary btn-sm" (click)="partager('livraison', l.id, l.numero_livraison)">Partager ma position depuis ce navigateur</button>
+                      }
+                      @if (partage.erreur(); as e) { <span class="partage__erreur">{{ e }}</span> }
+                    </div>
+                  }
                   @if (itineraireLivraison(l); as lien) {
                     <a class="btn-secondary btn-full lien-itineraire" [href]="lien" target="_blank" rel="noopener">{{ versLEntrepot(l) ? "Itinéraire vers l'entrepôt" : "Itinéraire vers l'acheteur" }}</a>
                   }
@@ -164,6 +189,9 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
     .note { margin:.75rem 0 0; font-size:.8rem; color:#6b7280; }
     .terminees { margin:0; padding-left:1.1rem; display:grid; gap:.4rem; }
     .a-accepter { border:2px solid #f59e0b; }
+    .partage { margin-top:.75rem; padding:.5rem .65rem; border-radius:8px; background:#f3f4f6; font-size:.8rem; display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; justify-content:space-between; }
+    .partage--actif { background:#d8f3dc; color:#1b4332; }
+    .partage__erreur { color:#b91c1c; width:100%; }
     .remise { margin-top:.75rem; display:grid; gap:.35rem; font-size:.85rem; }
     .remise input { width:7rem; padding:.5rem; border:1px solid #e5e7eb; border-radius:6px; font-size:1.1rem; letter-spacing:.3em; }
     .lien-itineraire { margin-top:.75rem; text-align:center; text-decoration:none; }
@@ -200,7 +228,11 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
   private minuteur?: ReturnType<typeof setInterval>;
   private readonly surRetourAuPremierPlan = () => { if (document.visibilityState === 'visible') this.charger(); };
 
+  readonly partage = inject(PartagePositionService);
+
   constructor(private api: ApiService) {}
+
+  partager(type: 'livraison' | 'reservation', id: number, numero: string): void { this.partage.demarrer({ type, id, numero }); }
 
   ngOnInit(): void {
     this.charger();
@@ -264,7 +296,10 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
       return this.executer(cle, this.api.refuserMission(r.id, motif), "Mission refusée. L'entrepôt a été prévenu.");
     }
     if (!confirm(CONFIRMATION_ETAPE[a] ?? 'Confirmer ?')) return;
-    this.executer(cle, this.api.etapeReservation(r.id, ETAPE_DE_L_ACTION[a]!), 'Étape enregistrée.');
+    this.executer(cle, this.api.etapeReservation(r.id, ETAPE_DE_L_ACTION[a]!), 'Étape enregistrée.', () => {
+      if (a === 'partir') this.partager('reservation', r.id, r.numero_reservation);
+      if (a === 'arriver' && this.partage.partage('reservation', r.id)) this.partage.arreter();
+    });
   }
 
   readonly peutFaire = peutFaire;
@@ -304,7 +339,10 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
       return this.executer(cle, this.api.refuserMissionLivraison(l.id, motif), "Mission refusée. L'entrepôt a été prévenu.");
     }
     if (!confirm(CONFIRMATION_ETAPE_LIVRAISON[a] ?? 'Confirmer ?')) return;
-    this.executer(cle, this.api.etapeLivraison(l.id, ETAPE_LIVRAISON[a]!), 'Étape enregistrée.');
+    this.executer(cle, this.api.etapeLivraison(l.id, ETAPE_LIVRAISON[a]!), 'Étape enregistrée.', () => {
+      if (a === 'partir') this.partager('livraison', l.id, l.numero_livraison);
+      if (a === 'arriver' && this.partage.partage('livraison', l.id)) this.partage.arreter();
+    });
   }
 
   remettre(l: any, code: string): void {
@@ -332,12 +370,13 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
     });
   }
 
-  private executer(cle: string, action: ReturnType<ApiService['getReservations']>, succes: string): void {
+  private executer(cle: string, action: ReturnType<ApiService['getReservations']>, succes: string, apres?: () => void): void {
     this.actionEnCours.set(cle);
     this.erreurAction.set(null);
     action.subscribe({
       next: () => {
         this.actionEnCours.set(null);
+        apres?.();
         this.message.set(succes);
         setTimeout(() => this.message.set(null), 4000);
         this.charger();

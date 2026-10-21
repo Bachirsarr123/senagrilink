@@ -66,6 +66,9 @@ const SECTIONS: { titre: string; statuts: string[]; vide: string }[] = [
                         @if (c.livraison) {
                           <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut | libelleStatut }}</span>
                           <div class="text-muted">{{ c.livraison.transporteur?.utilisateur?.prenom }} {{ c.livraison.transporteur?.utilisateur?.nom }}</div>
+                          @if (c.livraison.statut === 'en_cours') {
+                            <a class="btn-secondary btn-sm" [routerLink]="['/suivi', 'livraison', c.livraison.id]">📍 Suivre</a>
+                          }
                         } @else { <span class="text-muted">—</span> }
                       </td>
                       <td>
