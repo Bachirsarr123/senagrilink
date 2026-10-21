@@ -84,6 +84,8 @@ jobs:
           FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
         run: |
+          # Variables collées dans GitHub : on retire espaces et retours à la ligne parasites
+          for v in FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_SENDER_ID FIREBASE_PROJECT_ID; do export "$v=$(printf '%s' "${!v}" | tr -d '[:space:]')"; done
           if [ -n "$API_URL" ]; then
             flutter build apk --release --dart-define=API_URL="$API_URL" --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
           else
