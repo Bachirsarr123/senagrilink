@@ -53,6 +53,7 @@ class ReservationProductionTest extends TestCase
             'produit'           => 'riz',
             'quantite_reservee' => 50,
             'date_debut'        => '2026-06-02',
+            'mode_transport'    => 'transporteur',
         ], fn ($v) => $v !== null);
     }
 

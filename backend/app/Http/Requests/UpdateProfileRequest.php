@@ -38,8 +38,10 @@ class UpdateProfileRequest extends FormRequest
             'nom_entrepot' => ['nullable', 'string', 'max:150'],
             'capacite'     => ['nullable', 'numeric'],
             'localisation' => ['nullable', 'string', 'max:255'],
-            'latitude'     => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude'    => ['nullable', 'numeric', 'between:-180,180'],
+
+            // Position sur la carte (producteur, entrepôt, acheteur) : préremplit les missions
+            'latitude'     => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitude'],
+            'longitude'    => ['nullable', 'numeric', 'between:-180,180', 'required_with:latitude'],
 
             // Profil Acheteur en gros
             'type_activite'        => ['nullable', 'string', 'max:150'],

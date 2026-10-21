@@ -88,6 +88,29 @@ trait ConstruitParcours
         ]);
     }
 
+    /** Le transporteur accepte la mission puis l'achemine jusqu'à l'entrepôt (étapes 5 à 8). */
+    protected function acheminer(Utilisateur $transporteur, int $reservationId): void
+    {
+        $this->en($transporteur)->putJson("/api/reservations/{$reservationId}/accepter-mission")->assertOk();
+
+        foreach (['au_point_collecte', 'chargee', 'en_route', 'arrivee_entrepot'] as $etape) {
+            $this->en($transporteur)->putJson("/api/reservations/{$reservationId}/etape", ['etape' => $etape])->assertOk();
+        }
+    }
+
+    /** Réception par le gestionnaire : code du lot attendu, état « bon », motif si la quantité diffère. */
+    protected function receptionner(Utilisateur $gestionnaire, int $reservationId, float $quantite, array $extra = [])
+    {
+        $reservation = Reservation::with('production')->findOrFail($reservationId);
+        $corps = array_merge([
+            'quantite_reelle'  => $quantite,
+            'code_lot'         => $reservation->production?->code_tracabilite,
+            'etat_marchandise' => 'bon',
+        ], abs($quantite - $reservation->quantite_reservee) > 1e-9 ? ['motif' => 'Écart constaté à la pesée'] : [], $extra);
+
+        return $this->en($gestionnaire)->putJson("/api/reservations/{$reservationId}/valider", $corps);
+    }
+
     /** Commande de 10 kg à 150 FCFA/kg ; confirmée, sa quantité est réservée sur le stock. */
     protected function commande(Utilisateur $acheteur, Stock $stock, string $statut = 'en_attente'): Commande
     {

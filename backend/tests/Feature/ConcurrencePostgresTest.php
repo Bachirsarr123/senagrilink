@@ -162,9 +162,7 @@ class ConcurrencePostgresTest extends TestCase
             "INSERT INTO stocks (entrepot_id, production_id, produit, quantite, statut) VALUES ({$resa->entrepot_id}, {$prod->id}, 'riz', 100, 'disponible')",
         ]);
 
-        $attente = $this->chrono(fn () => $this->en($p->gestionnaire)
-            ->putJson("/api/reservations/{$resa->id}/valider", ['quantite_reelle' => 100])
-            ->assertStatus(422));
+        $attente = $this->chrono(fn () => $this->receptionner($p->gestionnaire, $resa->id, 100)->assertStatus(422));
         $fin();
 
         $this->assertGreaterThan(0.5, $attente, 'La validation aurait dû attendre le verrou.');
@@ -207,7 +205,7 @@ class ConcurrencePostgresTest extends TestCase
         ]);
 
         $attente = $this->chrono(fn () => $this->en($p->producteur)->postJson('/api/reservations', [
-            'entrepot_id' => $p->gestionnaire->entrepot->id, 'production_id' => $prod->id, 'produit' => 'riz', 'quantite_reservee' => 60, 'date_debut' => '2026-06-02',
+            'entrepot_id' => $p->gestionnaire->entrepot->id, 'production_id' => $prod->id, 'produit' => 'riz', 'quantite_reservee' => 60, 'date_debut' => '2026-06-02', 'mode_transport' => 'transporteur',
         ])->assertStatus(422));
         $fin();
 
@@ -241,7 +239,7 @@ class ConcurrencePostgresTest extends TestCase
         $p      = $this->parcours();
         $autre  = Utilisateur::factory()->transporteur()->create();
         $resa   = $this->reservation($this->production($p->producteur), $p->gestionnaire, 'confirmee');
-        $resa->update(['transporteur_id' => $p->transporteur->transporteur->id]);
+        $resa->update(['transporteur_id' => $p->transporteur->transporteur->id, 'statut' => 'en_route', 'mission_acceptee_le' => now()]);
         $requete = $this->en($p->transporteur);
 
         // Réassignation simultanée par le gestionnaire
@@ -253,7 +251,7 @@ class ConcurrencePostgresTest extends TestCase
         $requete->putJson("/api/reservations/{$resa->id}/arrivee")->assertStatus(403);
         $fin();
 
-        $this->assertSame('confirmee', $resa->fresh()->statut);
+        $this->assertSame('en_route', $resa->fresh()->statut);
     }
 
     public function test_idempotence_sans_transaction_englobante_sous_postgresql(): void

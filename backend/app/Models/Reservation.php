@@ -21,6 +21,10 @@ class Reservation extends Model
         'date_fin',
         'date_reservation',
         'statut',
+        'mode_transport',
+        'mission_acceptee_le',
+        'quantite_recue',
+        'etat_marchandise',
     ];
 
     /**
@@ -28,7 +32,9 @@ class Reservation extends Model
      * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
      */
     protected $casts = [
-        'quantite_reservee' => 'float',
+        'quantite_reservee'   => 'float',
+        'quantite_recue'      => 'float',
+        'mission_acceptee_le' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -60,7 +66,7 @@ class Reservation extends Model
         return $this->belongsTo(Transporteur::class, 'transporteur_id');
     }
 
-    /** Corrections et annulations successives (plus ancienne d'abord). */
+    /** Étapes, corrections et annulations successives (plus ancienne d'abord). */
     public function historique()
     {
         return $this->hasMany(HistoriqueOperation::class, 'sujet_id')

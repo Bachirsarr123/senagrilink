@@ -57,6 +57,7 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::put('/reservations/{id}/refuser',                [\App\Http\Controllers\Api\ReservationController::class, 'refuser']);
         Route::put('/reservations/{id}/remettre-en-attente',    [\App\Http\Controllers\Api\ReservationController::class, 'remettreEnAttente']);
         Route::put('/reservations/{id}/valider',                [\App\Http\Controllers\Api\ReservationController::class, 'validerMarchandise']);
+        Route::put('/reservations/{id}/refuser-reception',      [\App\Http\Controllers\Api\ReservationController::class, 'refuserReception']);
         Route::get('/transporteurs',                            [\App\Http\Controllers\Api\TransporteurController::class, 'index']);
     });
 
@@ -79,6 +80,8 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::post('/transporteur/position',           [\App\Http\Controllers\Api\PositionGpsController::class, 'store']);
 
         // Réservation d'entrepôt : acheminement de la marchandise
+        Route::put('/reservations/{id}/accepter-mission', [\App\Http\Controllers\Api\ReservationController::class, 'accepterMission']);
+        Route::put('/reservations/{id}/refuser-mission',  [\App\Http\Controllers\Api\ReservationController::class, 'refuserMission']);
         Route::put('/reservations/{id}/arrivee',         [\App\Http\Controllers\Api\ReservationController::class, 'marquerArrivee']);
     });
 
@@ -99,6 +102,8 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
 
     // ── Réservations (lecture commune, filtrée par rôle dans le contrôleur) ───
     Route::get('/reservations', [\App\Http\Controllers\Api\ReservationController::class, 'index']);
+    // Étapes de transport : transporteur de la mission ou producteur qui livre lui-même (vérifié dans le contrôleur)
+    Route::put('/reservations/{id}/etape', [\App\Http\Controllers\Api\ReservationController::class, 'etape']);
 
     // ── Notifications (communes à tous les rôles authentifiés) ────────────────
     Route::get('/notifications',            [\App\Http\Controllers\Api\NotificationController::class, 'index']);

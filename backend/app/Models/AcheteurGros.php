@@ -10,7 +10,7 @@ class AcheteurGros extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['utilisateur_id', 'type_activite', 'volume_achat_mensuel'];
+    protected $fillable = ['utilisateur_id', 'type_activite', 'volume_achat_mensuel', 'latitude', 'longitude'];
 
     /**
      * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
@@ -18,6 +18,8 @@ class AcheteurGros extends Model
      */
     protected $casts = [
         'volume_achat_mensuel' => 'float',
+        'latitude'             => 'float',
+        'longitude'            => 'float',
     ];
 
     public function utilisateur()

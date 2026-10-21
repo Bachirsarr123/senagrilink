@@ -153,7 +153,7 @@ class AnnulationOperationsTest extends TestCase
         // Une récolte annulée ne peut plus être réservée ; elle n'est pas supprimée
         $this->en($producteur)->postJson('/api/reservations', [
             'entrepot_id' => $gestionnaire->entrepot->id, 'production_id' => $libre->id,
-            'produit' => 'riz', 'quantite_reservee' => 10, 'date_debut' => '2026-06-02',
+            'produit' => 'riz', 'quantite_reservee' => 10, 'date_debut' => '2026-06-02', 'mode_transport' => 'transporteur',
         ])->assertStatus(422)->assertJsonValidationErrors('production_id');
         $this->assertDatabaseHas('productions', ['id' => $libre->id, 'statut' => 'annulee']);
     }

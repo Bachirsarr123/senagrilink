@@ -36,8 +36,7 @@ class FondationsStockTest extends TestCase
         $production  = $this->production($this->producteur);
         $reservation = $this->reservation($production, $this->gestionnaire, 'arrivee_entrepot');
 
-        $id = $this->en($this->gestionnaire)
-                   ->putJson("/api/reservations/{$reservation->id}/valider", ['quantite_reelle' => $quantiteRecue])
+        $id = $this->receptionner($this->gestionnaire, $reservation->id, $quantiteRecue)
                    ->assertStatus(201)
                    ->json('stock.id');
 
@@ -75,7 +74,7 @@ class FondationsStockTest extends TestCase
     public function test_reservation_sans_lot_refusee(): void
     {
         $this->en($this->producteur)->postJson('/api/reservations', [
-            'entrepot_id' => $this->gestionnaire->entrepot->id, 'produit' => 'riz',
+            'entrepot_id' => $this->gestionnaire->entrepot->id, 'produit' => 'riz', 'mode_transport' => 'transporteur',
             'quantite_reservee' => 10, 'date_debut' => '2026-06-02',
         ])->assertStatus(422)->assertJsonValidationErrors('production_id');
     }

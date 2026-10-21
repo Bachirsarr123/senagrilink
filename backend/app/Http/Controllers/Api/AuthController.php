@@ -167,9 +167,9 @@ class AuthController extends Controller
     private function mettreAJourProfil(Utilisateur $utilisateur, UpdateProfileRequest $request): void
     {
         match ($utilisateur->role) {
-            'producteur' => $utilisateur->producteur?->update($request->only(['superficie', 'types_cultures', 'region'])),
+            'producteur' => $utilisateur->producteur?->update($request->only(['superficie', 'types_cultures', 'region', 'latitude', 'longitude'])),
             'gestionnaire_entrepot' => $utilisateur->entrepot?->update($request->only(['nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude'])),
-            'acheteur_gros' => $utilisateur->acheteurGros?->update($request->only(['type_activite', 'volume_achat_mensuel'])),
+            'acheteur_gros' => $utilisateur->acheteurGros?->update($request->only(['type_activite', 'volume_achat_mensuel', 'latitude', 'longitude'])),
             'transporteur' => $utilisateur->transporteur?->update($request->only(['type_vehicule', 'capacite_charge', 'zone'])),
             default => null,
         };

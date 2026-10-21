@@ -89,6 +89,12 @@ jobs:
           # Retours ciblés dans l'ordre réel : de la plus récente à la plus ancienne.
           # `--path` n'agit que sur le DERNIER lot exécuté : une migration d'un lot
           # plus ancien affiche « Migration not found » et n'est PAS annulée.
+          colonne() { psql -h 127.0.0.1 -U senagri -d senagrilink_migrations -tAc "select count(*) from information_schema.columns where table_name='$1' and column_name='$2'"; }
+          php artisan migrate:rollback --force --no-interaction \
+            --path=database/migrations/2025_01_01_000020_create_circuit_depot.php
+          [ "$(colonne reservations mode_transport)" = 0 ] || { echo "::error::000020 non annulée"; exit 1; }
+          [ "$(table mouvements_stock)" = t ] || { echo "::error::le retour de 000020 a supprimé mouvements_stock"; exit 1; }
+
           php artisan migrate:rollback --force --no-interaction \
             --path=database/migrations/2025_01_01_000019_create_fondations_stock.php
           [ "$(table mouvements_stock)" = f ] || { echo "::error::000019 non annulée"; exit 1; }
@@ -99,12 +105,12 @@ jobs:
           [ "$(table requetes_idempotentes)" = f ] || { echo "::error::000018 non annulée"; exit 1; }
           [ "$(table historique_operations)" = t ] || { echo "::error::le retour ciblé a supprimé historique_operations"; exit 1; }
 
-          # Réapplication : 000018 et 000019 forment un nouveau lot, que l'on peut de nouveau annuler
+          # Réapplication : 000018 à 000020 forment un nouveau lot, dont la plus récente s'annule de nouveau
           php artisan migrate --force --no-interaction
-          [ "$(table mouvements_stock)" = t ] && [ "$(table requetes_idempotentes)" = t ]
+          [ "$(table mouvements_stock)" = t ] && [ "$(table requetes_idempotentes)" = t ] && [ "$(colonne reservations mode_transport)" = 1 ]
           php artisan migrate:rollback --force --no-interaction \
-            --path=database/migrations/2025_01_01_000019_create_fondations_stock.php
-          [ "$(table mouvements_stock)" = f ] || { echo "::error::000019 réappliquée non annulable"; exit 1; }
+            --path=database/migrations/2025_01_01_000020_create_circuit_depot.php
+          [ "$(colonne reservations mode_transport)" = 0 ] || { echo "::error::000020 réappliquée non annulable"; exit 1; }
           php artisan migrate --force --no-interaction
 
           php artisan migrate:reset --force --no-interaction
