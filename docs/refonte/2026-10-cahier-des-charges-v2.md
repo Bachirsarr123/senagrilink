@@ -39,6 +39,8 @@
 | Suivi GPS | **Pour les deux circuits** (producteur vers entrepôt, entrepôt vers acheteur) |
 | Réception producteur vers entrepôt | Comptée **uniquement après validation par le gestionnaire** |
 | Réception entrepôt vers acheteur | **Confirmée par l'acheteur**, avec possibilité de déclarer une anomalie |
+| Données actuelles (Q1) | **Comptes de test uniquement** : aucune donnée réelle à préserver (le 21 octobre 2026) |
+| Questions Q2 à Q17 | **Toutes les recommandations du §6 sont acceptées** (le 21 octobre 2026) |
 
 ---
 
@@ -295,8 +297,8 @@ Pour chaque question : **ma recommandation en gras**. Répondez « d'accord » o
 
 | Lot | Contenu | Visible pour vous |
 |---|---|---|
-| **1. Fondations** | Stock physique, réservé et disponible. Journal des mouvements. Prix au kilo fixé par le producteur et figé à la commande. Historique automatique de chaque étape. Lot verrouillé après réception. Suppression de la double entrée de stock. Profil avec position sur une carte. | Le catalogue affiche le vrai disponible, au bon prix. Chaque fiche montre son historique. |
-| **2. Circuit A complet** | Les étapes du §4 (dont le mode « je livre moi-même »). Acceptation ou refus de mission. Réception totale, partielle ou refusée. Notifications au gestionnaire. Code du lot affiché et vérifié. Traçabilité de l'acheminement. | Le parcours récolte, dépôt et réception fonctionne de bout en bout, avec plusieurs comptes |
+| **1. Fondations** | Stock physique, réservé et disponible. Journal des mouvements. Prix au kilo fixé par le producteur et figé à la commande. Historique automatique de chaque étape. Lot verrouillé après réception. Suppression de la double entrée de stock. Seuils d'alerte modifiables. | Le catalogue affiche le vrai disponible, au bon prix. Le gestionnaire voit le journal des mouvements de chaque stock. |
+| **2. Circuit A complet** | Profil avec position sur une carte. Les étapes du §4 (dont le mode « je livre moi-même »). Acceptation ou refus de mission. Réception totale, partielle ou refusée. Notifications au gestionnaire. Code du lot affiché et vérifié. Traçabilité de l'acheminement. | Le parcours récolte, dépôt et réception fonctionne de bout en bout, avec plusieurs comptes |
 | **3. Circuit B complet** | Panier. Les étapes du §5 (préparation, chargement, sortie de stock). Réception par l'acheteur avec code à 4 chiffres. Anomalies et litiges. Incidents (§5.2) pour les deux circuits. | Le parcours commande, livraison et réception fonctionne de bout en bout, incidents compris |
 | **4. GPS fiable** | Positions liées à la mission. Suivi en arrière-plan sur Android, avec notification. Positions gardées hors connexion puis renvoyées. GPS pour les deux circuits. Accès du gestionnaire. Heure d'arrivée estimée et trajet routier. Bouton « Itinéraire ». Fond de carte autorisé. Suppression des positions après 30 jours. | Suivi « comme Yango », testé sur un vrai téléphone, écran verrouillé |
 | **5. Écrans par rôle** | Page « À faire » pour chaque rôle. Fiches commande et lot. Toutes les actions sur l'appli (gestionnaire et producteur compris). Tableau des exceptions de l'administrateur. QR code. Libellés et nom unifiés. Vrais messages d'erreur. | Chaque rôle voit immédiatement ce qu'il doit faire, sur le site comme sur l'appli |
