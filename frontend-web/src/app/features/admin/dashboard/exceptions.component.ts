@@ -13,6 +13,7 @@ import { ApiService } from '../../../core/services/api.service';
       <h2>Exceptions à surveiller
         @if (parGravite(); as g) { <small>· {{ g.haute }} grave(s), {{ g.moyenne }} à suivre, {{ g.basse }} mineure(s)</small> }</h2>
       @if (erreur()) { <div class="alert alert-error" role="alert">{{ erreur() }}</div> }
+      @else if (!charge()) { <p class="loading">Chargement des exceptions…</p> }
       @else if (exceptions().length === 0 && charge()) { <p class="empty">✅ Aucune exception : tout se déroule normalement.</p> }
       <ul class="exceptions">
         @for (e of exceptions(); track $index) {
