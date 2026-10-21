@@ -83,6 +83,14 @@ export const LIBELLE_DECISION: Record<string, string> = {
   reprendre_marchandise: 'Reprendre la marchandise et annuler',
 };
 
+/** Décision déjà prise, telle que l'acheteur ou le déclarant la lit. */
+export const DECISION_PRISE: Record<string, string> = {
+  reprendre: 'la livraison reprend', changer_transporteur: 'un autre transporteur prend le relais',
+  retour_entrepot: 'retour à l\'entrepôt, nouvelle livraison à venir', annuler_commande: 'commande annulée',
+  annuler_depot: 'dépôt annulé', accepter_annulation: 'annulation acceptée', refuser_annulation: 'annulation refusée',
+  cloturer_litige: 'litige clos', reprendre_marchandise: 'marchandise reprise, commande annulée',
+};
+
 /** Décisions qui exigent un motif (le serveur le vérifie aussi). */
 export const DECISION_AVEC_MOTIF = ['refuser_annulation', 'cloturer_litige', 'annuler_commande', 'annuler_depot', 'reprendre_marchandise'];
 

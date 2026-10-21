@@ -7,7 +7,7 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 import { IncidentFormComponent } from '../../../shared/incident/incident-form';
 import { demanderMotif } from '../../../shared/confirmation/confirmation';
-import { ANOMALIES, ActionCommande, LIBELLE_ACTION_COMMANDE, LIBELLE_DECISION, libelleIncident, peutFaire } from '../../../shared/livraison/livraison';
+import { ANOMALIES, ActionCommande, DECISION_PRISE, LIBELLE_ACTION_COMMANDE, libelleIncident, peutFaire } from '../../../shared/livraison/livraison';
 
 @Component({
   selector: 'app-mes-commandes',
@@ -166,7 +166,7 @@ export class MesCommandesComponent implements OnInit {
   readonly libelleIncident = libelleIncident;
 
   libelle(a: ActionCommande): string { return LIBELLE_ACTION_COMMANDE[a]; }
-  libelleDecision(d: string): string { return LIBELLE_DECISION[d] ?? d; }
+  libelleDecision(d: string): string { return DECISION_PRISE[d] ?? d; }
 
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
