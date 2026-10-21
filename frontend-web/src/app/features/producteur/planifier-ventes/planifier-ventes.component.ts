@@ -58,7 +58,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   }
                 </div>
                 <a class="btn-primary btn-full" routerLink="/producteur/reservations">
-                  Réserver un entrepôt
+                  Déposer en entrepôt
                 </a>
               </div>
             }
