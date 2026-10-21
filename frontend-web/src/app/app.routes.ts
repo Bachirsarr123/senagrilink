@@ -99,6 +99,10 @@ export const routes: Routes = [
             path: 'reservations',
             loadComponent: () => import('./features/entrepot/reservations/reservations.component').then(m => m.EntrepotReservationsComponent),
           },
+          {
+            path: 'incidents',
+            loadComponent: () => import('./features/entrepot/incidents/incidents.component').then(m => m.IncidentsComponent),
+          },
         ],
       },
 

@@ -5,11 +5,14 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { IncidentFormComponent } from '../../../shared/incident/incident-form';
+import { demanderMotif } from '../../../shared/confirmation/confirmation';
+import { ANOMALIES, ActionCommande, LIBELLE_ACTION_COMMANDE, LIBELLE_DECISION, libelleIncident, peutFaire } from '../../../shared/livraison/livraison';
 
 @Component({
   selector: 'app-mes-commandes',
   standalone: true,
-  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe, RouterLink],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe, RouterLink, IncidentFormComponent],
   template: `
     <div class="page">
       <div class="page-header"><h1>Mes commandes</h1></div>
@@ -45,12 +48,20 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   <td>
                     <span class="badge badge-{{ c.statut }}">{{ c.statut | libelleStatut }}</span>
                     @if (c.alerte_livraison) {
-                      <span class="badge badge-probleme" title="Problème de livraison signalé">⚠️</span>
+                      <span class="badge badge-probleme" title="Incident sur la livraison">⚠️ Incident</span>
                     }
+                    @if (c.prochaine_etape) { <div class="etape">{{ c.prochaine_etape.libelle }}</div> }
+                    @if (c.panier) { <div class="etape">Panier {{ c.panier }}</div> }
                   </td>
                   <td>
                     @if (c.livraison) {
                       <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut | libelleStatut }}</span>
+                      @if (c.livraison.transporteur?.utilisateur; as t) {
+                        <div class="etape">{{ t.prenom }} {{ t.nom }} @if (t.telephone) { · <a [href]="'tel:' + t.telephone">{{ t.telephone }}</a> }</div>
+                      }
+                      @if (c.code_reception) {
+                        <div class="code-reception" title="À donner au transporteur à la remise">Code de réception : <strong>{{ c.code_reception }}</strong></div>
+                      }
                       @if (c.livraison.statut === 'en_cours') {
                         <a [routerLink]="['/suivi-livraison', c.livraison.id]" class="btn-secondary btn-sm" style="margin-left:.4rem">
                           📍 Suivre
@@ -61,15 +72,24 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                     }
                   </td>
                   <td>
-                    @if (c.statut === 'en_attente') {
-                      <div class="btn-group">
-                        <button class="btn-secondary btn-sm" (click)="ouvrirModifier(c)">Modifier</button>
-                        <button class="btn-danger btn-sm"
-                                [disabled]="actionEnCours() === c.id"
-                                (click)="annuler(c.id)">
-                          Annuler
-                        </button>
-                      </div>
+                    <div class="btn-group">
+                      @if (peutFaire(c, 'modifier')) { <button class="btn-secondary btn-sm" (click)="ouvrirModifier(c)">Modifier</button> }
+                      @if (peutFaire(c, 'annuler')) {
+                        <button class="btn-danger btn-sm" [disabled]="actionEnCours() === c.id" (click)="annuler(c.id)">Annuler</button>
+                      }
+                      @if (peutFaire(c, 'confirmer_reception')) {
+                        <button class="btn-success btn-sm" [disabled]="actionEnCours() === c.id" (click)="confirmerReception(c)">{{ libelle('confirmer_reception') }}</button>
+                      }
+                      @if (peutFaire(c, 'declarer_anomalie')) {
+                        <button class="btn-ghost btn-sm" (click)="erreurAnomalie.set(null); anomaliePour.set(c)">{{ libelle('declarer_anomalie') }}</button>
+                      }
+                      @if (peutFaire(c, 'demander_annulation')) {
+                        <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === c.id" (click)="demanderAnnulation(c)">{{ libelle('demander_annulation') }}</button>
+                      }
+                    </div>
+                    @for (i of c.incidents ?? []; track i.id) {
+                      <div class="etape">{{ libelleIncident(i.type) }} : <span class="badge badge-{{ i.statut }}">{{ i.statut | libelleStatut }}</span>
+                        @if (i.decision) { — {{ libelleDecision(i.decision) }}@if (i.motif_decision) { ({{ i.motif_decision }}) } }</div>
                     }
                   </td>
                 </tr>
@@ -78,6 +98,11 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
           </table></div>
         }
       </div>
+
+      @if (anomaliePour(); as c) {
+        <app-incident-form [titre]="'Problème à la réception — ' + c.numero_commande" sousTitre="La livraison est enregistrée et la commande passe en litige : l'entrepôt vous propose une solution."
+          [types]="anomalies" [erreur]="erreurAnomalie()" [envoi]="actionEnCours() === c.id" (envoyer)="declarerAnomalie(c, $event)" (fermer)="anomaliePour.set(null)" />
+      }
 
       <!-- Modal modification commande -->
       @if (commandeEnEdition()) {
@@ -117,6 +142,9 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
   styles: [`
     .modal-box { --modal-largeur: 420px; }
     .montant { margin: 0 0 1rem; font-size: .95rem; }
+    .etape { font-size: .8rem; color: #6b7280; margin-top: .25rem; }
+    .code-reception { margin-top: .35rem; padding: .3rem .5rem; border-radius: 6px; background: #fef3c7; font-size: .85rem; }
+    .code-reception strong { font-size: 1.1rem; letter-spacing: .2em; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })
@@ -131,6 +159,14 @@ export class MesCommandesComponent implements OnInit {
   erreur            = signal<string | null>(null);
   erreurModal       = signal<string | null>(null);
   formModif!: FormGroup;
+  anomaliePour   = signal<any | null>(null);
+  erreurAnomalie = signal<string | null>(null);
+  readonly anomalies = ANOMALIES;
+  readonly peutFaire = peutFaire;
+  readonly libelleIncident = libelleIncident;
+
+  libelle(a: ActionCommande): string { return LIBELLE_ACTION_COMMANDE[a]; }
+  libelleDecision(d: string): string { return LIBELLE_DECISION[d] ?? d; }
 
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
@@ -196,5 +232,43 @@ export class MesCommandesComponent implements OnInit {
         this.loadingModal.set(false);
       },
     });
+  }
+
+  confirmerReception(c: any): void {
+    if (!confirm(`Confirmer que vous avez bien reçu la commande ${c.numero_commande} (${c.quantite} kg de ${c.produit}) ? En cas de problème, utilisez plutôt « Signaler un problème ».`)) return;
+    this.executer(c.id, this.api.confirmerReception(c.id), 'Réception confirmée. Merci !');
+  }
+
+  demanderAnnulation(c: any): void {
+    const motif = demanderMotif(`Demander l'annulation de la commande ${c.numero_commande} ?\nL'entrepôt décide : l'annulation n'est plus possible une fois la marchandise chargée.`, false);
+    if (motif === null) return;
+    this.executer(c.id, this.api.demanderAnnulationCommande(c.id, motif || undefined), "Demande d'annulation envoyée à l'entrepôt.");
+  }
+
+  declarerAnomalie(c: any, saisie: { type: string; description: string }): void {
+    this.actionEnCours.set(c.id);
+    this.erreurAnomalie.set(null);
+    this.api.declarerAnomalie(c.id, saisie.type, saisie.description).subscribe({
+      next: () => { this.actionEnCours.set(null); this.anomaliePour.set(null); this.afficher("Problème signalé. L'entrepôt va vous proposer une solution."); this.charger(); },
+      error: err => { this.actionEnCours.set(null); this.erreurAnomalie.set(err.error?.message ?? 'Envoi impossible.'); },
+    });
+  }
+
+  private executer(id: number, requete: ReturnType<ApiService['getHistoriqueCommandes']>, succes: string): void {
+    this.actionEnCours.set(id);
+    this.erreur.set(null);
+    requete.subscribe({
+      next: () => { this.actionEnCours.set(null); this.afficher(succes); this.charger(); },
+      error: err => {
+        this.actionEnCours.set(null);
+        this.erreur.set(err.status === 0 ? 'Serveur injoignable : action non enregistrée.' : err.error?.message ?? 'Action impossible.');
+        this.charger();
+      },
+    });
+  }
+
+  private afficher(texte: string): void {
+    this.message.set(texte);
+    setTimeout(() => this.message.set(null), 4000);
   }
 }

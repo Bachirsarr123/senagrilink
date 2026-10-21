@@ -40,14 +40,29 @@ export class ApiService {
   updateCommande(id: number, data: any): Observable<any> { return this.http.put(`${this.base}/commandes/${id}`, data); }
   annulerCommande(id: number): Observable<any> { return this.http.delete(`${this.base}/commandes/${id}`); }
   getHistoriqueCommandes(): Observable<any> { return this.http.get(`${this.base}/commandes/historique`); }
+  confirmerReception(id: number): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/reception`, {}); }
+  demanderAnnulationCommande(id: number, motif?: string): Observable<any> { return this.http.post(`${this.base}/commandes/${id}/demande-annulation`, { motif }); }
+  declarerAnomalie(id: number, type: string, description: string): Observable<any> { return this.http.post(`${this.base}/commandes/${id}/anomalie`, { type, description }); }
 
   // ── Livraisons (Transporteur) ──────────────────────────────────────────────
   getLivraisons(): Observable<any> { return this.http.get(`${this.base}/livraisons`); }
   updateStatutLivraison(id: number, statut: string): Observable<any> { return this.http.put(`${this.base}/livraisons/${id}/statut`, { statut }); }
   signalerProbleme(id: number): Observable<any> { return this.http.post(`${this.base}/livraisons/${id}/probleme`, {}); }
+  accepterMissionLivraison(id: number): Observable<any> { return this.http.put(`${this.base}/livraisons/${id}/accepter-mission`, {}); }
+  refuserMissionLivraison(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/livraisons/${id}/refuser-mission`, { motif }); }
+  /** Étape de livraison : chargee, en_cours, arrivee. */
+  etapeLivraison(id: number, etape: string): Observable<any> { return this.http.put(`${this.base}/livraisons/${id}/etape`, { etape }); }
+  remettreLivraison(id: number, code: string): Observable<any> { return this.http.put(`${this.base}/livraisons/${id}/remise`, { code }); }
+
+  // ── Incidents ──────────────────────────────────────────────────────────────
+  getIncidents(statut?: string): Observable<any> { return this.http.get(`${this.base}/incidents`, { params: statut ? { statut } : {} }); }
+  declarerIncident(data: { sujet_type: string; sujet_id: number; type: string; description: string }, cle?: string): Observable<any> { return this.http.post(`${this.base}/incidents`, data, this.idempotence(cle)); }
+  resoudreIncident(id: number, data: { decision: string; motif?: string; transporteur_id?: number }): Observable<any> { return this.http.put(`${this.base}/incidents/${id}/resoudre`, data); }
 
   // ── Commandes (Gestionnaire) ──────────────────────────────────────────────
   getCommandesEntrepot(): Observable<any> { return this.http.get(`${this.base}/commandes`); }
+  preparerCommande(id: number): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/preparer`, {}); }
+  marquerCommandePrete(id: number): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/prete`, {}); }
 
   // ── Admin ──────────────────────────────────────────────────────────────────
   getDashboard(): Observable<any> { return this.http.get(`${this.base}/admin/dashboard`); }

@@ -11,7 +11,12 @@ const MISSION = {
   producteur: { utilisateur: { prenom: 'Awa', nom: 'Diallo', telephone: '770000000' } },
   entrepot: { nom_entrepot: 'Entrepôt Nord', localisation: 'Thiès', latitude: 14.79, longitude: -16.93 },
 };
-const LIVRAISON = { id: 4, numero_livraison: 'LIV-1', statut: 'en_attente', origine: 'Entrepôt Nord', destination: 'Dakar', commande: { produit: 'riz', quantite: 10 } };
+const LIVRAISON = {
+  id: 4, numero_livraison: 'LIV-1', statut: 'en_attente', origine: 'Entrepôt Nord', destination: 'Dakar', commande_id: 9, incidents: [],
+  commande: { produit: 'riz', quantite: 10, acheteur: { latitude: 14.7, longitude: -17.4, utilisateur: { prenom: 'Awa', nom: 'Diop', telephone: '770000000' } },
+    stock: { entrepot: { nom_entrepot: 'Entrepôt Nord', latitude: 14.79, longitude: -16.93 } } },
+  actions: ['accepter_mission', 'refuser_mission'], prochaine_etape: { libelle: 'Mission à accepter par le transporteur' },
+};
 
 describe('TransporteurMissionsComponent — missions assignées', () => {
   let http: HttpTestingController;
@@ -44,7 +49,8 @@ describe('TransporteurMissionsComponent — missions assignées', () => {
     expect(el.textContent).toContain('RES-20260601-ABCD');
     expect(el.textContent).toContain('Awa Diallo');
     expect(el.textContent).toContain('Entrepôt Nord');
-    expect(el.textContent).toContain('Démarrer la livraison');
+    expect(el.textContent).toContain('Nouvelle livraison à accepter');
+    expect(el.textContent).toContain('Awa Diop');
     expect(el.textContent).not.toContain('Chargement des missions');
   });
 
@@ -147,5 +153,62 @@ describe('TransporteurMissionsComponent — missions assignées', () => {
     bouton('Accepter la mission').click();
     http.expectOne(`${API}/reservations/7/accepter-mission`).flush({});
     repondre([{ ...MISSION, statut: 'prise_en_charge', actions: ['arriver_collecte'] }]);
+  });
+
+  it('livraison : itinéraire vers l\'entrepôt puis l\'acheteur, remise avec le code à 4 chiffres', () => {
+    const { fixture, el } = creer();
+    repondre([], [{ ...LIVRAISON, statut: 'prise_en_charge', actions: ['charger', 'declarer_incident'] }]);
+    fixture.detectChanges();
+    expect(el.querySelector('a.lien-itineraire')?.getAttribute('href')).toContain('destination=14.79,-16.93');
+
+    fixture.componentInstance.charger();
+    http.expectOne(`${API}/reservations`).flush({ reservations: [] });
+    http.expectOne(`${API}/livraisons`).flush({ livraisons: [{ ...LIVRAISON, statut: 'arrivee', actions: ['confirmer_par_code', 'declarer_incident'] }] });
+    fixture.detectChanges();
+    expect(el.querySelector('a.lien-itineraire')?.getAttribute('href')).toContain('destination=14.7,-17.4');
+
+    const champ = el.querySelector('#code-4') as HTMLInputElement;
+    const remettre = Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Remettre avec le code')) as HTMLButtonElement;
+    champ.value = '12';
+    remettre.click();
+    http.expectNone(`${API}/livraisons/4/remise`);
+    fixture.detectChanges();
+    expect(el.textContent).toContain('4 chiffres');
+
+    champ.value = '0427';
+    remettre.click();
+    const req = http.expectOne(`${API}/livraisons/4/remise`);
+    expect(req.request.body).toEqual({ code: '0427' });
+    req.flush({});
+    repondre([], []);
+  });
+
+  it('incident : type et description obligatoires, envoyé à l\'entrepôt', () => {
+    const { fixture, el } = creer();
+    repondre([], [{ ...LIVRAISON, statut: 'en_cours', actions: ['arriver', 'declarer_incident'] }]);
+    fixture.detectChanges();
+    (Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Déclarer un incident')) as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const envoyer = () => (Array.from(el.querySelectorAll('.modal-box button')).find(b => b.textContent?.includes('Envoyer')) as HTMLButtonElement).click();
+
+    envoyer();
+    fixture.detectChanges();
+    expect(el.textContent).toContain('Choisissez le type');
+    http.expectNone(`${API}/incidents`);
+
+    const select = el.querySelector('#type-incident') as HTMLSelectElement;
+    select.value = 'panne';
+    select.dispatchEvent(new Event('change'));
+    const texte = el.querySelector('#description-incident') as HTMLTextAreaElement;
+    texte.value = 'Pneu crevé';
+    texte.dispatchEvent(new Event('input'));
+    envoyer();
+    const req = http.expectOne(`${API}/incidents`);
+    expect(req.request.body).toEqual({ sujet_type: 'livraison', sujet_id: 4, type: 'panne', description: 'Pneu crevé' });
+    expect(req.request.headers.get('Idempotency-Key')).toBeTruthy();
+    req.flush({}, { status: 201, statusText: 'Created' });
+    repondre([], []);
+    fixture.detectChanges();
+    expect(el.querySelector('.modal-box')).toBeNull();
   });
 });

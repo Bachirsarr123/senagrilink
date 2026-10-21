@@ -6,12 +6,14 @@ import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
+import { IncidentFormComponent } from '../../../shared/incident/incident-form';
+import { TYPES_INCIDENT } from '../../../shared/livraison/livraison';
 import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, ActionDepot, peut } from '../../../shared/depot/depot';
 
 @Component({
   selector: 'app-producteur-reservations',
   standalone: true,
-  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DecimalPipe],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DecimalPipe, IncidentFormComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -152,6 +154,9 @@ import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, Ac
                       @if (peut(r, 'arriver')) {
                         <button class="btn-success btn-sm" [disabled]="actionEnCours() === r.id" (click)="etape(r, 'arriver')">{{ libelle('arriver') }}</button>
                       }
+                      @if (peut(r, 'declarer_incident')) {
+                        <button class="btn-ghost btn-sm" (click)="incidentPour.set(r)">{{ libelle('declarer_incident') }}</button>
+                      }
                       @if (peut(r, 'annuler')) {
                         <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === r.id" (click)="annuler(r)">{{ libelle('annuler') }}</button>
                       }
@@ -163,6 +168,10 @@ import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, Ac
           </table></div>
         }
       </div>
+      @if (incidentPour(); as r) {
+        <app-incident-form [titre]="'Déclarer un incident — ' + r.numero_reservation" sousTitre="L'entrepôt est prévenu et décide de la suite."
+          [types]="typesIncident" [erreur]="erreurIncident()" [envoi]="actionEnCours() === r.id" (envoyer)="declarer(r, $event)" (fermer)="incidentPour.set(null)" />
+      }
     </div>
   `,
   styles: [`
@@ -198,6 +207,29 @@ export class ProducteurReservationsComponent implements OnInit {
   libelle(a: ActionDepot): string { return LIBELLE_ACTION[a]; }
 
   mode(r: any): string { return LIBELLE_MODE[r.mode_transport] ?? r.mode_transport; }
+
+  incidentPour   = signal<any | null>(null);
+  erreurIncident = signal<string | null>(null);
+  readonly typesIncident = TYPES_INCIDENT.reservation;
+
+  /** Producteur qui livre lui-même : incident en route (panne, accès…), l'entrepôt décide. */
+  declarer(r: any, saisie: { type: string; description: string }): void {
+    this.actionEnCours.set(r.id);
+    this.erreurIncident.set(null);
+    this.api.declarerIncident({ sujet_type: 'reservation', sujet_id: r.id, ...saisie }).subscribe({
+      next: () => {
+        this.actionEnCours.set(null);
+        this.incidentPour.set(null);
+        this.message.set("Incident déclaré. L'entrepôt a été prévenu.");
+        this.chargerReservations();
+        setTimeout(() => this.message.set(null), 4000);
+      },
+      error: err => {
+        this.actionEnCours.set(null);
+        this.erreurIncident.set(err.status === 0 ? 'Serveur injoignable : incident non envoyé, réessayez.' : err.error?.message ?? 'Déclaration impossible.');
+      },
+    });
+  }
 
   /** Producteur qui livre lui-même : départ puis arrivée, avec confirmation. */
   etape(r: any, a: ActionDepot): void {

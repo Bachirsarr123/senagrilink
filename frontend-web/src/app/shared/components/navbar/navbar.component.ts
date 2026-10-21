@@ -31,6 +31,7 @@ import { EchoService } from '../../../core/services/echo.service';
             <li><a routerLink="/entrepot/stocks" routerLinkActive="active">Stocks</a></li>
             <li><a routerLink="/entrepot/reservations" routerLinkActive="active">Dépôts</a></li>
             <li><a routerLink="/entrepot/commandes" routerLinkActive="active">Commandes</a></li>
+            <li><a routerLink="/entrepot/incidents" routerLinkActive="active">Incidents</a></li>
             <li><a routerLink="/entrepot/alertes" routerLinkActive="active">Alertes</a></li>
             <li><a routerLink="/entrepot/rapport" routerLinkActive="active">Rapport</a></li>
           }

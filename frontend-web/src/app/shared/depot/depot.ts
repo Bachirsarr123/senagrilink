@@ -7,7 +7,7 @@
 export type ActionDepot =
   | 'confirmer' | 'refuser' | 'remettre_en_attente' | 'assigner' | 'retirer_transporteur'
   | 'receptionner' | 'refuser_reception' | 'accepter_mission' | 'refuser_mission'
-  | 'arriver_collecte' | 'charger' | 'partir' | 'arriver' | 'annuler';
+  | 'arriver_collecte' | 'charger' | 'partir' | 'arriver' | 'annuler' | 'declarer_incident';
 
 /** Action de transport → étape envoyée à PUT /reservations/{id}/etape. */
 export const ETAPE_DE_L_ACTION: Partial<Record<ActionDepot, string>> = {
@@ -33,6 +33,7 @@ export const LIBELLE_ACTION: Record<ActionDepot, string> = {
   partir:               'Je pars vers l\'entrepôt',
   arriver:              'Je suis arrivé à l\'entrepôt',
   annuler:              'Annuler le dépôt',
+  declarer_incident:    'Déclarer un incident',
 };
 
 /** Confirmation affichée avant une étape de transport (action sur le terrain, difficile à défaire). */

@@ -73,58 +73,31 @@ describe('Lot 0 — site web', () => {
     });
   });
 
-  describe('commandes de l\'entrepôt : confirmation acquise puis livraison en échec (P-16)', () => {
-    it('le nouvel essai crée seulement la livraison, avec la même clé', () => {
+  describe('commandes de l\'entrepôt : organisation de la livraison en échec (P-16)', () => {
+    it('le nouvel essai réutilise la même clé : jamais deux livraisons', () => {
       configurer();
       const fixture = TestBed.createComponent(CommandesEntrepotComponent);
       fixture.detectChanges();
-      const commande = { id: 3, numero_commande: 'CMD-3', produit: 'riz', quantite: 10, statut: 'en_attente', acheteur: {} };
+      const commande = { id: 3, numero_commande: 'CMD-3', produit: 'riz', quantite: 10, statut: 'prete', acheteur: {}, actions: ['organiser_livraison', 'annuler_commande'] };
       http.expectOne(`${API}/commandes`).flush({ commandes: [commande] });
-      http.expectOne(`${API}/transporteurs`).flush({ transporteurs: [{ id: 1, utilisateur: { prenom: 'T', nom: 'U' } }] });
       const comp = fixture.componentInstance;
 
-      comp.ouvrirLivraison(commande);
-      comp.formLivraison.setValue({ transporteur_id: 1, origine: 'Entrepôt', destination: 'Dakar', date_depart: '2026-10-21T08:00', date_livraison: '' });
-      comp.confirmerAvecLivraison();
-      http.expectOne(`${API}/commandes/3/confirmer`).flush({ commande: { ...commande, statut: 'confirmee' } });
+      comp.agir(commande, 'organiser_livraison');
+      http.expectOne(`${API}/transporteurs`).flush({ transporteurs: [{ id: 1, utilisateur: { prenom: 'T', nom: 'U' }, missions_actives: 0 }] });
+      comp.form.patchValue({ transporteur_id: 1 });
+      comp.valider();
       const liv1 = http.expectOne(`${API}/livraisons`);
       const cle = liv1.request.headers.get('Idempotency-Key');
-      liv1.flush({ message: 'Erreur serveur' }, { status: 500, statusText: 'Server Error' });
-      http.expectOne(`${API}/commandes`).flush({ commandes: [{ ...commande, statut: 'confirmee' }] });
-      expect(comp.erreurModal()).toContain('La commande est confirmée');
+      expect(liv1.request.body).toEqual({ commande_id: 3, transporteur_id: 1 });
+      liv1.error(new ProgressEvent('error')); // réponse perdue
+      expect(comp.erreurModal()).toContain('ne sera pas créée deux fois');
 
-      comp.confirmerAvecLivraison();
-      http.expectNone(`${API}/commandes/3/confirmer`);
+      comp.valider();
       const liv2 = http.expectOne(`${API}/livraisons`);
       expect(liv2.request.headers.get('Idempotency-Key')).toBe(cle);
       liv2.flush({ livraison: { id: 1 } }, { status: 201, statusText: 'Created' });
       http.expectOne(`${API}/commandes`).flush({ commandes: [] });
-    });
-  });
-
-  describe('commandes de l\'entrepôt : réponse de confirmation perdue', () => {
-    it('le nouvel essai reconnaît la commande déjà confirmée et crée seulement la livraison', () => {
-      configurer();
-      const fixture = TestBed.createComponent(CommandesEntrepotComponent);
-      fixture.detectChanges();
-      const commande = { id: 4, numero_commande: 'CMD-4', produit: 'riz', quantite: 10, statut: 'en_attente', acheteur: {} };
-      http.expectOne(`${API}/commandes`).flush({ commandes: [commande] });
-      http.expectOne(`${API}/transporteurs`).flush({ transporteurs: [] });
-      const comp = fixture.componentInstance;
-
-      comp.ouvrirLivraison(commande);
-      comp.formLivraison.setValue({ transporteur_id: 1, origine: 'E', destination: 'D', date_depart: '2026-10-21T08:00', date_livraison: '' });
-      comp.confirmerAvecLivraison();
-      http.expectOne(`${API}/commandes/4/confirmer`).error(new ProgressEvent('error')); // réponse perdue
-      expect(comp.erreurModal()).toBeTruthy();
-
-      comp.confirmerAvecLivraison();
-      http.expectOne(`${API}/commandes/4/confirmer`).flush(
-        { message: 'Seules les commandes en attente peuvent être confirmées.', statut_actuel: 'confirmee' },
-        { status: 422, statusText: 'Unprocessable Entity' });
-      http.expectOne(`${API}/livraisons`).flush({ livraison: { id: 2 } }, { status: 201, statusText: 'Created' });
-      http.expectOne(`${API}/commandes`).flush({ commandes: [] });
-      expect(comp.message()).toContain('livraison créée');
+      expect(comp.message()).toContain('doit l\'accepter');
     });
   });
 
