@@ -6,6 +6,14 @@
     <!-- Suivi GPS du transporteur pendant une livraison en cours -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Lot 4 : le suivi continue téléphone verrouillé ou application en arrière-plan,
+         grâce à un service de premier plan (notification « Suivi de livraison actif »)
+         démarré pendant que l'application est ouverte. La permission de localisation
+         « en arrière-plan » (ACCESS_BACKGROUND_LOCATION) n'est donc pas nécessaire. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="agri_platform_mobile"
         android:name="${applicationName}"
@@ -47,6 +55,15 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Bouton « Itinéraire » : ouvrir la navigation (Google Maps ou navigateur) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+            <data android:scheme="tel"/>
         </intent>
     </queries>
 </manifest>

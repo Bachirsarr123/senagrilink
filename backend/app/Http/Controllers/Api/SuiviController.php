@@ -135,6 +135,7 @@ class SuiviController extends Controller
             'statut'      => $mission->statut,
             'en_route'    => $enRoute,
             'conducteur'  => SuiviGps::conducteur($mission),
+            'details'     => SuiviGps::details($mission),
             ...SuiviGps::extremites($mission),
             'genere_le'   => now()->toIso8601String(),
         ];

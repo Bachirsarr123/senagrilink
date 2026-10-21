@@ -4,6 +4,9 @@ import '../utils/depot.dart';
 import '../utils/nombres.dart';
 import 'app_theme.dart';
 import 'declarer_incident.dart';
+import 'itineraire.dart';
+import '../screens/acheteur/suivi_livraison_screen.dart';
+import '../services/suivi_gps_service.dart';
 import '../utils/livraison.dart' show libelleIncident;
 import 'status_badge.dart';
 
@@ -85,6 +88,21 @@ class CarteDepot extends StatelessWidget {
           for (final i in (r['incidents'] as List?) ?? const [])
             ligne(Icons.warning_amber_outlined, 'Incident : ${libelleIncident((i as Map)['type'] ?? '')} — en attente de l\'entrepôt'),
           if (prochaine != null) ligne(Icons.flag_outlined, 'Étape suivante : $prochaine'),
+          if (statut == 'en_route' && !vueTransporteur && r['mode_transport'] != 'producteur')
+            Padding(padding: const EdgeInsets.only(top: 8), child: OutlinedButton.icon(
+              key: Key('suivre-${r['id']}'),
+              icon: const Icon(Icons.map_outlined, size: 16),
+              label: const Text('Suivre en direct'),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SuiviLivraisonScreen.mission(type: 'reservation', id: r['id'] as int))),
+            )),
+          if (statut == 'en_route' && SuiviGpsService.instance.suit('reservation', r['id'] as int))
+            ligne(Icons.gps_fixed, 'Position partagée avec l\'entrepôt jusqu\'à l\'arrivée'),
+          if (vueTransporteur && ['prise_en_charge', 'au_point_collecte'].contains(statut))
+            Padding(padding: const EdgeInsets.only(top: 8), child: BoutonItineraire(
+                latitude: (r['producteur'] as Map?)?['latitude'], longitude: (r['producteur'] as Map?)?['longitude'], libelle: 'Itinéraire vers le producteur')),
+          if (['chargee', 'en_route'].contains(statut) && (vueTransporteur || r['mode_transport'] == 'producteur') || (statut == 'confirmee' && r['mode_transport'] == 'producteur'))
+            Padding(padding: const EdgeInsets.only(top: 8), child: BoutonItineraire(
+                latitude: (r['entrepot'] as Map?)?['latitude'], longitude: (r['entrepot'] as Map?)?['longitude'], libelle: 'Itinéraire vers l\'entrepôt')),
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -141,6 +159,15 @@ Future<bool> executerActionDepot(BuildContext context, Map<String, dynamic> r, S
   try {
     final res = await appel();
     messager.showSnackBar(SnackBar(content: Text((res is Map ? res['message'] : null) ?? 'Enregistré.'), backgroundColor: AppTheme.vert));
+    // Lot 4 : partage de position pendant le trajet vers l'entrepôt, même écran quitté.
+    if (action == 'partir') {
+      final ok = await SuiviGpsService.instance.demarrer((type: 'reservation', id: id, numero: numero as String));
+      if (!ok) {
+        messager.showSnackBar(const SnackBar(content: Text('Position GPS indisponible : activez la localisation pour partager votre trajet.'), backgroundColor: AppTheme.orange));
+      }
+    } else if (action == 'arriver' && SuiviGpsService.instance.suit('reservation', id)) {
+      await SuiviGpsService.instance.arreter();
+    }
     return true;
   } on ApiException catch (e) {
     messager.showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));

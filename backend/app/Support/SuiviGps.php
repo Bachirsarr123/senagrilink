@@ -28,7 +28,7 @@ final class SuiviGps
     {
         return match ($type) {
             'livraison'   => Livraison::with(['commande.acheteur.utilisateur', 'commande.stock.entrepot', 'commande.stock.production', 'transporteur.utilisateur'])->find($id),
-            'reservation' => Reservation::with(['entrepot', 'producteur.utilisateur', 'transporteur.utilisateur'])->find($id),
+            'reservation' => Reservation::with(['entrepot', 'production', 'producteur.utilisateur', 'transporteur.utilisateur'])->find($id),
             default       => null,
         };
     }
@@ -107,6 +107,20 @@ final class SuiviGps
             : $m->transporteur?->utilisateur;
 
         return $u ? ['nom' => trim($u->prenom.' '.$u->nom), 'telephone' => $u->telephone] : null;
+    }
+
+    /** Repères de la mission, visibles même sans position (marchandise, lot, heures). */
+    public static function details(Model $m): array
+    {
+        $commande = $m instanceof Livraison ? $m->commande : null;
+
+        return [
+            'produit'          => $commande?->produit ?? $m->produit,
+            'quantite'         => $commande?->quantite ?? $m->quantite_reservee,
+            'code_tracabilite' => $m instanceof Livraison ? $commande?->stock?->production?->code_tracabilite : $m->production?->code_tracabilite,
+            'parti_le'         => $m->parti_le?->toIso8601String(),
+            'arrive_le'        => $m->arrive_le?->toIso8601String(),
+        ];
     }
 
     public static function numero(Model $m): string

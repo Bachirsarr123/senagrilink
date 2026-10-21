@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../services/auth_provider.dart';
+import '../services/suivi_gps_service.dart';
 import '../widgets/app_theme.dart';
 import 'producteur/productions_screen.dart';
 import 'transporteur/livraisons_screen.dart';
@@ -29,6 +30,9 @@ class _HomeRouterState extends State<HomeRouter> {
   void initState() {
     super.initState();
     _verifierNotifications();
+    // Mission en route (application relancée, téléphone redémarré) : le partage de position reprend.
+    final role = context.read<AuthProvider>().utilisateur?.role;
+    if (role == 'transporteur' || role == 'producteur') SuiviGpsService.instance.reprendre();
     _timer = Timer.periodic(_intervallePollingNotifications, (_) => _verifierNotifications());
   }
 

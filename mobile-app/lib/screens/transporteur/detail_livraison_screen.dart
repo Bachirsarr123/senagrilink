@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../models/livraison.dart';
 import '../../services/api_service.dart';
-import '../../services/position_tracking_service.dart';
+import '../../services/suivi_gps_service.dart';
 import '../../utils/livraison.dart';
 import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/carte_depot.dart' show confirmerAction, demanderMotifAction;
 import '../../widgets/declarer_incident.dart';
+import '../../widgets/itineraire.dart';
 import '../../widgets/status_badge.dart';
 
 /// Mission de livraison : les boutons viennent des actions renvoyées par le
@@ -26,20 +27,34 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
   bool _modifiee = false;
   String? _erreur;
   final _code = TextEditingController();
-  final _tracking = PositionTrackingService();
+  final _suivi = SuiviGpsService.instance;
 
   @override
   void initState() {
     super.initState();
     _l = widget.livraison;
-    if (_l.statut == 'en_cours') _tracking.demarrer();
+    // Livraison en route : le partage continue (ou reprend), même si l'écran est quitté.
+    if (_l.statut == 'en_cours') _synchroniserSuivi();
   }
 
   @override
   void dispose() {
-    _tracking.arreter();
     _code.dispose();
     super.dispose();
+  }
+
+  /// Partage de position pendant le trajet seulement ; il continue écran quitté ou téléphone verrouillé.
+  Future<void> _synchroniserSuivi() async {
+    if (_l.statut == 'en_cours') {
+      final ok = await _suivi.demarrer((type: 'livraison', id: _l.id, numero: _l.numeroLivraison));
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Position GPS indisponible : activez la localisation pour partager votre trajet.'), backgroundColor: AppTheme.orange));
+      }
+    } else if (_suivi.suit('livraison', _l.id)) {
+      await _suivi.arreter();
+    }
+    if (mounted) setState(() {});
   }
 
   /// Relit la livraison : statut, actions et incidents à jour.
@@ -70,15 +85,7 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
     await _actualiser();
     if (!mounted) return;
     setState(() => _loading = false);
-    if (_l.statut == 'en_cours') {
-      final ok = await _tracking.demarrer();
-      if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Position GPS indisponible : activez la localisation pour partager votre trajet.'), backgroundColor: AppTheme.orange));
-      }
-    } else {
-      _tracking.arreter();
-    }
+    await _synchroniserSuivi();
   }
 
   Future<void> _agir(String action) async {
@@ -157,7 +164,9 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
               for (final i in _l.incidents)
                 _bandeau(Icons.warning_amber_outlined, 'Incident : ${libelleIncident(i['type'] ?? '')}. L\'entrepôt décide de la suite.', Colors.red.shade50, AppTheme.rouge),
               if (_l.statut == 'en_cours')
-                _bandeau(Icons.gps_fixed, 'Partage de votre position en direct avec l\'acheteur.', AppTheme.vertClair, AppTheme.vertFonce),
+                _suivi.suit('livraison', _l.id)
+                    ? _bandeau(Icons.gps_fixed, 'Position partagée avec l\'acheteur et l\'entrepôt, même téléphone verrouillé (notification « Suivi de livraison actif »).', AppTheme.vertClair, AppTheme.vertFonce)
+                    : _bandeau(Icons.gps_off, 'Position non partagée : activez la localisation puis rouvrez cette mission.', Colors.orange.shade50, AppTheme.orange),
               if (_erreur != null)
                 _bandeau(Icons.error_outline, _erreur!, Colors.red.shade50, AppTheme.rouge),
 
@@ -178,6 +187,13 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
                 ]),
               )),
               const SizedBox(height: 8),
+              if (statutsLivraisonActifs.contains(_l.statut)) Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(width: double.infinity, child: ['en_attente', 'prise_en_charge'].contains(_l.statut)
+                    ? BoutonItineraire(latitude: entrepot?['latitude'], longitude: entrepot?['longitude'], libelle: 'Itinéraire vers l\'entrepôt')
+                    : BoutonItineraire(latitude: _l.destinationLatitude ?? (commande?['acheteur'] as Map?)?['latitude'],
+                        longitude: _l.destinationLongitude ?? (commande?['acheteur'] as Map?)?['longitude'], libelle: 'Itinéraire vers l\'acheteur')),
+              ),
 
               if (_l.peut('confirmer_par_code')) Card(child: Padding(
                 padding: const EdgeInsets.all(16),

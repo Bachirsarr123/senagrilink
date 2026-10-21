@@ -800,5 +800,82 @@
     "capacite_disponible": 42350.5
    }
   ]
+ },
+ "/suivi/livraison/1": {
+  "sujet_type": "livraison",
+  "sujet_id": 1,
+  "numero": "LIV-20261019-ZLEH",
+  "statut": "en_cours",
+  "en_route": true,
+  "conducteur": {
+   "nom": "Ousmane Sarr-Diallo",
+   "telephone": "770000004"
+  },
+  "details": {
+   "produit": "oignon",
+   "quantite": 75,
+   "code_tracabilite": "LOT-2026-49RTEX",
+   "parti_le": "2026-10-19T11:30:24Z",
+   "arrive_le": null
+  },
+  "origine": {
+   "nom": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)",
+   "latitude": null,
+   "longitude": null,
+   "adresse": "Thiès, route de Dakar km 4"
+  },
+  "destination": {
+   "adresse": "Quartier Médina, rue 22 x 15, Thiès",
+   "latitude": 14.69,
+   "longitude": -17.44,
+   "nom": "Aminata Mariama Ndiaye-Diop Fall"
+  },
+  "genere_le": "2026-10-19T11:30:24.000000Z",
+  "parti_le": "2026-10-19T11:30:24Z",
+  "position": {
+   "latitude": 14.75,
+   "longitude": -17,
+   "timestamp": "2026-10-19T11:30:24.000000Z",
+   "vitesse": 52
+  },
+  "age_position_s": 5,
+  "position_recente": true,
+  "trace": [
+   [
+    14.79,
+    -16.93
+   ],
+   [
+    14.77,
+    -16.97
+   ],
+   [
+    14.75,
+    -17
+   ]
+  ],
+  "trajet": [
+   [
+    14.74,
+    -17.1
+   ],
+   [
+    14.71,
+    -17.3
+   ],
+   [
+    14.69,
+    -17.44
+   ]
+  ],
+  "arrivee_estimee_le": "2026-10-19T12:20:00Z",
+  "distance_restante_km": 48.5,
+  "estimation_routiere": true
+ },
+ "/suivi/configuration": {
+  "tuiles_url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "attribution": "© les contributeurs d'OpenStreetMap",
+  "routage_routier": true,
+  "position_recente_s": 60
  }
 }

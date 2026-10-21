@@ -244,6 +244,12 @@ class ApiService {
   // ── Suivi GPS (Transporteur) ──────────────────────────────────────────────
   static Future<dynamic> envoyerPosition(double latitude, double longitude) =>
       post('/transporteur/position', {'latitude': latitude, 'longitude': longitude});
+  /// Lot 4 : positions d'une mission (livraison ou reservation), par paquets avec l'heure du téléphone.
+  static Future<dynamic> envoyerPositions(String type, int id, List<Map<String, dynamic>> positions) =>
+      post('/suivi/$type/$id/positions', {'positions': positions});
+  static Future<dynamic> getSuivi(String type, int id) => get('/suivi/$type/$id');
+  static Future<dynamic> getSuivisActifs() => get('/suivi/actifs');
+  static Future<dynamic> getConfigurationCarte() => get('/suivi/configuration');
   static Future<dynamic> getPositionLivraison(int livraisonId) =>
       get('/livraisons/$livraisonId/position');
 
