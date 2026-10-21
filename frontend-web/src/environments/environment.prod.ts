@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: '/api',
+  apiUrl: 'https://api.invalid/api',
   reverb: {
     key: 'agriplatform-key',
     host: '',

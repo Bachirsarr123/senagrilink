@@ -29,16 +29,17 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
         } @else {
           <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
-              <tr><th>#</th><th>Produit</th><th>Quantité actuelle</th><th>Seuil alerte</th><th>Déficit</th></tr>
+              <tr><th>#</th><th>Produit</th><th>Disponible</th><th>Réservé</th><th>Seuil alerte</th><th>Déficit</th></tr>
             </thead>
             <tbody>
               @for (s of alertes(); track s.id) {
                 <tr>
                   <td>{{ s.id }}</td>
                   <td><strong>{{ s.produit }}</strong></td>
-                  <td style="color:#dc2626;font-weight:600">{{ s.quantite | number }} kg</td>
+                  <td style="color:#dc2626;font-weight:600">{{ s.quantite_disponible | number }} kg</td>
+                  <td>{{ s.quantite_reservee | number }} kg</td>
                   <td>{{ s.seuil_alerte | number }} kg</td>
-                  <td style="color:#dc2626">− {{ (s.seuil_alerte - s.quantite) | number }} kg</td>
+                  <td style="color:#dc2626">− {{ (s.seuil_alerte - s.quantite_disponible) | number }} kg</td>
                 </tr>
               }
             </tbody>

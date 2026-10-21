@@ -295,8 +295,10 @@ export class EntrepotReservationsComponent implements OnInit {
   enTransit = () => this.toutes().filter(r => r.statut === 'confirmee' && !!r.transporteur_id);
   arrivees = () => this.toutes().filter(r => r.statut === 'arrivee_entrepot');
   closes = () => this.toutes().filter(r => r.statut === 'refusee' || r.statut === 'annulee');
+  /** Corrections et annulations seulement : les étapes normales (création, confirmation, arrivée, réception) sont aussi historisées. */
   historique = () => this.toutes()
     .flatMap(r => (r.historique ?? []).map((h: any) => ({ ...h, numero: r.numero_reservation })))
+    .filter(h => !['creation', 'confirmation', 'arrivee', 'reception'].includes(h.action))
     .sort((a, b) => b.id - a.id)
     .slice(0, 10);
 

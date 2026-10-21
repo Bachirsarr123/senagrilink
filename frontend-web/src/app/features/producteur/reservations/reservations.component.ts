@@ -59,13 +59,18 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
 
             <form [formGroup]="form" (ngSubmit)="reserver()">
               <div class="form-group">
-                <label>Production concernée (optionnel)</label>
-                <select formControlName="production_id">
-                  <option [ngValue]="null">— Aucune —</option>
+                <label>Récolte à déposer *</label>
+                <select formControlName="production_id" (change)="recolteChoisie()">
+                  <option [ngValue]="null">— Choisir une récolte —</option>
                   @for (p of productionsReservables(); track p.id) {
                     <option [ngValue]="p.id">{{ p.code_tracabilite }} — {{ p.type_culture }}</option>
                   }
                 </select>
+                @if (productionsReservables().length === 0) {
+                  <span class="field-error">Enregistre d'abord ta récolte (page Mes productions) : chaque dépôt correspond à un lot.</span>
+                } @else if (form.get('production_id')?.invalid && form.get('production_id')?.touched) {
+                  <span class="field-error">Choisis la récolte que tu veux déposer.</span>
+                }
               </div>
               <div class="form-group">
                 <label>Produit *</label>
@@ -161,6 +166,13 @@ export class ProducteurReservationsComponent implements OnInit {
   actionEnCours          = signal<number | null>(null);
   /** Une récolte annulée ne peut plus être réservée. */
   productionsReservables = computed(() => this.productions().filter(p => p.statut !== 'annulee'));
+
+  /** Reprend le produit et la quantité de la récolte choisie : pas de ressaisie (modifiables avant envoi). */
+  recolteChoisie(): void {
+    const p = this.productions().find(x => x.id === this.form.value.production_id);
+    if (!p) return;
+    this.form.patchValue({ produit: p.type_culture, quantite_reservee: p.quantite_reelle ?? p.quantite_estimee });
+  }
   form!: FormGroup;
 
   private cleReservation = new CleSoumission();
@@ -169,7 +181,7 @@ export class ProducteurReservationsComponent implements OnInit {
 
   ngOnInit(): void {
     this.form = this.fb.group({
-      production_id:     [null],
+      production_id:     [null, Validators.required],
       produit:           ['', Validators.required],
       quantite_reservee: [null, [Validators.required, Validators.min(0.01)]],
       date_debut:        ['', Validators.required],

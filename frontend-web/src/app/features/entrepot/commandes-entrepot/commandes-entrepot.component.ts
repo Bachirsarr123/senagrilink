@@ -37,7 +37,7 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
             <thead>
               <tr>
                 <th>Numéro</th><th>Produit</th><th>Quantité</th>
-                <th>Prix</th><th>Date</th><th>Acheteur</th><th>Actions</th>
+                <th>Montant</th><th>Date</th><th>Acheteur</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -46,7 +46,8 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
                   <td><code class="code-lot">{{ c.numero_commande }}</code></td>
                   <td><strong>{{ c.produit }}</strong></td>
                   <td>{{ c.quantite | number }} kg</td>
-                  <td>{{ c.prix ? (c.prix | number) + ' FCFA' : '—' }}</td>
+                  <td>{{ c.prix ? (c.prix | number:'1.0-2') + ' FCFA' : '—' }}
+                    @if (c.prix_unitaire) { <br><small class="text-muted">{{ c.prix_unitaire | number }} FCFA / kg</small> }</td>
                   <td>{{ c.date_commande | date:'dd/MM/yyyy' }}</td>
                   <td>{{ c.acheteur?.utilisateur?.prenom }} {{ c.acheteur?.utilisateur?.nom }}</td>
                   <td>
@@ -273,9 +274,9 @@ export class CommandesEntrepotComponent implements OnInit {
   }
 
   annulerConfirmation(c: any): void {
-    const motif = demanderMotif(`Annuler la commande confirmée ${c.numero_commande} ?\n${c.quantite} kg seront remis en stock et l'acheteur sera notifié. Cette annulation est définitive. Aucun remboursement n'est effectué automatiquement.`, true);
+    const motif = demanderMotif(`Annuler la commande confirmée ${c.numero_commande} ?\nLa réservation de ${c.quantite} kg sera libérée (de nouveau disponible à la vente) et l'acheteur sera notifié. Cette annulation est définitive. Aucun remboursement n'est effectué automatiquement.`, true);
     if (motif === null) return;
-    this.executer(c.id, this.api.annulerConfirmationCommande(c.id, motif), 'Commande annulée, quantité remise en stock.');
+    this.executer(c.id, this.api.annulerConfirmationCommande(c.id, motif), 'Commande annulée, réservation libérée.');
   }
 
   ouvrirChangementTransporteur(c: any): void {

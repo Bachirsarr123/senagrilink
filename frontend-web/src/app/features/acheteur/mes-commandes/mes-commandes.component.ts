@@ -20,6 +20,9 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
       <div class="card">
         @if (chargement()) {
           <p class="loading">Chargement...</p>
+        } @else if (erreurChargement()) {
+          <div class="alert alert-error">{{ erreurChargement() }}</div>
+          <button class="btn-secondary" (click)="charger()">Réessayer</button>
         } @else if (commandes().length === 0) {
           <p class="empty">Aucune commande passée.</p>
         } @else {
@@ -27,7 +30,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
             <thead>
               <tr>
                 <th>Numéro</th><th>Produit</th><th>Qté</th>
-                <th>Prix</th><th>Date</th><th>Statut</th><th>Livraison</th><th>Actions</th>
+                <th>Prix / kg</th><th>Montant</th><th>Date</th><th>Statut</th><th>Livraison</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -36,7 +39,8 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   <td><code class="code-lot">{{ c.numero_commande }}</code></td>
                   <td>{{ c.produit }}</td>
                   <td>{{ c.quantite | number }} kg</td>
-                  <td>{{ c.prix ? (c.prix | number) + ' FCFA' : '—' }}</td>
+                  <td>{{ c.prix_unitaire ? (c.prix_unitaire | number) + ' FCFA' : '—' }}</td>
+                  <td>{{ c.prix ? (c.prix | number:'1.0-2') + ' FCFA' : '—' }}</td>
                   <td>{{ c.date_commande | date:'dd/MM/yyyy' }}</td>
                   <td>
                     <span class="badge badge-{{ c.statut }}">{{ c.statut | libelleStatut }}</span>
@@ -94,6 +98,10 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   <input type="number" formControlName="quantite" min="0.01" step="0.01" />
                 </div>
               </div>
+              @if (commandeEnEdition()!.prix_unitaire && formModif.value.quantite > 0) {
+                <p class="montant">Nouveau total : <strong>{{ formModif.value.quantite * commandeEnEdition()!.prix_unitaire | number:'1.0-2' }} FCFA</strong>
+                  (prix figé à la commande : {{ commandeEnEdition()!.prix_unitaire | number }} FCFA / kg)</p>
+              }
               <div class="btn-group">
                 <button type="submit" class="btn-primary" [disabled]="loadingModal()">
                   {{ loadingModal() ? 'Enregistrement...' : 'Enregistrer' }}
@@ -108,12 +116,14 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
   `,
   styles: [`
     .modal-box { --modal-largeur: 420px; }
+    .montant { margin: 0 0 1rem; font-size: .95rem; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })
 export class MesCommandesComponent implements OnInit {
   commandes         = signal<any[]>([]);
   chargement        = signal(true);
+  erreurChargement  = signal<string | null>(null);
   actionEnCours     = signal<number | null>(null);
   commandeEnEdition = signal<any | null>(null);
   loadingModal      = signal(false);
@@ -132,9 +142,13 @@ export class MesCommandesComponent implements OnInit {
   }
 
   charger(): void {
+    this.erreurChargement.set(null);
     this.api.getHistoriqueCommandes().subscribe({
       next: res => { this.commandes.set(res.commandes); this.chargement.set(false); },
-      error: () => this.chargement.set(false),
+      error: err => {
+        this.erreurChargement.set(err.status === 0 ? 'Serveur injoignable. Vérifie ta connexion.' : err.error?.message ?? 'Impossible de charger tes commandes.');
+        this.chargement.set(false);
+      },
     });
   }
 

@@ -52,6 +52,15 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
                 <input type="number" formControlName="quantite_reelle" placeholder="0" min="0" />
               </div>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Prix de vente (FCFA / kg) *</label>
+                <input type="number" formControlName="prix_unitaire" placeholder="Ex. : 250" min="1" step="any" />
+                @if (formCreation.get('prix_unitaire')?.invalid && formCreation.get('prix_unitaire')?.touched) {
+                  <span class="field-error">Indique ton prix au kilo (au moins 1 FCFA). Les acheteurs verront ce prix.</span>
+                }
+              </div>
+            </div>
             <button type="submit" class="btn-primary" [disabled]="loading()">
               {{ loading() ? 'Enregistrement...' : 'Enregistrer la récolte' }}
             </button>
@@ -66,6 +75,10 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
           @if (erreurEdition()) { <div class="alert alert-error">{{ erreurEdition() }}</div> }
           @if (succesEdition()) { <div class="alert alert-success">{{ succesEdition() }}</div> }
 
+          @if (estVerrouille(productionEnEdition()!)) {
+            <div class="alert alert-info">Ce lot est en entrepôt : ses informations sont figées. Seul le prix au kilo peut encore changer
+              (les commandes déjà passées gardent leur prix).</div>
+          }
           <form [formGroup]="formEdition" (ngSubmit)="sauvegarderEdition()">
             <div class="form-row">
               <div class="form-group">
@@ -89,6 +102,12 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
               <div class="form-group">
                 <label>Quantité réelle (kg)</label>
                 <input type="number" formControlName="quantite_reelle" min="0" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Prix de vente (FCFA / kg) *</label>
+                <input type="number" formControlName="prix_unitaire" min="1" step="any" />
               </div>
             </div>
             <div class="btn-group">
@@ -117,6 +136,7 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
                 <th>Date récolte</th>
                 <th>Qté estimée</th>
                 <th>Qté réelle</th>
+                <th>Prix / kg</th>
                 <th>Statut</th>
                 <th>Actions</th>
               </tr>
@@ -129,11 +149,12 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
                   <td>{{ p.date_recolte | date:'dd/MM/yyyy' }}</td>
                   <td>{{ p.quantite_estimee | number }} kg</td>
                   <td>{{ p.quantite_reelle ? (p.quantite_reelle | number) + ' kg' : '—' }}</td>
+                  <td>{{ p.prix_unitaire ? (p.prix_unitaire | number) + ' FCFA' : 'À fixer' }}</td>
                   <td><span class="badge badge-{{ p.statut }}">{{ p.statut | libelleStatut }}</span></td>
                   <td>
                     <div class="btn-group">
                       @if (p.statut === 'en_attente' || p.statut === 'disponible') {
-                        <button class="btn-secondary btn-sm" (click)="ouvrirEdition(p)">Modifier</button>
+                        <button class="btn-secondary btn-sm" (click)="ouvrirEdition(p)">{{ estVerrouille(p) ? 'Modifier le prix' : 'Modifier' }}</button>
                       }
                       @if (p.statut === 'en_attente') {
                         <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === p.id" (click)="annulerRecolte(p)">Annuler la récolte</button>
@@ -149,6 +170,7 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
     </div>
   `,
   styleUrls: ['../../shared.styles.scss'],
+  styles: [`.alert-info { background: #eff6ff; color: #1e3a8a; border-left: 3px solid #3b82f6; }`],
 })
 export class ProductionsComponent implements OnInit {
   productions       = signal<any[]>([]);
@@ -177,6 +199,7 @@ export class ProductionsComponent implements OnInit {
       date_recolte:     ['', Validators.required],
       quantite_estimee: [null, [Validators.required, Validators.min(0)]],
       quantite_reelle:  [null],
+      prix_unitaire:    [null, [Validators.required, Validators.min(1)]],
     });
     this.formEdition = this.fb.group({
       type_culture:     ['', Validators.required],
@@ -184,6 +207,7 @@ export class ProductionsComponent implements OnInit {
       date_recolte:     ['', Validators.required],
       quantite_estimee: [null, [Validators.required, Validators.min(0)]],
       quantite_reelle:  [null],
+      prix_unitaire:    [null, [Validators.required, Validators.min(1)]],
     });
     this.api.getProductions().subscribe({
       next: res => { this.productions.set(res.productions); this.chargement.set(false); },
@@ -246,6 +270,11 @@ export class ProductionsComponent implements OnInit {
     });
   }
 
+  /** Lot entré en entrepôt : seul son prix reste modifiable (règle du serveur). */
+  estVerrouille(p: any): boolean {
+    return p.statut === 'disponible' || (p.stocks?.length ?? 0) > 0;
+  }
+
   ouvrirEdition(p: any): void {
     this.productionEnEdition.set(p);
     this.showFormCreation.set(false);
@@ -257,7 +286,12 @@ export class ProductionsComponent implements OnInit {
       date_recolte:     p.date_recolte ?? '',
       quantite_estimee: p.quantite_estimee,
       quantite_reelle:  p.quantite_reelle,
+      prix_unitaire:    p.prix_unitaire,
     });
+    for (const champ of ['type_culture', 'superficie', 'date_recolte', 'quantite_estimee', 'quantite_reelle']) {
+      const controle = this.formEdition.get(champ)!;
+      this.estVerrouille(p) ? controle.disable() : controle.enable();
+    }
   }
 
   annulerEdition(): void { this.productionEnEdition.set(null); }

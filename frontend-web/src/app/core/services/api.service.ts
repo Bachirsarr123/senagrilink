@@ -23,8 +23,9 @@ export class ApiService {
 
   // ── Stocks ─────────────────────────────────────────────────────────────────
   getStocks(): Observable<any> { return this.http.get(`${this.base}/stocks`); }
-  entreeStock(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/stocks/entree`, data, this.idempotence(cle)); }
-  sortieStock(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/stocks/sortie`, data, this.idempotence(cle)); }
+  ajusterStock(id: number, data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/stocks/${id}/ajustement`, data, this.idempotence(cle)); }
+  modifierSeuilStock(id: number, seuil_alerte: number | null): Observable<any> { return this.http.put(`${this.base}/stocks/${id}/seuil`, { seuil_alerte }); }
+  getMouvementsStock(id: number): Observable<any> { return this.http.get(`${this.base}/stocks/${id}/mouvements`); }
   getAlertes(): Observable<any> { return this.http.get(`${this.base}/stocks/alertes`); }
   getRapport(): Observable<any> { return this.http.get(`${this.base}/stocks/rapport`); }
   confirmerCommande(id: number): Observable<any> { return this.http.put(`${this.base}/commandes/${id}/confirmer`, {}); }

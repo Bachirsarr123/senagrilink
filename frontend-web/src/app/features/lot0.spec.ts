@@ -33,7 +33,7 @@ describe('Lot 0 — site web', () => {
   });
 
   describe('catalogue : commande sans doublon (P-25)', () => {
-    const PRODUIT = { stock_id: 5, produit: 'riz', quantite: 40, entrepot: { nom_entrepot: 'Nord' } };
+    const PRODUIT = { stock_id: 5, produit: 'riz', quantite: 40, quantite_disponible: 40, prix_unitaire: 150, entrepot: { nom_entrepot: 'Nord' } };
 
     function creer() {
       configurer();
@@ -47,7 +47,8 @@ describe('Lot 0 — site web', () => {
     it('nouvel essai après une erreur : même clé ; commande suivante : nouvelle clé', () => {
       const comp = creer();
       comp.ouvrirCommande(PRODUIT);
-      comp.formCommande.setValue({ quantite: 5, prix: null });
+      comp.formCommande.setValue({ quantite: 5 });
+      expect(comp.montant(PRODUIT)).toBe(750);
 
       comp.passerCommande(PRODUIT);
       const essai1 = http.expectOne(`${API}/commandes`);
@@ -59,13 +60,16 @@ describe('Lot 0 — site web', () => {
       const essai2 = http.expectOne(`${API}/commandes`);
       expect(essai2.request.headers.get('Idempotency-Key')).toBe(cle);
       essai2.flush({ commande: { numero_commande: 'CMD-1' } }, { status: 201, statusText: 'Created' });
+      // Après la commande, le catalogue est rechargé (disponible à jour)
+      http.expectOne(`${API}/catalogue`).flush({ catalogue: [PRODUIT] });
 
       comp.ouvrirCommande(PRODUIT);
-      comp.formCommande.setValue({ quantite: 5, prix: null });
+      comp.formCommande.setValue({ quantite: 5 });
       comp.passerCommande(PRODUIT);
       const suivante = http.expectOne(`${API}/commandes`);
       expect(suivante.request.headers.get('Idempotency-Key')).not.toBe(cle);
       suivante.flush({ commande: { numero_commande: 'CMD-2' } }, { status: 201, statusText: 'Created' });
+      http.expectOne(`${API}/catalogue`).flush({ catalogue: [PRODUIT] });
     });
   });
 
@@ -182,7 +186,7 @@ describe('Lot 0 — site web', () => {
       fixture.detectChanges();
       http.expectOne(`${API}/productions`).flush({ productions: [] });
       const comp = fixture.componentInstance;
-      const remplir = () => comp.formCreation.setValue({ type_culture: 'mil', superficie: null, date_recolte: '2026-06-01', quantite_estimee: 10, quantite_reelle: null });
+      const remplir = () => comp.formCreation.setValue({ type_culture: 'mil', superficie: null, date_recolte: '2026-06-01', quantite_estimee: 10, quantite_reelle: null, prix_unitaire: 300 });
       const envoyer = () => { comp.soumettre(); return http.expectOne(`${API}/productions`); };
 
       comp.toggleFormCreation(); remplir();

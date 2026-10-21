@@ -23,7 +23,7 @@ import { TableauResponsiveDirective } from '../../../shared/directives/tableau-r
             <thead>
               <tr>
                 <th>Produit</th><th>Quantité demandée</th>
-                <th>Prix proposé</th><th>Acheteur</th><th>Date</th>
+                <th>Montant (ton prix)</th><th>Acheteur</th><th>Date</th>
               </tr>
             </thead>
             <tbody>

@@ -19,6 +19,10 @@ import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
       @if (erreurCommande()) { <div class="alert alert-error">{{ erreurCommande() }}</div> }
 
       @if (chargement()) { <p class="loading">Chargement...</p> }
+      @else if (erreurChargement()) {
+        <div class="alert alert-error">{{ erreurChargement() }}</div>
+        <button class="btn-secondary" (click)="chargerCatalogue()">Réessayer</button>
+      }
       @else if (produits().length === 0) { <p class="empty">Aucun produit disponible pour le moment.</p> }
       @else {
         <div class="cards-grid">
@@ -30,8 +34,12 @@ import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
               </div>
               <div class="product-info">
                 <div class="info-row">
-                  <span>📦 Stock disponible</span>
-                  <strong>{{ p.quantite | number }} kg</strong>
+                  <span>💰 Prix</span>
+                  <strong>{{ p.prix_unitaire | number }} FCFA / kg</strong>
+                </div>
+                <div class="info-row">
+                  <span>📦 Disponible</span>
+                  <strong>{{ p.quantite_disponible | number }} kg</strong>
                 </div>
                 <div class="info-row">
                   <span>🏪 Entrepôt</span>
@@ -52,15 +60,18 @@ import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
               @if (commandeOuverte() === p.stock_id) {
                 <form [formGroup]="formCommande" (ngSubmit)="passerCommande(p)" class="commande-form">
                   <div class="form-group">
-                    <label>Quantité souhaitée (kg)</label>
-                    <input type="number" formControlName="quantite" [max]="p.quantite" min="0.01" />
+                    <label>Quantité souhaitée (kg, au plus {{ p.quantite_disponible | number }})</label>
+                    <input type="number" formControlName="quantite" [max]="p.quantite_disponible" min="0.01" step="any" />
                   </div>
-                  <div class="form-group">
-                    <label>Prix proposé (FCFA, optionnel)</label>
-                    <input type="number" formControlName="prix" min="0" />
-                  </div>
+                  @if (montant(p) !== null) {
+                    <p class="montant">Total : <strong>{{ montant(p) | number:'1.0-2' }} FCFA</strong>
+                      ({{ formCommande.value.quantite | number }} kg × {{ p.prix_unitaire | number }} FCFA)</p>
+                  }
+                  @if (depasse(p)) {
+                    <span class="field-error">Il ne reste que {{ p.quantite_disponible | number }} kg disponibles.</span>
+                  }
                   <div class="btn-group">
-                    <button type="submit" class="btn-primary" [disabled]="loadingCmd()">
+                    <button type="submit" class="btn-primary" [disabled]="loadingCmd() || depasse(p)">
                       {{ loadingCmd() ? '...' : 'Confirmer la commande' }}
                     </button>
                     <button type="button" class="btn-ghost" (click)="commandeOuverte.set(null)">Annuler</button>
@@ -78,11 +89,13 @@ import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
     </div>
   `,
   styleUrls: ['../../shared.styles.scss'],
+  styles: [`.montant { margin: .25rem 0 .75rem; font-size: .95rem; }`],
 })
 export class CatalogueComponent implements OnInit {
   produits        = signal<any[]>([]);
   commandeOuverte = signal<number | null>(null);
   chargement      = signal(true);
+  erreurChargement = signal<string | null>(null);
   loadingCmd      = signal(false);
   succes          = signal<string | null>(null);
   erreurCommande  = signal<string | null>(null);
@@ -94,15 +107,32 @@ export class CatalogueComponent implements OnInit {
   constructor(private api: ApiService, private fb: FormBuilder) {
     this.formCommande = this.fb.group({
       quantite: [null, [Validators.required, Validators.min(0.01)]],
-      prix:     [null],
     });
   }
 
   ngOnInit(): void {
+    this.chargerCatalogue();
+  }
+
+  chargerCatalogue(): void {
+    this.erreurChargement.set(null);
     this.api.getCatalogue().subscribe({
       next: res => { this.produits.set(res.catalogue); this.chargement.set(false); },
-      error: () => this.chargement.set(false),
+      error: err => {
+        this.erreurChargement.set(err.status === 0 ? 'Serveur injoignable. Vérifie ta connexion.' : 'Impossible de charger le catalogue.');
+        this.chargement.set(false);
+      },
     });
+  }
+
+  /** Montant calculé au prix du producteur (le serveur fige ce prix à la commande). */
+  montant(p: any): number | null {
+    const q = Number(this.formCommande.value.quantite);
+    return q > 0 ? Math.round(q * p.prix_unitaire * 100) / 100 : null;
+  }
+
+  depasse(p: any): boolean {
+    return Number(this.formCommande.value.quantite) > p.quantite_disponible;
   }
 
   ouvrirCommande(produit: any): void {
@@ -119,9 +149,10 @@ export class CatalogueComponent implements OnInit {
     this.api.passerCommande({ stock_id: produit.stock_id, ...this.formCommande.value }, this.cleCommande.valeur).subscribe({
       next: res => {
         this.cleCommande.renouveler();
-        this.succes.set(`Commande ${res.commande.numero_commande} passée avec succès !`);
+        this.succes.set(`Commande ${res.commande.numero_commande} passée : ${res.commande.quantite} kg pour ${res.commande.prix} FCFA. L'entrepôt va la confirmer.`);
         this.commandeOuverte.set(null);
         this.loadingCmd.set(false);
+        this.chargerCatalogue();
         setTimeout(() => this.succes.set(null), 4000);
       },
       error: err => {
