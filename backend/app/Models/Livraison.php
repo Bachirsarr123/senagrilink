@@ -29,7 +29,14 @@ class Livraison extends Model
      * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
      * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
      */
+    /** Trajet routier : renvoyé seulement par le suivi GPS (volumineux). */
+    protected $hidden = ['trajet'];
+
     protected $casts = [
+        'arrivee_estimee_le'   => 'datetime',
+        'estimation_le'        => 'datetime',
+        'distance_restante_km' => 'float',
+        'trajet'               => 'array',
         'destination_latitude'  => 'float',
         'destination_longitude' => 'float',
         'mission_acceptee_le'   => 'datetime',

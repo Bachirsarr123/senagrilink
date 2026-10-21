@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePositionGpsRequest;
 use App\Models\Livraison;
 use App\Models\PositionGps;
+use App\Services\EstimationTrajet;
+use App\Support\SuiviGps;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,7 +31,8 @@ class PositionGpsController extends Controller
 
         $livraisonEnCours = Livraison::where('transporteur_id', $transporteur->id)
             ->where('statut', 'en_cours')
-            ->exists();
+            ->orderByDesc('parti_le')
+            ->first();
 
         if (! $livraisonEnCours) {
             return response()->json([
@@ -37,12 +40,18 @@ class PositionGpsController extends Controller
             ], 422);
         }
 
+        // Ancienne route (une position à la fois) : rattachée à la livraison en cours.
         $position = PositionGps::create([
             'transporteur_id' => $transporteur->id,
+            'utilisateur_id'  => $request->user()->id,
+            'sujet_type'      => 'livraison',
+            'sujet_id'        => $livraisonEnCours->id,
             'latitude'        => $request->latitude,
             'longitude'       => $request->longitude,
             'timestamp'       => now(),
+            'recue_le'        => now(),
         ]);
+        app(EstimationTrajet::class)->actualiser($livraisonEnCours, $position);
 
         return response()->json([
             'message'  => 'Position enregistrée.',
@@ -102,7 +111,8 @@ class PositionGpsController extends Controller
             ], 404);
         }
 
-        $position = PositionGps::where('transporteur_id', $livraison->transporteur_id)
+        // Positions de CETTE livraison uniquement (jamais celles d'une autre mission du transporteur).
+        $position = PositionGps::where('sujet_type', 'livraison')->where('sujet_id', $livraison->id)
             ->orderByDesc('timestamp')
             ->first();
 
@@ -139,26 +149,9 @@ class PositionGpsController extends Controller
 
     // ── Helper privé ─────────────────────────────────────────────────────────
 
+    /** Acteurs de la livraison (acheteur, producteur du lot, gestionnaire de l'entrepôt, transporteur, administrateur). */
     private function peutConsulterPosition(Request $request, Livraison $livraison): bool
     {
-        $utilisateur = $request->user();
-
-        if ($utilisateur->role === 'administrateur') {
-            return true;
-        }
-
-        if ($utilisateur->role === 'acheteur_gros') {
-            $acheteur = $utilisateur->acheteurGros;
-
-            return $acheteur && $livraison->commande?->acheteur_id === $acheteur->id;
-        }
-
-        if ($utilisateur->role === 'producteur') {
-            $producteur = $utilisateur->producteur;
-
-            return $producteur && $livraison->commande?->stock?->production?->producteur_id === $producteur->id;
-        }
-
-        return false;
+        return SuiviGps::peutVoir($livraison, $request->user());
     }
 }

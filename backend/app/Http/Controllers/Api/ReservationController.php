@@ -676,6 +676,11 @@ class ReservationController extends Controller
 
             $ancien    = $r->statut;
             $r->statut = $etape;
+            if ($etape === 'en_route') {
+                $r->parti_le = now();
+            } elseif ($etape === 'arrivee_entrepot') {
+                $r->arrive_le = now();
+            }
             $r->save();
             HistoriqueOperation::consigner('reservation', $r->id, $etape, $request->user(), $ancien, $etape);
 

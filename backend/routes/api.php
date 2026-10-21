@@ -107,6 +107,13 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     // ── Module Traçabilité (tous les rôles authentifiés) ──────────────────────
     Route::get('/tracabilite/{code_tracabilite}', [\App\Http\Controllers\Api\TracabiliteController::class, 'show']);
 
+    // ── Suivi GPS des deux circuits (lot 4) : envoi par la personne qui conduit, ──
+    // consultation par les acteurs de la mission, pendant le trajet (vérifié dans le contrôleur)
+    Route::get('/suivi/configuration',               [\App\Http\Controllers\Api\SuiviController::class, 'configuration']);
+    Route::get('/suivi/actifs',                      [\App\Http\Controllers\Api\SuiviController::class, 'actifs']);
+    Route::post('/suivi/{type}/{id}/positions',      [\App\Http\Controllers\Api\SuiviController::class, 'enregistrer'])->whereNumber('id')->middleware('throttle:120,1');
+    Route::get('/suivi/{type}/{id}',                 [\App\Http\Controllers\Api\SuiviController::class, 'consulter'])->whereNumber('id');
+
     // ── Suivi GPS (producteur/acheteur concernés + admin, filtré dans le contrôleur) ──
     Route::get('/livraisons/{id}/position', [\App\Http\Controllers\Api\PositionGpsController::class, 'showForLivraison']);
 

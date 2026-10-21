@@ -35,4 +35,28 @@ return [
         ],
     ],
 
+
+    /*
+     * Suivi GPS (lot 4). Fond de carte : un fournisseur autorisé pour la
+     * production (ex. MapTiler, Stadia, Thunderforest) se règle par variables
+     * d'environnement ; à défaut, les tuiles publiques d'OpenStreetMap
+     * (usage limité, à remplacer avant l'ouverture au public).
+     * Trajet routier : service compatible OSRM (/route/v1/driving/...) ; à
+     * défaut, distance estimée (vol d'oiseau × 1,3) et vitesse moyenne.
+     */
+    'carte' => [
+        'tuiles_url'  => env('CARTE_TUILES_URL', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        'attribution' => env('CARTE_ATTRIBUTION', '© les contributeurs d\'OpenStreetMap'),
+    ],
+
+    'routage' => [
+        'url'          => env('ROUTAGE_URL'),
+        'delai_s'      => (int) env('ROUTAGE_DELAI_S', 4),
+    ],
+
+    'suivi' => [
+        'conservation_jours' => (int) env('SUIVI_CONSERVATION_JOURS', 30),
+        'vitesse_defaut_kmh' => (float) env('SUIVI_VITESSE_DEFAUT_KMH', 40),
+    ],
+
 ];

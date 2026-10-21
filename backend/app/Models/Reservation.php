@@ -25,13 +25,24 @@ class Reservation extends Model
         'mission_acceptee_le',
         'quantite_recue',
         'etat_marchandise',
+        'parti_le',
+        'arrive_le',
     ];
 
     /**
      * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
      * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
      */
+    /** Trajet routier : renvoyé seulement par le suivi GPS (volumineux). */
+    protected $hidden = ['trajet'];
+
     protected $casts = [
+        'parti_le'            => 'datetime',
+        'arrive_le'           => 'datetime',
+        'arrivee_estimee_le'   => 'datetime',
+        'estimation_le'        => 'datetime',
+        'distance_restante_km' => 'float',
+        'trajet'               => 'array',
         'quantite_reservee'   => 'float',
         'quantite_recue'      => 'float',
         'mission_acceptee_le' => 'datetime',

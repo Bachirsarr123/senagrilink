@@ -485,7 +485,7 @@ class LivraisonController extends Controller
                 $commande->numero_commande, $commande->code_reception,
             ), ['commande_id' => $commande->id, ...$this->reference($livraison)]));
         } elseif ($etape === 'en_cours') {
-            $position = PositionGps::where('transporteur_id', $livraison->transporteur_id)->orderByDesc('timestamp')->first();
+            $position = PositionGps::where('sujet_type', 'livraison')->where('sujet_id', $livraison->id)->orderByDesc('timestamp')->first();
             $acheteur?->notify(new LivraisonEnCoursNotification($livraison, $position));
         } else {
             $acheteur?->notify(new OperationModifieeNotification('livraison_arrivee', sprintf(

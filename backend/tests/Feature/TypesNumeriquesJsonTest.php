@@ -50,7 +50,7 @@ class TypesNumeriquesJsonTest extends TestCase
         $this->assertNombres($this->en($p->gestionnaire)->getJson('/api/commandes')->assertOk(),
             ['commandes.0.quantite', 'commandes.0.prix']);
         \App\Models\PositionGps::create([
-            'transporteur_id' => $p->transporteur->transporteur->id, 'latitude' => 14.71, 'longitude' => -17.45, 'timestamp' => now(),
+            'transporteur_id' => $p->transporteur->transporteur->id, 'sujet_type' => 'livraison', 'sujet_id' => $p->livraison->id, 'latitude' => 14.71, 'longitude' => -17.45, 'timestamp' => now(),
         ]);
         $this->assertNombres($this->en($p->acheteur)->getJson("/api/livraisons/{$p->livraison->id}/position")->assertOk(),
             ['origine.latitude', 'origine.longitude', 'destination.latitude', 'destination.longitude', 'position.latitude']);
