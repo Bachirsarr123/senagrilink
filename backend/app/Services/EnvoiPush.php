@@ -61,14 +61,15 @@ class EnvoiPush
         return $reussis;
     }
 
-    /** Compte de service décodé, ou null si absent ou illisible. */
+    /** Compte de service décodé (base64, ou fichier JSON collé tel quel), ou null si absent ou illisible. */
     private static function compte(): ?array
     {
-        $brut = config('services.firebase.credentials_base64');
-        if (! $brut) {
+        $brut = trim((string) config('services.firebase.credentials_base64'));
+        if ($brut === '') {
             return null;
         }
-        $compte = json_decode(base64_decode($brut, true) ?: '', true);
+        $json = str_starts_with($brut, '{') ? $brut : (base64_decode($brut, true) ?: '');
+        $compte = json_decode($json, true);
 
         return isset($compte['project_id'], $compte['client_email'], $compte['private_key']) ? $compte : null;
     }

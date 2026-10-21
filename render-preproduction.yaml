@@ -25,7 +25,7 @@ services:
     name: senagrilink-backend-preprod
     runtime: docker
     repo: https://github.com/Bachirsarr123/senagrilink
-    branch: claude/livraison-preproduction
+    branch: claude/lot7-recette-mise-en-ligne
     autoDeployTrigger: off
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
@@ -81,6 +81,11 @@ services:
       - key: DB_SSLMODE
         value: require
 
+      # Lot 6 : notifications push. Clé privée du compte de service Firebase, encodée en base64.
+      # SECRÈTE : à coller par vous dans Render. Vide = pas de push (notifications visibles dans l'appli).
+      - key: FIREBASE_CREDENTIALS_BASE64
+        sync: false
+
       - key: CACHE_STORE
         value: file
       - key: FILESYSTEM_DISK
@@ -104,7 +109,7 @@ services:
     name: senagrilink-frontend-preprod
     runtime: static
     repo: https://github.com/Bachirsarr123/senagrilink
-    branch: claude/livraison-preproduction
+    branch: claude/lot7-recette-mise-en-ligne
     autoDeployTrigger: off
     buildCommand: cd frontend-web && npm ci && npm run build -- --configuration production
     staticPublishPath: ./frontend-web/dist/sen-agri-link/browser

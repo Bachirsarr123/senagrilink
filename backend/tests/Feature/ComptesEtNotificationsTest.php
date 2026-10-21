@@ -158,4 +158,19 @@ class ComptesEtNotificationsTest extends TestCase
         $ex = collect($this->en($this->admin)->getJson('/api/admin/exceptions')->json('exceptions'))->firstWhere('categorie', 'compte');
         $this->assertSame('Compte transporteur à valider', $ex['message']);
     }
+
+    public function test_compte_firebase_accepte_le_json_colle_ou_le_base64_avec_retours_a_la_ligne(): void
+    {
+        $compte = new \ReflectionMethod(\App\Services\EnvoiPush::class, 'compte');
+        $json = json_encode(['project_id' => 'p', 'client_email' => 'e@p.iam.gserviceaccount.com', 'private_key' => 'k']);
+
+        foreach (["  $json\n", chunk_split(base64_encode($json), 20, "\n")] as $valeur) {
+            config(['services.firebase.credentials_base64' => $valeur]);
+            $this->assertSame('p', $compte->invoke(null)['project_id'] ?? null);
+        }
+        foreach (['', '   ', 'pas du base64 !'] as $valeur) {
+            config(['services.firebase.credentials_base64' => $valeur]);
+            $this->assertNull($compte->invoke(null));
+        }
+    }
 }
