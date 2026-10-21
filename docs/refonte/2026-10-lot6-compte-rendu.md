@@ -63,4 +63,8 @@ Sans ces réglages, tout fonctionne comme aujourd'hui : les notifications resten
 
 ## 6. Vérifications GitHub sur la branche
 
-À compléter après l'exécution des vérifications sur la branche poussée.
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16 (concurrence comprise), cycle des migrations 000023 → 000018, garde de démarrage (exécution 39666537115) | `d892d09` | **Réussi** |
+| Site : tests et compilation de production (exécution 39666537002) | `d892d09` | **Réussi** |
+| Mobile : analyse, tests, **APK de test construit avec les paquets Firebase** et contrôlé, sans publication (exécution 39666537214) | `d892d09` | **Réussi** |
