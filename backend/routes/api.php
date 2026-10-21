@@ -101,6 +101,9 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::post('/utilisateurs',            [\App\Http\Controllers\Api\AdminController::class, 'storeUtilisateur'])->middleware('idempotence');
         Route::put('/utilisateurs/{id}/bloquer',   [\App\Http\Controllers\Api\AdminController::class, 'bloquer']);
         Route::put('/utilisateurs/{id}/debloquer', [\App\Http\Controllers\Api\AdminController::class, 'debloquer']);
+        Route::put('/utilisateurs/{id}/valider',   [\App\Http\Controllers\Api\AdminController::class, 'valider']);
+        Route::put('/utilisateurs/{id}/refuser',   [\App\Http\Controllers\Api\AdminController::class, 'refuser']);
+        Route::get('/journal',                     [\App\Http\Controllers\Api\AdminController::class, 'journal']);
         Route::get('/dashboard',               [\App\Http\Controllers\Api\AdminController::class, 'dashboard']);
         Route::get('/exceptions',              [\App\Http\Controllers\Api\TableauController::class, 'exceptions']);
     });
@@ -135,4 +138,9 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     // ── Notifications (communes à tous les rôles authentifiés) ────────────────
     Route::get('/notifications',            [\App\Http\Controllers\Api\NotificationController::class, 'index']);
     Route::put('/notifications/{id}/lue',   [\App\Http\Controllers\Api\NotificationController::class, 'marquerLue']);
+    Route::put('/notifications/lues',       [\App\Http\Controllers\Api\NotificationController::class, 'toutMarquerLu']);
+
+    // ── Appareils joignables par notification Firebase (lot 6) ───────────────
+    Route::post('/appareils',               [\App\Http\Controllers\Api\NotificationController::class, 'enregistrerAppareil']);
+    Route::delete('/appareils',             [\App\Http\Controllers\Api\NotificationController::class, 'retirerAppareil']);
 });

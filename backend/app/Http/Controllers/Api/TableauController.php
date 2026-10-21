@@ -110,6 +110,12 @@ class TableauController extends Controller
             $ajouter('basse', 'stock', $s->produit, sprintf('Stock sous le seuil à %s : %s kg disponibles', $s->entrepot?->nom_entrepot, (float) $s->quantite_disponible), null, ['sujet_type' => 'stock', 'sujet_id' => $s->id]);
         }
 
+        foreach (Utilisateur::where('statut', Utilisateur::EN_ATTENTE)->orderBy('id')->get() as $u) {
+            $ajouter('moyenne', 'compte', trim($u->prenom.' '.$u->nom), sprintf('Compte %s à valider', $u->role === 'transporteur' ? 'transporteur' : 'gestionnaire d\'entrepôt'),
+                HistoriqueOperation::where('sujet_type', 'utilisateur')->where('sujet_id', $u->id)->where('action', 'inscription')->value('created_at'),
+                ['sujet_type' => 'utilisateur', 'sujet_id' => $u->id]);
+        }
+
         $ordre = ['haute' => 0, 'moyenne' => 1, 'basse' => 2];
         $liste = $e->sortBy([fn ($a, $b) => $ordre[$a['gravite']] <=> $ordre[$b['gravite']], fn ($a, $b) => ($a['depuis'] ?? 'z') <=> ($b['depuis'] ?? 'z')])->values();
 

@@ -10,7 +10,9 @@ use App\Models\AcheteurGros;
 use App\Models\Entrepot;
 use App\Models\Producteur;
 use App\Models\Transporteur;
+use App\Models\HistoriqueOperation;
 use App\Models\Utilisateur;
+use App\Notifications\OperationModifieeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +35,23 @@ class AuthController extends Controller
         ]);
 
         $this->creerProfil($utilisateur, $request);
+        HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'inscription', $utilisateur, null, $utilisateur->statut, null, ['role' => $utilisateur->role]);
+
+        // Q9 : gestionnaires et transporteurs attendent la validation de l'administrateur, sans session ouverte.
+        if (in_array($utilisateur->role, Utilisateur::ROLES_A_VALIDER, true)) {
+            $utilisateur->update(['statut' => Utilisateur::EN_ATTENTE]);
+            foreach (Utilisateur::where('role', 'administrateur')->where('statut', Utilisateur::ACTIF)->get() as $admin) {
+                $admin->notify(new OperationModifieeNotification('compte_a_valider', sprintf(
+                    'Nouveau compte à valider : %s %s (%s).', $utilisateur->prenom, $utilisateur->nom, $utilisateur->role === 'transporteur' ? 'transporteur' : 'gestionnaire d\'entrepôt',
+                ), ['utilisateur_id' => $utilisateur->id]));
+            }
+
+            return response()->json([
+                'message'             => 'Compte créé. Il sera activé après validation par l\'administrateur : vous serez prévenu.',
+                'en_attente_validation' => true,
+                'utilisateur'         => $utilisateur->only(['id', 'nom', 'prenom', 'email', 'role', 'statut']),
+            ], 201);
+        }
 
         $token = $utilisateur->createToken('auth_token')->plainTextToken;
 
@@ -50,16 +69,20 @@ class AuthController extends Controller
         $utilisateur = Utilisateur::where('email', $request->email)->first();
 
         if (! $utilisateur || ! Hash::check($request->mot_de_passe, $utilisateur->mot_de_passe)) {
+            if ($utilisateur) {
+                HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'echec_connexion', null);
+            }
+
             return response()->json(['message' => 'Identifiants incorrects.'], 401);
         }
 
-        if ($utilisateur->statut === 'bloque') {
-            return response()->json([
-                'message' => 'Votre compte a été bloqué. Contactez l\'administrateur.',
-                'code'    => 'compte_bloque',
-            ], 403);
+        if ($refus = $utilisateur->refusConnexion()) {
+            HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'connexion_refusee', $utilisateur, null, null, null, ['statut' => $utilisateur->statut]);
+
+            return response()->json($refus, 403);
         }
 
+        HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'connexion', $utilisateur);
         $token = $utilisateur->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -73,6 +96,11 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
+        // L'appareil qui se déconnecte ne reçoit plus de notifications pour ce compte.
+        if ($request->filled('jeton_appareil')) {
+            $request->user()->appareils()->where('jeton', $request->input('jeton_appareil'))->delete();
+        }
+        HistoriqueOperation::consigner('utilisateur', $request->user()->id, 'deconnexion', $request->user());
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Déconnexion réussie.']);
@@ -97,7 +125,14 @@ class AuthController extends Controller
         }
 
         DB::transaction(function () use ($utilisateur, $request) {
+            $avant = $utilisateur->only(['nom', 'prenom', 'email', 'telephone', 'adresse']);
             $utilisateur->update($request->only(['nom', 'prenom', 'email', 'telephone', 'adresse', 'photo']));
+            $champs = array_keys(array_diff_assoc($utilisateur->only(array_keys($avant)), $avant));
+            if ($champs || $request->filled('mot_de_passe')) {
+                // Journal : quels champs ont changé (jamais les valeurs du mot de passe).
+                HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'modification_profil', $utilisateur, null, null, null,
+                    ['champs' => array_values(array_merge($champs, $request->filled('mot_de_passe') ? ['mot_de_passe'] : []))]);
+            }
 
             // P-17 — le nouveau mot de passe était ignoré alors que l'écran affichait
             // un succès. Les autres sessions sont révoquées ; celle-ci reste ouverte.

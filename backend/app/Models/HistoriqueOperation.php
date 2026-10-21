@@ -17,7 +17,7 @@ class HistoriqueOperation extends Model
 
     protected $fillable = [
         'sujet_type', 'sujet_id', 'action', 'ancien_statut', 'nouveau_statut',
-        'details', 'motif', 'utilisateur_id',
+        'details', 'motif', 'utilisateur_id', 'adresse_ip',
     ];
 
     protected $casts = ['details' => 'array'];
@@ -46,6 +46,8 @@ class HistoriqueOperation extends Model
             'motif'          => $motif,
             'details'        => $details ?: null,
             'utilisateur_id' => $auteur?->id,
+            // Journal d'audit (lot 6) : adresse de la requête, hors console et tests unitaires.
+            'adresse_ip'     => app()->runningInConsole() && ! app()->runningUnitTests() ? null : request()?->ip(),
         ]);
     }
 }

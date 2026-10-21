@@ -7,7 +7,8 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Refuse toute requête authentifiée d'un compte bloqué, même avec un jeton
+ * Refuse toute requête authentifiée d'un compte qui n'est pas actif (bloqué,
+ * en attente de validation ou refusé), même avec un jeton
  * délivré avant le blocage. Complète la révocation des jetons faite par
  * AdminController::bloquer() (défense en profondeur).
  */
@@ -15,12 +16,10 @@ class EnsureCompteActif
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()?->statut === 'bloque') {
-            return response()->json([
-                'message' => 'Votre compte a été bloqué. Contactez l\'administrateur.',
-                // Code stable : les clients distinguent ce cas d'un simple refus de permission
-                'code'    => 'compte_bloque',
-            ], 403);
+        // Bloqué, en attente de validation (lot 6) ou refusé : aucune action possible.
+        // Code stable : les clients distinguent ces cas d'un simple refus de permission.
+        if ($refus = $request->user()?->refusConnexion()) {
+            return response()->json($refus, 403);
         }
 
         return $next($request);

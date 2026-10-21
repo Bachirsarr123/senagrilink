@@ -54,6 +54,12 @@ return [
         'delai_s'      => (int) env('ROUTAGE_DELAI_S', 4),
     ],
 
+    // Lot 6 (Q15) : notifications sur téléphone. Fichier JSON du compte de
+    // service Firebase encodé en base64 ; absent = pas d'envoi (secret Render).
+    'firebase' => [
+        'credentials_base64' => env('FIREBASE_CREDENTIALS_BASE64'),
+    ],
+
     'suivi' => [
         'conservation_jours' => (int) env('SUIVI_CONSERVATION_JOURS', 30),
         'vitesse_defaut_kmh' => (float) env('SUIVI_VITESSE_DEFAUT_KMH', 40),
