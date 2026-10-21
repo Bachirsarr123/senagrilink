@@ -110,4 +110,8 @@
 
 ## 6. Vérifications GitHub sur la branche
 
-À compléter après l'exécution des vérifications sur la branche poussée.
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16 (concurrence comprise), cycle des migrations 000021 → 000018, garde de démarrage (exécution 39621468751) | `ca0735c` | **Réussi** |
+| Site : tests et compilation de production (exécution 39621468685) | `ca0735c` | **Réussi** |
+| Mobile : analyse, tests, garde de signature, APK de test vérifié, sans publication (exécution 39621468724) | `ca0735c` | **Réussi** |
