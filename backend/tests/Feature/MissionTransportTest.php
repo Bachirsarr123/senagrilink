@@ -34,7 +34,7 @@ class MissionTransportTest extends TestCase
     private function reservationConfirmee(): int
     {
         $productionId = $this->en($this->producteur)->postJson('/api/productions', [
-            'type_culture' => 'oignon', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 50,
+            'type_culture' => 'oignon', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 50, 'prix_unitaire' => 250,
         ])->assertStatus(201)->json('production.id');
 
         $rid = $this->en($this->producteur)->postJson('/api/reservations', [
@@ -113,8 +113,9 @@ class MissionTransportTest extends TestCase
             'motif' => 'Mauvais transporteur choisi', 'utilisateur_id' => $this->gestionnaire->id,
         ]);
         $this->en($this->gestionnaire)->getJson('/api/reservations')
-             ->assertJsonPath('reservations.0.historique.1.action', 'reassignation_transporteur')
-             ->assertJsonPath('reservations.0.historique.1.utilisateur.id', $this->gestionnaire->id);
+             // Chaque étape est historisée : création, confirmation, assignation, réassignation
+             ->assertJsonPath('reservations.0.historique.*.action', ['creation', 'confirmation', 'assignation_transporteur', 'reassignation_transporteur'])
+             ->assertJsonPath('reservations.0.historique.3.utilisateur.id', $this->gestionnaire->id);
         // Le transporteur ne reçoit pas l'historique (qui cite d'autres transporteurs)
         $this->en($this->transporteurB)->getJson('/api/reservations')->assertJsonMissingPath('reservations.0.historique');
 

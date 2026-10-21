@@ -17,7 +17,9 @@ class StoreReservationRequest extends FormRequest
     {
         return [
             'entrepot_id'       => ['required', 'integer', 'exists:entrepots,id'],
-            'production_id'     => ['nullable', 'integer', $this->regleProductionDuProducteur()],
+            // Toute marchandise déposée est un lot enregistré : le stock reste relié à
+            // sa récolte, à son prix et à sa traçabilité.
+            'production_id'     => ['required', 'integer', $this->regleProductionDuProducteur()],
             'produit'           => ['required', 'string', 'max:150'],
             'quantite_reservee' => ['required', 'numeric', 'min:0.01'],
             'date_debut'        => ['required', 'date'],
@@ -47,6 +49,7 @@ class StoreReservationRequest extends FormRequest
         return [
             'entrepot_id.required'       => 'L\'entrepôt à réserver est obligatoire.',
             'entrepot_id.exists'         => 'L\'entrepôt sélectionné est introuvable.',
+            'production_id.required'     => 'Choisissez la récolte (lot) à déposer.',
             'production_id.exists'       => 'La production référencée est introuvable (ou annulée) parmi vos productions.',
             'produit.required'           => 'Le type de produit est obligatoire.',
             'quantite_reservee.required' => 'La quantité à réserver est obligatoire.',

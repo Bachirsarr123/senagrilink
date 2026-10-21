@@ -7,6 +7,7 @@ use App\Http\Requests\AdminStoreUtilisateurRequest;
 use App\Models\AcheteurGros;
 use App\Models\Commande;
 use App\Models\Entrepot;
+use App\Models\HistoriqueOperation;
 use App\Models\Livraison;
 use App\Models\Producteur;
 use App\Models\Production;
@@ -60,6 +61,7 @@ class AdminController extends Controller
         ]);
 
         $this->creerProfil($utilisateur, $request);
+        HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'creation_par_admin', $request->user(), null, 'actif', null, ['role' => $utilisateur->role]);
 
         return response()->json([
             'message'     => 'Utilisateur créé avec succès.',
@@ -85,7 +87,7 @@ class AdminController extends Controller
 
         // Bloquer le compte et révoquer tous ses jetons Sanctum (web, mobile...) :
         // sans cela, les sessions déjà ouvertes restaient utilisables.
-        $refus = DB::transaction(function () use ($utilisateur) {
+        $refus = DB::transaction(function () use ($utilisateur, $request) {
             // R8 — les administrateurs actifs sont verrouillés (ordre stable, sans
             // interblocage) puis recomptés : deux blocages croisés simultanés ne
             // peuvent pas laisser la plateforme sans administrateur actif.
@@ -110,6 +112,7 @@ class AdminController extends Controller
             $cible->save();
             $cible->tokens()->delete();
             $utilisateur->statut = 'bloque';
+            HistoriqueOperation::consigner('utilisateur', $cible->id, 'blocage', $request->user(), 'actif', 'bloque', $request->input('motif'));
 
             return null;
         });
@@ -137,6 +140,7 @@ class AdminController extends Controller
 
         $utilisateur->statut = 'actif';
         $utilisateur->save();
+        HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'deblocage', $request->user(), 'bloque', 'actif', $request->input('motif'));
 
         return response()->json([
             'message'     => 'Compte débloqué.',

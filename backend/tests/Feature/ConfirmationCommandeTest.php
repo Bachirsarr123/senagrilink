@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 /**
- * H1 — une commande n'est confirmée (et le stock déduit) qu'une seule fois.
+ * H1 — une commande n'est confirmée (et sa quantité réservée) qu'une seule fois.
+ * La confirmation réserve : le stock physique ne bouge pas, le disponible baisse.
  *
  * Ces tests sont séquentiels : ils prouvent la revérification dans la
  * transaction, pas le verrouillage. SQLite ignore FOR UPDATE ; la concurrence
@@ -75,23 +76,27 @@ class ConfirmationCommandeTest extends TestCase
         $this->confirmer()->assertOk()->assertJsonPath('stock_restant', 80);
         $this->confirmer()->assertStatus(422)->assertJsonPath('statut_actuel', 'confirmee');
 
-        $this->assertEquals(80, $this->stock->fresh()->quantite);
+        $stock = $this->stock->fresh();
+        $this->assertEquals(90, $stock->quantite);
+        $this->assertEquals(10, $stock->quantite_reservee);
+        $this->assertSame('reserve', $this->commande->fresh()->etat_stock);
+        $this->assertSame(1, $stock->mouvements()->where('type', 'reservation')->count());
     }
 
     public function test_statut_reverifie_dans_la_transaction(): void
     {
         // Une confirmation concurrente aboutit entre nos contrôles préalables et
-        // notre transaction : elle a déjà confirmé et déduit 10.
+        // notre transaction : elle a déjà confirmé et réservé 10.
         $this->avantLaTransaction(function () {
             DB::table('commandes')->where('id', $this->commande->id)->update(['statut' => 'confirmee']);
-            DB::table('stocks')->where('id', $this->stock->id)->decrement('quantite', 10);
+            DB::table('stocks')->where('id', $this->stock->id)->increment('quantite_reservee', 10);
         });
 
         $this->confirmer()
              ->assertStatus(422)
              ->assertJsonPath('statut_actuel', 'confirmee');
 
-        $this->assertEquals(80, $this->stock->fresh()->quantite); // et non 70
+        $this->assertEquals(10, $this->stock->fresh()->quantite_reservee); // et non 20
     }
 
     public function test_quantite_reverifiee_dans_la_transaction(): void
@@ -107,13 +112,35 @@ class ConfirmationCommandeTest extends TestCase
         $this->assertSame('en_attente', $this->commande->fresh()->statut);
     }
 
-    public function test_confirmation_qui_epuise_le_stock(): void
+    public function test_confirmation_qui_reserve_tout_le_disponible(): void
     {
         $this->commande->update(['quantite' => 90]);
 
         $this->confirmer()->assertOk()->assertJsonPath('stock_restant', 0);
 
-        $this->assertSame('epuise', $this->stock->fresh()->statut);
+        // Physiquement encore en entrepôt (statut disponible), mais plus rien à vendre.
+        $stock = $this->stock->fresh();
+        $this->assertSame('disponible', $stock->statut);
+        $this->assertEquals(0, $stock->quantite_disponible);
         $this->assertSame('confirmee', $this->commande->fresh()->statut);
+    }
+
+    public function test_reservations_cumulees_ne_depassent_pas_le_stock(): void
+    {
+        $autre = Commande::create([
+            'acheteur_id' => $this->commande->acheteur_id, 'stock_id' => $this->stock->id, 'produit' => 'riz',
+            'quantite' => 85, 'date_commande' => now(), 'statut' => 'en_attente',
+        ]);
+
+        $this->confirmer()->assertOk();
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($this->gestionnaire->createToken('test')->plainTextToken)
+             ->putJson("/api/commandes/{$autre->id}/confirmer")
+             ->assertStatus(422)
+             ->assertJsonPath('quantite_disponible', 80);
+
+        $this->assertEquals(10, $this->stock->fresh()->quantite_reservee);
+        $this->assertSame('en_attente', $autre->fresh()->statut);
     }
 }

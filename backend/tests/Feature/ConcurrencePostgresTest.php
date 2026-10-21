@@ -84,8 +84,8 @@ class ConcurrencePostgresTest extends TestCase
 
         $fin = $this->transactionConcurrente([
             "SELECT id FROM commandes WHERE id = {$commande->id} FOR UPDATE",
-            "UPDATE commandes SET statut = 'confirmee' WHERE id = {$commande->id}",
-            "UPDATE stocks SET quantite = quantite - 10 WHERE id = {$p->stock->id}",
+            "UPDATE commandes SET statut = 'confirmee', etat_stock = 'reserve' WHERE id = {$commande->id}",
+            "UPDATE stocks SET quantite_reservee = quantite_reservee + 10 WHERE id = {$p->stock->id}",
         ]);
 
         $debut = microtime(true);
@@ -96,7 +96,7 @@ class ConcurrencePostgresTest extends TestCase
         $fin();
 
         $this->assertGreaterThan(0.5, $attente, 'La requête aurait dû attendre le verrou.');
-        $this->assertEquals(70, Stock::find($p->stock->id)->quantite); // déduit une seule fois
+        $this->assertEquals(10, Stock::find($p->stock->id)->quantite_reservee); // réservé une seule fois
     }
 
     public function test_h1_deux_commandes_sur_le_meme_stock_sans_mise_a_jour_perdue(): void
@@ -107,8 +107,8 @@ class ConcurrencePostgresTest extends TestCase
 
         $fin = $this->transactionConcurrente([
             "SELECT id FROM stocks WHERE id = {$p->stock->id} FOR UPDATE",
-            "UPDATE commandes SET statut = 'confirmee' WHERE id = {$c1->id}",
-            "UPDATE stocks SET quantite = quantite - 10 WHERE id = {$p->stock->id}",
+            "UPDATE commandes SET statut = 'confirmee', etat_stock = 'reserve' WHERE id = {$c1->id}",
+            "UPDATE stocks SET quantite_reservee = quantite_reservee + 10 WHERE id = {$p->stock->id}",
         ]);
 
         $this->en($p->gestionnaire)->putJson("/api/commandes/{$c2->id}/confirmer")
@@ -116,7 +116,7 @@ class ConcurrencePostgresTest extends TestCase
              ->assertJsonPath('stock_restant', 60);
         $fin();
 
-        $this->assertEquals(60, Stock::find($p->stock->id)->quantite); // 80 - 10 - 10
+        $this->assertEquals(20, Stock::find($p->stock->id)->quantite_reservee); // 10 + 10, aucune réservation perdue
     }
 
     public function test_r8_blocage_croise_garde_un_administrateur_actif(): void
@@ -171,24 +171,25 @@ class ConcurrencePostgresTest extends TestCase
         $this->assertSame($avant + 1, Stock::count()); // une seule ligne de stock pour le lot
     }
 
-    public function test_p08_sortie_de_stock_sans_mise_a_jour_perdue(): void
+    public function test_p08_ajustement_sans_mise_a_jour_perdue(): void
     {
-        $p = $this->parcours(); // stock de 80 kg
+        $p = $this->parcours(); // stock de 80 kg, rien de réservé
 
-        // Une confirmation de commande déduit 10 kg sous verrou
+        // Une confirmation de commande réserve 10 kg sous verrou
         $fin = $this->transactionConcurrente([
             "SELECT id FROM stocks WHERE id = {$p->stock->id} FOR UPDATE",
-            "UPDATE stocks SET quantite = quantite - 10 WHERE id = {$p->stock->id}",
+            "UPDATE stocks SET quantite_reservee = quantite_reservee + 10 WHERE id = {$p->stock->id}",
         ]);
 
-        // Sortie de 75 kg : possible sur l'ancienne lecture (80), impossible sur la réelle (70)
+        // Retrait de 75 kg : possible sur l'ancienne lecture (80 disponibles), impossible sur la réelle (70)
         $attente = $this->chrono(fn () => $this->en($p->gestionnaire)
-            ->postJson('/api/stocks/sortie', ['stock_id' => $p->stock->id, 'quantite_sortie' => 75])
+            ->postJson("/api/stocks/{$p->stock->id}/ajustement", ['motif_type' => 'perte', 'sens' => 'retrait', 'quantite' => 75, 'motif' => 'x'])
             ->assertStatus(422));
         $fin();
 
         $this->assertGreaterThan(0.5, $attente);
-        $this->assertEquals(70, Stock::find($p->stock->id)->quantite);
+        $stock = Stock::find($p->stock->id);
+        $this->assertEquals([80.0, 10.0], [$stock->quantite, $stock->quantite_reservee]);
     }
 
     public function test_p10_capacite_dentrepot_non_depassee_par_deux_demandes_simultanees(): void
@@ -206,7 +207,7 @@ class ConcurrencePostgresTest extends TestCase
         ]);
 
         $attente = $this->chrono(fn () => $this->en($p->producteur)->postJson('/api/reservations', [
-            'entrepot_id' => $p->gestionnaire->entrepot->id, 'produit' => 'riz', 'quantite_reservee' => 60, 'date_debut' => '2026-06-02',
+            'entrepot_id' => $p->gestionnaire->entrepot->id, 'production_id' => $prod->id, 'produit' => 'riz', 'quantite_reservee' => 60, 'date_debut' => '2026-06-02',
         ])->assertStatus(422));
         $fin();
 

@@ -16,7 +16,8 @@ class StoreCommandeRequest extends FormRequest
         return [
             'stock_id' => ['required', 'integer', 'exists:stocks,id'],
             'quantite' => ['required', 'numeric', 'min:0.01'],
-            'prix'     => ['nullable', 'numeric', 'min:0'],
+            // Le prix n'est jamais saisi par l'acheteur : il vient du lot (producteur).
+            'prix'     => ['prohibited'],
         ];
     }
 
@@ -27,6 +28,7 @@ class StoreCommandeRequest extends FormRequest
             'stock_id.exists'   => 'Le produit sélectionné est introuvable en stock.',
             'quantite.required' => 'La quantité est obligatoire.',
             'quantite.min'      => 'La quantité doit être supérieure à zéro.',
+            'prix.prohibited'   => 'Le prix est fixé par le producteur du lot : il ne peut pas être saisi.',
         ];
     }
 }

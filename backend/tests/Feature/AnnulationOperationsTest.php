@@ -50,11 +50,11 @@ class AnnulationOperationsTest extends TestCase
         $this->assertContains('commande_refus', $this->en($p->acheteur)->getJson('/api/notifications')->json('notifications.*.data.type'));
     }
 
-    public function test_annulation_dune_confirmation_remet_la_quantite_en_stock(): void
+    public function test_annulation_dune_confirmation_libere_la_reservation(): void
     {
         $p = $this->stockEtCommande();
         $this->en($p->gestionnaire)->putJson("/api/commandes/{$p->commande->id}/confirmer")->assertOk();
-        $this->assertSame('epuise', $p->stock->fresh()->statut);
+        $this->assertEquals(0, $p->stock->fresh()->quantite_disponible);
 
         // L'acheteur ne peut plus annuler une commande confirmée
         $this->en($p->acheteur)->deleteJson("/api/commandes/{$p->commande->id}")->assertStatus(422);
@@ -64,11 +64,14 @@ class AnnulationOperationsTest extends TestCase
 
         $stock = $p->stock->fresh();
         $this->assertSame(10.0, (float) $stock->quantite);
+        $this->assertSame(0.0, (float) $stock->quantite_reservee);
         $this->assertSame('disponible', $stock->statut);
-        $this->assertNull($stock->date_sortie);
+        $this->assertSame('libere', $p->commande->fresh()->etat_stock);
+        $this->assertSame(['reservation', 'liberation'], $stock->mouvements()->pluck('type')->all());
 
-        // Double annulation : refusée, le stock n'est pas recrédité deux fois
+        // Double annulation : refusée, la réservation n'est pas libérée deux fois
         $this->en($p->gestionnaire)->putJson("/api/commandes/{$p->commande->id}/annuler-confirmation", ['motif' => 'x'])->assertStatus(422);
+        $this->assertSame(0.0, (float) $p->stock->fresh()->quantite_reservee);
         $this->assertSame(10.0, (float) $p->stock->fresh()->quantite);
     }
 

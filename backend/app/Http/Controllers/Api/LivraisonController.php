@@ -13,12 +13,17 @@ use App\Models\Transporteur;
 use App\Notifications\LivraisonEnCoursNotification;
 use App\Notifications\LivraisonTermineeNotification;
 use App\Notifications\OperationModifieeNotification;
+use App\Services\GestionStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class LivraisonController extends Controller
 {
+    public function __construct(private readonly GestionStock $gestionStock)
+    {
+    }
+
     // ── Gestionnaire d'entrepôt ───────────────────────────────────────────────
 
     /**
@@ -76,7 +81,7 @@ class LivraisonController extends Controller
                 ], 422);
             }
 
-            return Livraison::create([
+            $livraison = Livraison::create([
                 'commande_id'            => $c->id,
                 'transporteur_id'        => $request->transporteur_id,
                 'origine'                => $request->origine,
@@ -86,6 +91,12 @@ class LivraisonController extends Controller
                 'date_depart'            => $request->date_depart,
                 'statut'                 => 'en_attente',
             ]);
+
+            HistoriqueOperation::consigner('livraison', $livraison->id, 'creation', $request->user(), null, 'en_attente', null, [
+                'commande_id' => $c->id, 'transporteur_id' => $livraison->transporteur_id,
+            ]);
+
+            return $livraison;
         });
 
         if ($livraison instanceof JsonResponse) {
@@ -224,6 +235,8 @@ class LivraisonController extends Controller
     /**
      * Mettre à jour le statut d'une livraison.
      * Transitions valides : en_attente → en_cours → livree.
+     * Au départ (en_cours), la quantité réservée de la commande sort du stock,
+     * une seule fois ; à la livraison, la commande passe à « livree ».
      * Le statut probleme est géré via signalerProbleme().
      */
     public function updateStatut(UpdateStatutLivraisonRequest $request, int $id): JsonResponse
@@ -261,14 +274,29 @@ class LivraisonController extends Controller
                 ], 422);
             }
 
-            $l->statut = $nouveauStatut;
+            $ancienStatut = $l->statut;
+            $l->statut    = $nouveauStatut;
+            $commande     = Commande::whereKey($l->commande_id)->lockForUpdate()->first();
+
+            if ($nouveauStatut === 'en_cours' && $commande?->etat_stock === 'reserve' && $commande->stock_id) {
+                $this->gestionStock->sortirReserve($commande->stock_id, (float) $commande->quantite, $request->user(), 'livraison', $l->id);
+                $commande->etat_stock = 'sorti';
+                $commande->save();
+            }
 
             // Horodatage automatique à la livraison
             if ($nouveauStatut === 'livree') {
                 $l->date_livraison = now();
+
+                if ($commande && $commande->statut === 'confirmee') {
+                    $commande->statut = 'livree';
+                    $commande->save();
+                    HistoriqueOperation::consigner('commande', $commande->id, 'livraison', $request->user(), 'confirmee', 'livree');
+                }
             }
 
             $l->save();
+            HistoriqueOperation::consigner('livraison', $l->id, $nouveauStatut === 'en_cours' ? 'depart' : 'livraison', $request->user(), $ancienStatut, $nouveauStatut);
 
             return $l;
         });
@@ -349,8 +377,10 @@ class LivraisonController extends Controller
                 ], 422);
             }
 
-            $l->statut = 'probleme';
+            $ancienStatut = $l->statut;
+            $l->statut    = 'probleme';
             $l->save();
+            HistoriqueOperation::consigner('livraison', $l->id, 'probleme', $request->user(), $ancienStatut, 'probleme', $request->input('motif'));
 
             return $l;
         });

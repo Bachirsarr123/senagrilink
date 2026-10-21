@@ -5,40 +5,50 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCommandeRequest;
 use App\Http\Requests\UpdateCommandeRequest;
+use App\Exceptions\StockInsuffisantException;
 use App\Models\Commande;
 use App\Models\HistoriqueOperation;
 use App\Models\Stock;
 use App\Notifications\CommandeConfirmeeNotification;
 use App\Notifications\NouvelleCommandeNotification;
 use App\Notifications\OperationModifieeNotification;
+use App\Services\GestionStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CommandeController extends Controller
 {
+    public function __construct(private readonly GestionStock $gestionStock)
+    {
+    }
+
     // ── Acheteur en gros ─────────────────────────────────────────────────────
 
     /**
-     * Catalogue : tous les stocks disponibles (quantite > 0) de tous les entrepôts.
+     * Catalogue : stocks ayant une quantité disponible (physique - réservé) et
+     * un prix fixé par le producteur du lot. « quantite » est le disponible.
      */
     public function catalogue(Request $request): JsonResponse
     {
         $stocks = Stock::where('statut', 'disponible')
-            ->where('quantite', '>', 0)
+            ->whereColumn('quantite', '>', 'quantite_reservee')
+            ->whereHas('production', fn ($q) => $q->whereNotNull('prix_unitaire'))
             ->with([
                 'entrepot:id,nom_entrepot,localisation',
-                'production:id,code_tracabilite,type_culture,date_recolte',
+                'production:id,code_tracabilite,type_culture,date_recolte,prix_unitaire',
             ])
             ->orderBy('produit')
             ->get()
             ->map(fn ($stock) => [
-                'stock_id'     => $stock->id,
-                'produit'      => $stock->produit,
-                'quantite'     => $stock->quantite,
-                'date_entree'  => $stock->date_entree,
-                'entrepot'     => $stock->entrepot,
-                'production'   => $stock->production,
+                'stock_id'            => $stock->id,
+                'produit'             => $stock->produit,
+                'quantite'            => $stock->quantite_disponible,
+                'quantite_disponible' => $stock->quantite_disponible,
+                'prix_unitaire'       => $stock->production->prix_unitaire,
+                'date_entree'         => $stock->date_entree,
+                'entrepot'            => $stock->entrepot,
+                'production'          => $stock->production,
             ]);
 
         return response()->json(['catalogue' => $stocks]);
@@ -47,8 +57,9 @@ class CommandeController extends Controller
     /**
      * Passer une commande.
      *
-     * Règle métier 1 : quantite demandée <= quantite disponible en stock.
+     * Règle métier 1 : quantite demandée <= quantité disponible (physique - réservé).
      * Retourne 422 explicite si insuffisant — jamais de commande partielle silencieuse.
+     * Le prix au kilo du lot (fixé par le producteur) est figé sur la commande.
      */
     public function store(StoreCommandeRequest $request): JsonResponse
     {
@@ -58,16 +69,7 @@ class CommandeController extends Controller
             return response()->json(['message' => 'Profil acheteur introuvable.'], 404);
         }
 
-        $stock = Stock::findOrFail($request->stock_id);
-
-        // Règle métier 1 — vérification avant création
-        if ($request->quantite > $stock->quantite) {
-            return response()->json([
-                'message'             => 'Quantité insuffisante en stock. Commande non créée.',
-                'quantite_disponible' => $stock->quantite,
-                'quantite_demandee'   => $request->quantite,
-            ], 422);
-        }
+        $stock = Stock::with('production:id,producteur_id,prix_unitaire')->findOrFail($request->stock_id);
 
         if ($stock->statut !== 'disponible') {
             return response()->json([
@@ -76,14 +78,36 @@ class CommandeController extends Controller
             ], 422);
         }
 
+        // Règle métier 1 — vérification avant création, sur le disponible
+        if ($request->quantite > $stock->quantite_disponible) {
+            return response()->json([
+                'message'             => 'Quantité insuffisante en stock. Commande non créée.',
+                'quantite_disponible' => $stock->quantite_disponible,
+                'quantite_demandee'   => $request->quantite,
+            ], 422);
+        }
+
+        $prixUnitaire = $stock->production?->prix_unitaire;
+
+        if ($prixUnitaire === null) {
+            return response()->json([
+                'message' => 'Le producteur n\'a pas encore fixé le prix de ce lot : il ne peut pas être commandé.',
+            ], 422);
+        }
+
         $commande = Commande::create([
             'acheteur_id'    => $acheteur->id,
             'stock_id'       => $stock->id,
             'produit'        => $stock->produit,
             'quantite'       => $request->quantite,
-            'prix'           => $request->prix,
+            'prix_unitaire'  => $prixUnitaire,
+            'prix'           => round($prixUnitaire * $request->quantite, 2),
             'date_commande'  => now(),
             'statut'         => 'en_attente',
+        ]);
+
+        HistoriqueOperation::consigner('commande', $commande->id, 'creation', $request->user(), null, 'en_attente', null, [
+            'quantite' => (float) $commande->quantite, 'prix_unitaire' => (float) $prixUnitaire, 'montant' => (float) $commande->prix,
         ]);
 
         // Notifie le producteur du lot (s'il existe) et le gestionnaire de l'entrepôt
@@ -106,8 +130,8 @@ class CommandeController extends Controller
     }
 
     /**
-     * Modifier une commande (quantite ou prix).
-     * Uniquement possible si statut = en_attente.
+     * Modifier la quantité d'une commande (le prix au kilo reste celui figé à
+     * la commande ; le montant est recalculé). Uniquement si statut = en_attente.
      */
     public function update(UpdateCommandeRequest $request, int $id): JsonResponse
     {
@@ -134,16 +158,23 @@ class CommandeController extends Controller
             if ($request->has('quantite')) {
                 $stock = Stock::whereKey($c->stock_id)->lockForUpdate()->first();
 
-                if ($request->quantite > $stock->quantite) {
+                if (! $stock || $request->quantite > $stock->quantite_disponible) {
                     return response()->json([
                         'message'             => 'Quantité insuffisante en stock.',
-                        'quantite_disponible' => $stock->quantite,
+                        'quantite_disponible' => $stock?->quantite_disponible ?? 0,
                         'quantite_demandee'   => $request->quantite,
                     ], 422);
                 }
-            }
 
-            $c->update($request->validated());
+                $ancienne     = (float) $c->quantite;
+                $c->quantite  = $request->quantite;
+                $c->prix      = $c->prix_unitaire !== null ? round($c->prix_unitaire * $request->quantite, 2) : $c->prix;
+                $c->save();
+
+                HistoriqueOperation::consigner('commande', $c->id, 'modification', $request->user(), 'en_attente', 'en_attente', null, [
+                    'quantite_avant' => $ancienne, 'quantite_apres' => (float) $c->quantite,
+                ]);
+            }
 
             return null;
         });
@@ -234,8 +265,9 @@ class CommandeController extends Controller
     /**
      * Confirmer une commande en_attente.
      *
-     * Règle métier 1 : quantité stock >= quantité commandée, sinon 422.
-     * Règle métier 2 : déduction atomique du stock lors de la confirmation.
+     * Règle métier 1 : quantité disponible >= quantité commandée, sinon 422.
+     * Règle métier 2 : la confirmation RÉSERVE la quantité (atomique) ; elle
+     * ne sortira physiquement du stock qu'au départ de la livraison.
      */
     public function confirmer(Request $request, int $id): JsonResponse
     {
@@ -261,19 +293,10 @@ class CommandeController extends Controller
             ], 422);
         }
 
-        // Règle métier 1 — re-vérification au moment de la confirmation
-        if ($commande->quantite > $stock->quantite) {
-            return response()->json([
-                'message'             => 'Stock insuffisant pour confirmer cette commande.',
-                'quantite_disponible' => $stock->quantite,
-                'quantite_demandee'   => $commande->quantite,
-            ], 422);
-        }
-
-        // Règle métier 2 — transaction atomique : confirmation + déduction stock.
+        // Règle métier 2 — transaction atomique : confirmation + réservation.
         // Commande et stock sont verrouillés (FOR UPDATE) puis revérifiés : deux
-        // confirmations simultanées ne peuvent pas déduire deux fois la quantité.
-        $refus = DB::transaction(function () use ($commande, &$stock) {
+        // confirmations simultanées ne peuvent pas réserver deux fois la quantité.
+        $refus = DB::transaction(function () use ($commande, &$stock, $request) {
             $commandeVerrouillee = Commande::whereKey($commande->id)->lockForUpdate()->first();
 
             if ($commandeVerrouillee->statut !== 'en_attente') {
@@ -283,27 +306,25 @@ class CommandeController extends Controller
                 ], 422);
             }
 
-            $stock = Stock::whereKey($commandeVerrouillee->stock_id)->lockForUpdate()->first();
-
-            if (! $stock || $commandeVerrouillee->quantite > $stock->quantite) {
+            try {
+                $stock = $this->gestionStock->reserver(
+                    $commandeVerrouillee->stock_id, (float) $commandeVerrouillee->quantite, $request->user(), 'commande', $commandeVerrouillee->id,
+                );
+            } catch (StockInsuffisantException $e) {
                 return response()->json([
                     'message'             => 'Stock insuffisant pour confirmer cette commande.',
-                    'quantite_disponible' => $stock?->quantite,
-                    'quantite_demandee'   => $commandeVerrouillee->quantite,
+                    'quantite_disponible' => $e->disponible,
+                    'quantite_demandee'   => $e->demandee,
                 ], 422);
             }
 
-            $commandeVerrouillee->statut = 'confirmee';
+            $commandeVerrouillee->statut     = 'confirmee';
+            $commandeVerrouillee->etat_stock = 'reserve';
             $commandeVerrouillee->save();
 
-            $stock->quantite -= $commandeVerrouillee->quantite;
-
-            if ($stock->quantite == 0) {
-                $stock->statut      = 'epuise';
-                $stock->date_sortie = now()->toDateString();
-            }
-
-            $stock->save();
+            HistoriqueOperation::consigner('commande', $commandeVerrouillee->id, 'confirmation', $request->user(), 'en_attente', 'confirmee', null, [
+                'quantite_reservee' => (float) $commandeVerrouillee->quantite,
+            ]);
 
             return null;
         });
@@ -315,9 +336,9 @@ class CommandeController extends Controller
         $commande->acheteur?->utilisateur?->notify(new CommandeConfirmeeNotification($commande));
 
         return response()->json([
-            'message'       => 'Commande confirmée. Stock mis à jour.',
+            'message'       => 'Commande confirmée. Quantité réservée dans le stock.',
             'commande'      => $commande->fresh()->load('stock'),
-            'stock_restant' => $stock->quantite,
+            'stock_restant' => $stock->quantite_disponible,
         ]);
     }
 
@@ -364,13 +385,13 @@ class CommandeController extends Controller
 
     /**
      * Annulation par l'entrepôt d'une commande confirmée par erreur, tant
-     * qu'aucune livraison n'a été créée : la quantité déduite est remise en stock.
+     * qu'aucune livraison n'a été créée : la quantité réservée est libérée.
      */
     public function annulerConfirmation(Request $request, int $id): JsonResponse
     {
         $request->validate(['motif' => ['required', 'string', 'max:500']], ['motif.required' => 'Indiquez le motif de l\'annulation.']);
 
-        return $this->annulerParLEntrepot($request, $id, 'confirmee', 'annulation_confirmation', 'Commande annulée, quantité remise en stock. L\'acheteur a été notifié.');
+        return $this->annulerParLEntrepot($request, $id, 'confirmee', 'annulation_confirmation', 'Commande annulée, quantité réservée libérée. L\'acheteur a été notifié.');
     }
 
     private function annulerParLEntrepot(Request $request, int $id, string $depuis, string $action, string $messageSucces): JsonResponse
@@ -405,25 +426,17 @@ class CommandeController extends Controller
                     ], 422);
                 }
 
-                // Inverse exact de confirmer() : la quantité déduite revient au stock.
-                $stock = Stock::whereKey($c->stock_id)->lockForUpdate()->first();
-
-                if ($stock) {
-                    $stock->quantite += $c->quantite;
-
-                    if ($stock->statut === 'epuise' && $stock->quantite > 0) {
-                        $stock->statut      = 'disponible';
-                        $stock->date_sortie = null;
-                    }
-
-                    $stock->save();
+                // Inverse exact de confirmer() : la quantité réservée est rendue au disponible.
+                if ($c->stock_id && $c->etat_stock === 'reserve') {
+                    $this->gestionStock->liberer($c->stock_id, (float) $c->quantite, $request->user(), 'commande', $c->id, $request->input('motif'));
+                    $c->etat_stock = 'libere';
                 }
             }
 
             $c->statut = 'annulee';
             $c->save();
             HistoriqueOperation::consigner('commande', $c->id, $action, $request->user(), $depuis, 'annulee', $request->input('motif'),
-                $depuis === 'confirmee' ? ['quantite_remise_en_stock' => $c->quantite] : []);
+                $depuis === 'confirmee' ? ['quantite_liberee' => (float) $c->quantite] : []);
 
             return null;
         });

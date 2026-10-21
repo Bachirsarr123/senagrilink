@@ -26,7 +26,7 @@ class StatutProductionTest extends TestCase
 
     private function recolte(array $extra = []): array
     {
-        return array_merge(['type_culture' => 'riz', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 100], $extra);
+        return array_merge(['type_culture' => 'riz', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 100, 'prix_unitaire' => 200], $extra);
     }
 
     public function test_creation_sans_statut_donne_en_attente(): void

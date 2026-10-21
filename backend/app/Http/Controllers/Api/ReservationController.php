@@ -15,12 +15,17 @@ use App\Notifications\ArriveeEntrepotNotification;
 use App\Notifications\MarchandiseEnregistreeNotification;
 use App\Notifications\OperationModifieeNotification;
 use App\Notifications\ReservationConfirmeeNotification;
+use App\Services\GestionStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ReservationController extends Controller
 {
+    public function __construct(private readonly GestionStock $gestionStock)
+    {
+    }
+
     // ── Producteur ─────────────────────────────────────────────────────────────
 
     /**
@@ -65,7 +70,7 @@ class ReservationController extends Controller
                 ], 422);
             }
 
-            return Reservation::create([
+            $reservation = Reservation::create([
                 'entrepot_id'       => $entrepot->id,
                 'producteur_id'     => $producteur->id,
                 'production_id'     => $request->production_id,
@@ -76,6 +81,12 @@ class ReservationController extends Controller
                 'date_reservation'  => now(),
                 'statut'            => 'en_attente',
             ]);
+
+            HistoriqueOperation::consigner('reservation', $reservation->id, 'creation', $request->user(), null, 'en_attente', null, [
+                'production_id' => $reservation->production_id, 'quantite_reservee' => (float) $reservation->quantite_reservee,
+            ]);
+
+            return $reservation;
         });
 
         if ($reservation instanceof JsonResponse) {
@@ -162,7 +173,7 @@ class ReservationController extends Controller
         // Re-vérification de la capacité au moment de la confirmation, sous
         // verrou de l'entrepôt puis de la réservation : ni dépassement de capacité
         // par deux confirmations simultanées, ni double confirmation.
-        $refus = DB::transaction(function () use ($reservation) {
+        $refus = DB::transaction(function () use ($reservation, $request) {
             $entrepot = Entrepot::whereKey($reservation->entrepot_id)->lockForUpdate()->first();
             $r        = Reservation::whereKey($reservation->id)->lockForUpdate()->first();
 
@@ -183,6 +194,7 @@ class ReservationController extends Controller
 
             $r->statut = 'confirmee';
             $r->save();
+            HistoriqueOperation::consigner('reservation', $r->id, 'confirmation', $request->user(), 'en_attente', 'confirmee');
 
             return null;
         });
@@ -355,21 +367,33 @@ class ReservationController extends Controller
                 return $this->refus('Cette marchandise a déjà été enregistrée ou n\'est plus à l\'entrepôt.', $verrouillee);
             }
 
-            $stock = Stock::create([
+            // Seule entrée en stock possible : elle laisse un mouvement « entree ».
+            $stock = $this->gestionStock->entrer([
                 'entrepot_id'   => $reservation->entrepot_id,
                 'production_id' => $reservation->production_id,
                 'produit'       => $reservation->produit,
                 'quantite'      => $request->quantite_reelle,
                 'date_entree'   => now()->toDateString(),
                 'observation'   => $request->observation,
-                'statut'        => 'disponible',
-            ]);
+            ], $request->user(), 'reservation', $verrouillee->id);
 
             $verrouillee->statut = 'enregistree';
             $verrouillee->save();
+            HistoriqueOperation::consigner('reservation', $verrouillee->id, 'reception', $request->user(), 'arrivee_entrepot', 'enregistree', $request->observation, [
+                'quantite_reservee' => (float) $verrouillee->quantite_reservee, 'quantite_recue' => (float) $request->quantite_reelle, 'stock_id' => $stock->id,
+            ]);
 
-            // La récolte liée est désormais physiquement en entrepôt.
-            $reservation->production?->update(['statut' => 'disponible']);
+            // La récolte liée est désormais physiquement en entrepôt ; sa quantité
+            // réelle est la somme reçue dans tous les entrepôts.
+            if ($production = $reservation->production) {
+                $production->update([
+                    'statut'          => 'disponible',
+                    'quantite_reelle' => (float) Stock::where('production_id', $production->id)
+                        ->join('mouvements_stock', 'mouvements_stock.stock_id', '=', 'stocks.id')
+                        ->where('mouvements_stock.type', 'entree')
+                        ->sum('mouvements_stock.variation_physique'),
+                ]);
+            }
 
             return $stock;
         });
@@ -416,6 +440,7 @@ class ReservationController extends Controller
 
             $r->statut = 'arrivee_entrepot';
             $r->save();
+            HistoriqueOperation::consigner('reservation', $r->id, 'arrivee', $request->user(), 'confirmee', 'arrivee_entrepot');
 
             return null;
         });

@@ -130,7 +130,7 @@ class IdempotenceTest extends TestCase
     public function test_recolte_non_dupliquee(): void
     {
         $producteur = Utilisateur::factory()->create();
-        $corps = ['type_culture' => 'mil', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 10];
+        $corps = ['type_culture' => 'mil', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 10, 'prix_unitaire' => 300];
 
         foreach ([1, 2] as $_) {
             $this->en($producteur)->withHeader('Idempotency-Key', self::CLE)->postJson('/api/productions', $corps)->assertStatus(201);

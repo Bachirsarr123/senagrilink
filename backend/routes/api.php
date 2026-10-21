@@ -36,10 +36,12 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     // ── Module Gestionnaire d'entrepôt ────────────────────────────────────────
     Route::middleware('role:gestionnaire_entrepot')->group(function () {
         Route::get('/stocks',                   [\App\Http\Controllers\Api\StockController::class, 'index']);
-        Route::post('/stocks/entree',           [\App\Http\Controllers\Api\StockController::class, 'entree'])->middleware('idempotence');
-        Route::post('/stocks/sortie',           [\App\Http\Controllers\Api\StockController::class, 'sortie'])->middleware('idempotence');
         Route::get('/stocks/alertes',           [\App\Http\Controllers\Api\StockController::class, 'alertes']);
         Route::get('/stocks/rapport',           [\App\Http\Controllers\Api\StockController::class, 'rapport']);
+        // Plus d'entrée ni de sortie libre : réception (entrée), départ de livraison (sortie), ajustement motivé.
+        Route::post('/stocks/{id}/ajustement',  [\App\Http\Controllers\Api\StockController::class, 'ajuster'])->whereNumber('id')->middleware('idempotence');
+        Route::put('/stocks/{id}/seuil',        [\App\Http\Controllers\Api\StockController::class, 'seuil'])->whereNumber('id');
+        Route::get('/stocks/{id}/mouvements',   [\App\Http\Controllers\Api\StockController::class, 'mouvements'])->whereNumber('id');
         Route::get('/commandes',                [\App\Http\Controllers\Api\CommandeController::class, 'indexEntrepot']);
         Route::put('/commandes/{id}/confirmer', [\App\Http\Controllers\Api\CommandeController::class, 'confirmer']);
         Route::put('/commandes/{id}/refuser',   [\App\Http\Controllers\Api\CommandeController::class, 'refuser']);

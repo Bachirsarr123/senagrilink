@@ -15,14 +15,15 @@ class UpdateCommandeRequest extends FormRequest
     {
         return [
             'quantite' => ['sometimes', 'numeric', 'min:0.01'],
-            'prix'     => ['sometimes', 'numeric', 'min:0'],
+            'prix'     => ['prohibited'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'quantite.min' => 'La quantité doit être supérieure à zéro.',
+            'quantite.min'    => 'La quantité doit être supérieure à zéro.',
+            'prix.prohibited' => 'Le prix est fixé par le producteur du lot : il ne peut pas être modifié.',
         ];
     }
 }

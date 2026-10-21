@@ -96,12 +96,15 @@ class ReservationProductionTest extends TestCase
         $this->assertSame($inexistant, $autrui);
     }
 
-    public function test_reservation_sans_production_reste_possible(): void
+    public function test_reservation_sans_production_refusee(): void
     {
+        // Lot 1 : toute marchandise déposée est un lot enregistré (prix, traçabilité).
         $this->en($this->producteur)
              ->postJson('/api/reservations', $this->donnees(null))
-             ->assertStatus(201)
-             ->assertJsonPath('reservation.production_id', null);
+             ->assertStatus(422)
+             ->assertJsonValidationErrors('production_id');
+
+        $this->assertSame(0, Reservation::count());
     }
 
     public function test_administrateur_sans_profil_producteur_comportement_inchange(): void
@@ -115,10 +118,6 @@ class ReservationProductionTest extends TestCase
              ->postJson('/api/reservations', $this->donnees($production->id))
              ->assertStatus(404)
              ->assertJsonPath('message', 'Profil producteur introuvable.');
-
-        $this->en($admin)
-             ->postJson('/api/reservations', $this->donnees(null))
-             ->assertStatus(404);
 
         $this->assertSame(0, Reservation::count());
     }

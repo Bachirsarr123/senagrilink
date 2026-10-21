@@ -31,7 +31,7 @@ class TracabiliteController extends Controller
                 'producteur.utilisateur:id,nom,prenom',
 
                 // Passage en entrepôt
-                'stocks:id,production_id,entrepot_id,produit,quantite,date_entree,date_sortie,statut',
+                'stocks:id,production_id,entrepot_id,produit,quantite,quantite_reservee,date_entree,date_sortie,statut',
                 'stocks.entrepot:id,nom_entrepot,localisation',
 
                 // Commandes passées sur ces stocks

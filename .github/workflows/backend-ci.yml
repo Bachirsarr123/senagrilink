@@ -92,6 +92,15 @@ jobs:
           [ "$(table historique_operations)" = t ] || { echo "::error::le retour ciblé a supprimé historique_operations"; exit 1; }
 
           php artisan migrate --force --no-interaction
+
+          # Lot 1 : retour ciblé de 000019 (fondations du stock) sans toucher au reste
+          php artisan migrate:rollback --force --no-interaction \
+            --path=database/migrations/2025_01_01_000019_create_fondations_stock.php
+          [ "$(table mouvements_stock)" = f ] || { echo "::error::000019 non annulée"; exit 1; }
+          [ "$(table requetes_idempotentes)" = t ] || { echo "::error::le retour de 000019 a supprimé requetes_idempotentes"; exit 1; }
+          php artisan migrate --force --no-interaction
+          [ "$(table mouvements_stock)" = t ]
+
           php artisan migrate:reset --force --no-interaction
           php artisan migrate --force --no-interaction
           echo "OK : migrations appliquées, annulables et réappliquées."

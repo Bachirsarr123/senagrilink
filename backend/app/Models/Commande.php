@@ -16,6 +16,8 @@ class Commande extends Model
         'produit',
         'quantite',
         'prix',
+        'prix_unitaire',
+        'etat_stock',
         'date_commande',
         'statut',
     ];
@@ -26,7 +28,8 @@ class Commande extends Model
      */
     protected $casts = [
         'quantite' => 'float',
-        'prix'     => 'float',
+        'prix'          => 'float',
+        'prix_unitaire' => 'float',
     ];
 
     protected static function booted(): void

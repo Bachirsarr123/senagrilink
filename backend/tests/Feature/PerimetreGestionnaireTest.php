@@ -69,7 +69,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     // ── V2 : confirmation de commande ─────────────────────────────────────────
 
-    public function test_gestionnaire_de_lentrepot_confirme_et_le_stock_est_deduit(): void
+    public function test_gestionnaire_de_lentrepot_confirme_et_la_quantite_est_reservee(): void
     {
         $commande = $this->commande();
 
@@ -78,7 +78,8 @@ class PerimetreGestionnaireTest extends TestCase
              ->assertOk()
              ->assertJsonPath('commande.statut', 'confirmee');
 
-        $this->assertEquals(80, $this->stock->fresh()->quantite);
+        $this->assertEquals(90, $this->stock->fresh()->quantite);
+        $this->assertEquals(80, $this->stock->fresh()->quantite_disponible);
     }
 
     public function test_gestionnaire_dun_autre_entrepot_ne_peut_pas_confirmer(): void
@@ -113,7 +114,7 @@ class PerimetreGestionnaireTest extends TestCase
              ->putJson("/api/commandes/{$commande->id}/confirmer")
              ->assertOk();
 
-        $this->assertEquals(80, $this->stock->fresh()->quantite);
+        $this->assertEquals(80, $this->stock->fresh()->quantite_disponible);
     }
 
     public function test_confirmation_commande_inexistante_retourne_404(): void

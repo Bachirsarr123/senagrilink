@@ -54,6 +54,12 @@ trait ConstruitParcours
             'statut'          => $statutLivraison,
         ]);
 
+        // Livraison partie : la quantité réservée est déjà sortie du stock.
+        if ($statutLivraison !== 'en_attente') {
+            $p->commande->update(['etat_stock' => 'sorti']);
+            $p->stock->update(['quantite_reservee' => 0]);
+        }
+
         return $p;
     }
 
@@ -64,6 +70,7 @@ trait ConstruitParcours
             'type_culture'     => 'riz',
             'date_recolte'     => '2026-06-01',
             'quantite_estimee' => 100,
+            'prix_unitaire'    => 150,
         ]);
     }
 
@@ -81,16 +88,25 @@ trait ConstruitParcours
         ]);
     }
 
+    /** Commande de 10 kg à 150 FCFA/kg ; confirmée, sa quantité est réservée sur le stock. */
     protected function commande(Utilisateur $acheteur, Stock $stock, string $statut = 'en_attente'): Commande
     {
+        $confirmee = $statut === 'confirmee';
+
+        if ($confirmee) {
+            $stock->increment('quantite_reservee', 10);
+        }
+
         return Commande::create([
             'acheteur_id'   => $acheteur->acheteurGros->id,
             'stock_id'      => $stock->id,
             'produit'       => 'riz',
             'quantite'      => 10,
+            'prix_unitaire' => 150,
             'prix'          => 1500,
             'date_commande' => now(),
             'statut'        => $statut,
+            'etat_stock'    => $confirmee ? 'reserve' : null,
         ]);
     }
 }

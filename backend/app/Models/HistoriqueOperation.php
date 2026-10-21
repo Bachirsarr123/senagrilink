@@ -5,8 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Entrée d'historique d'une opération métier corrigée ou annulée.
- * sujet_type : reservation | commande | livraison | production.
+ * Entrée d'historique d'une opération métier : chaque étape franchie, chaque
+ * correction ou annulation (qui, quand, quelle transition, pourquoi).
+ * sujet_type : reservation | commande | livraison | production | utilisateur.
  */
 class HistoriqueOperation extends Model
 {

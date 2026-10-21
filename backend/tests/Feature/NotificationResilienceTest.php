@@ -63,14 +63,15 @@ class NotificationResilienceTest extends TestCase
         Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'Diffusion temps réel'))->atLeast()->once();
     }
 
-    public function test_confirmation_repond_succes_et_debite_une_seule_fois(): void
+    public function test_confirmation_repond_succes_et_reserve_une_seule_fois(): void
     {
         $p        = $this->stockEtActeurs();
         $commande = $this->commande($p->acheteur, $p->stock); // 10 kg
 
         $this->en($p->gestionnaire)->putJson("/api/commandes/{$commande->id}/confirmer")->assertOk();
         $this->assertSame('confirmee', $commande->fresh()->statut);
-        $this->assertSame(0.0, (float) $p->stock->fresh()->quantite);
+        $this->assertSame(10.0, (float) $p->stock->fresh()->quantite_reservee);
+        $this->assertSame(0.0, $p->stock->fresh()->quantite_disponible);
         $this->assertSame(1, $p->acheteur->fresh()->notifications()->count());
     }
 }

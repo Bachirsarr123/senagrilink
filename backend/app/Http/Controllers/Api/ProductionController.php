@@ -60,7 +60,12 @@ class ProductionController extends Controller
             'date_recolte'     => $request->date_recolte,
             'quantite_estimee' => $request->quantite_estimee,
             'quantite_reelle'  => $request->quantite_reelle,
+            'prix_unitaire'    => $request->prix_unitaire,
             'statut'           => 'en_attente',
+        ]);
+
+        HistoriqueOperation::consigner('production', $production->id, 'creation', $request->user(), null, 'en_attente', null, [
+            'quantite_estimee' => (float) $production->quantite_estimee, 'prix_unitaire' => (float) $production->prix_unitaire,
         ]);
 
         return response()->json([
@@ -118,7 +123,9 @@ class ProductionController extends Controller
 
     /**
      * Modifier une production.
-     * Un producteur ne peut modifier que ses propres productions.
+     * Un producteur ne peut modifier que ses propres productions. Dès que le
+     * lot est entré en entrepôt, seul son prix au kilo reste modifiable (les
+     * commandes déjà passées gardent le prix figé à la commande).
      */
     public function update(UpdateProductionRequest $request, int $id): JsonResponse
     {
@@ -138,12 +145,57 @@ class ProductionController extends Controller
             return response()->json(['message' => 'Cette récolte a été annulée : elle ne peut plus être modifiée.'], 422);
         }
 
-        $production->update($request->validated());
+        $modifications = $request->validated();
+
+        if ($production->estVerrouille()) {
+            $interdits = array_values(array_filter(
+                Production::CHAMPS_VERROUILLES,
+                fn ($champ) => array_key_exists($champ, $modifications)
+                    && ! $this->memeValeur($champ, $modifications[$champ], $production->getRawOriginal($champ)),
+            ));
+
+            if ($interdits !== []) {
+                return response()->json([
+                    'message'          => 'Ce lot est en entrepôt : ses informations ne peuvent plus être modifiées. Seul le prix au kilo peut encore changer.',
+                    'champs_refuses'   => $interdits,
+                ], 422);
+            }
+
+            $modifications = array_diff_key($modifications, array_flip(Production::CHAMPS_VERROUILLES));
+        }
+
+        $avant = $production->only(array_keys($modifications));
+        $production->update($modifications);
+        $changes = array_diff_key($production->getChanges(), ['updated_at' => true]);
+
+        if ($changes !== []) {
+            HistoriqueOperation::consigner('production', $production->id, 'modification', $utilisateur, $production->statut, $production->statut, null, [
+                'avant' => array_intersect_key($avant, $changes), 'apres' => $changes,
+            ]);
+        }
 
         return response()->json([
             'message'    => 'Production mise à jour.',
             'production' => $production->fresh(),
         ]);
+    }
+
+    /** Valeur renvoyée inchangée par le client (nombres et dates comparés sans tenir compte du format). */
+    private function memeValeur(string $champ, mixed $nouvelle, mixed $actuelle): bool
+    {
+        if ($nouvelle === null || $actuelle === null || $nouvelle === '' || $actuelle === '') {
+            return ($nouvelle ?? '') === ($actuelle ?? '');
+        }
+
+        if (is_numeric($nouvelle) && is_numeric($actuelle)) {
+            return abs((float) $nouvelle - (float) $actuelle) < 1e-6;
+        }
+
+        if ($champ === 'date_recolte') {
+            return substr((string) $nouvelle, 0, 10) === substr((string) $actuelle, 0, 10);
+        }
+
+        return (string) $nouvelle === (string) $actuelle;
     }
 
     /**
@@ -154,7 +206,7 @@ class ProductionController extends Controller
     {
         $commandes = Commande::where('statut', 'en_attente')
             ->with([
-                'stock:id,produit,quantite,entrepot_id,production_id',
+                'stock:id,produit,quantite,quantite_reservee,entrepot_id,production_id',
                 'stock.production:id,producteur_id',
                 'stock.entrepot:id,nom_entrepot,localisation',
                 'acheteur:id,utilisateur_id',
