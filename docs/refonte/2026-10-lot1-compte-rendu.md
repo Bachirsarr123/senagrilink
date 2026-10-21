@@ -85,4 +85,12 @@
 
 ## 6. Vérifications GitHub sur la branche
 
-*(complété après l'exécution, avec le SHA vérifié)*
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16 (concurrence comprise), cycle des migrations, garde de démarrage (exécution 39585227329) | `a2609c7` | **Réussi** |
+| Site : tests et compilation de production (exécution 39584159109) | `8a845ec` | **Réussi** |
+| Mobile : analyse, tests, garde de signature, APK de test vérifié (exécution 39584159019) | `8a845ec` | **Réussi** |
+
+Entre `8a845ec` et `a2609c7`, seuls le scénario de migrations de la CI et la documentation ont changé : le code du site et de l'application est identique.
+
+La première exécution du serveur sur `8a845ec` avait échoué à l'étape des migrations. Les 167 tests passaient, mais le scénario de retour arrière était mal ordonné : il ne tenait pas compte de la règle du « dernier lot exécuté » (voir §4). Le scénario est corrigé et la règle documentée.
