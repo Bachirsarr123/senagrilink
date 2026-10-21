@@ -86,20 +86,26 @@ jobs:
           php artisan migrate:status --no-interaction
           [ "$(table requetes_idempotentes)" = t ] && [ "$(table historique_operations)" = t ]
 
+          # Retours ciblés dans l'ordre réel : de la plus récente à la plus ancienne.
+          # `--path` n'agit que sur le DERNIER lot exécuté : une migration d'un lot
+          # plus ancien affiche « Migration not found » et n'est PAS annulée.
+          php artisan migrate:rollback --force --no-interaction \
+            --path=database/migrations/2025_01_01_000019_create_fondations_stock.php
+          [ "$(table mouvements_stock)" = f ] || { echo "::error::000019 non annulée"; exit 1; }
+          [ "$(table requetes_idempotentes)" = t ] || { echo "::error::le retour de 000019 a supprimé requetes_idempotentes"; exit 1; }
+
           php artisan migrate:rollback --force --no-interaction \
             --path=database/migrations/2025_01_01_000018_create_requetes_idempotentes_table.php
           [ "$(table requetes_idempotentes)" = f ] || { echo "::error::000018 non annulée"; exit 1; }
           [ "$(table historique_operations)" = t ] || { echo "::error::le retour ciblé a supprimé historique_operations"; exit 1; }
 
+          # Réapplication : 000018 et 000019 forment un nouveau lot, que l'on peut de nouveau annuler
           php artisan migrate --force --no-interaction
-
-          # Lot 1 : retour ciblé de 000019 (fondations du stock) sans toucher au reste
+          [ "$(table mouvements_stock)" = t ] && [ "$(table requetes_idempotentes)" = t ]
           php artisan migrate:rollback --force --no-interaction \
             --path=database/migrations/2025_01_01_000019_create_fondations_stock.php
-          [ "$(table mouvements_stock)" = f ] || { echo "::error::000019 non annulée"; exit 1; }
-          [ "$(table requetes_idempotentes)" = t ] || { echo "::error::le retour de 000019 a supprimé requetes_idempotentes"; exit 1; }
+          [ "$(table mouvements_stock)" = f ] || { echo "::error::000019 réappliquée non annulable"; exit 1; }
           php artisan migrate --force --no-interaction
-          [ "$(table mouvements_stock)" = t ]
 
           php artisan migrate:reset --force --no-interaction
           php artisan migrate --force --no-interaction

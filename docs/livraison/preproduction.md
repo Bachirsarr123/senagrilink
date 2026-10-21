@@ -58,6 +58,7 @@
 ## 4. Retour arrière de la migration 000018
 - Commande : `php artisan migrate:rollback --path=database/migrations/2025_01_01_000018_create_requetes_idempotentes_table.php --force`.
 - Elle affiche « Migration not found » pour chacune des autres migrations du dernier lot. C'est normal : elles sont hors du chemin indiqué et **restent en place**. Seule `requetes_idempotentes` est supprimée ; `historique_operations` est conservée (vérifié à chaque exécution de `backend-ci.yml`).
+- `--path` n'agit que sur le **dernier lot exécuté**. Si une migration plus récente a été exécutée depuis (par exemple `000019`), il faut l'annuler d'abord : toujours de la plus récente à la plus ancienne. Vérifier avec `php artisan migrate:status`.
 - Ne jamais lancer `migrate:rollback` sans `--path`.
 
 ## 5. Limites de la préproduction gratuite

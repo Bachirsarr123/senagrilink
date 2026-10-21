@@ -67,6 +67,9 @@
   - Elle crée la table `mouvements_stock`.
   - Elle reprend les données existantes : un mouvement d'ouverture pour chaque stock ; une commande confirmée mais pas encore partie (déduite selon l'ancienne règle) devient une réservation.
 - **Retour arrière** : `php artisan migrate:rollback --path=database/migrations/2025_01_01_000019_create_fondations_stock.php --force`. Il est vérifié à chaque exécution de `backend-ci.yml`. Ne jamais lancer `migrate:rollback` sans `--path`.
+- **Règle constatée par la CI** : `--path` n'agit que sur le **dernier lot exécuté**, c'est-à-dire le dernier déploiement qui a migré. Si la migration visée appartient à un lot plus ancien, la commande affiche « Migration not found » et **n'annule rien**.
+  - Conséquence : on annule toujours **de la plus récente à la plus ancienne**. Si le lot 0 (000018) et le lot 1 (000019) sont déployés séparément, il faut annuler 000019 avant de pouvoir annuler 000018.
+  - Avant tout retour arrière, `php artisan migrate:status` indique le numéro de lot de chaque migration.
 - **Données de test actuelles** (décision Q1) : les récoltes existantes n'ont pas de prix. Elles **n'apparaissent pas au catalogue** tant que le producteur ne l'a pas fixé (bouton « Modifier le prix »).
 
 ## 5. Limites connues, traitées dans les lots suivants
