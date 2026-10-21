@@ -77,10 +77,11 @@ class AnnulationOperationsTest extends TestCase
 
     public function test_commande_avec_livraison_non_annulable(): void
     {
-        $p = $this->parcours('en_attente');
+        // Marchandise chargée : l'annulation passe par un incident (retour à l'entrepôt)
+        $p = $this->parcours('chargee');
 
         $this->en($p->gestionnaire)->putJson("/api/commandes/{$p->commande->id}/annuler-confirmation", ['motif' => 'x'])->assertStatus(422);
-        $this->assertSame('confirmee', $p->commande->fresh()->statut);
+        $this->assertSame('en_livraison', $p->commande->fresh()->statut);
     }
 
     public function test_annulation_par_lacheteur_historisee(): void
@@ -127,6 +128,8 @@ class AnnulationOperationsTest extends TestCase
         $p = $this->stockEtCommande();
         $t = Utilisateur::factory()->transporteur()->create();
         $this->en($p->gestionnaire)->putJson("/api/commandes/{$p->commande->id}/confirmer")->assertOk();
+        $this->en($p->gestionnaire)->putJson("/api/commandes/{$p->commande->id}/preparer")->assertOk();
+        $this->en($p->gestionnaire)->putJson("/api/commandes/{$p->commande->id}/prete")->assertOk();
 
         $this->en($p->gestionnaire)->postJson('/api/livraisons', [
             'commande_id' => $p->commande->id, 'transporteur_id' => $t->transporteur->id,

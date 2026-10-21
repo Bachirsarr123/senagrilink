@@ -23,7 +23,7 @@ class TransporteurController extends Controller
             ->whereHas('utilisateur', fn ($q) => $q->where('statut', '!=', 'bloque'))
             ->withCount([
                 'reservations as acheminements_actifs' => fn ($q) => $q->whereIn('statut', self::ACHEMINEMENTS_ACTIFS),
-                'livraisons as livraisons_actives'      => fn ($q) => $q->whereIn('statut', ['en_attente', 'en_cours']),
+                'livraisons as livraisons_actives'      => fn ($q) => $q->whereIn('statut', ['en_attente', 'prise_en_charge', 'chargee', 'en_cours', 'arrivee']),
             ])
             ->get()
             ->each(fn (Transporteur $t) => $t->setAttribute('missions_actives', $t->acheminements_actifs + $t->livraisons_actives))

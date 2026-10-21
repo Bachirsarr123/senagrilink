@@ -8,6 +8,7 @@ use App\Http\Requests\StoreReservationRequest;
 use App\Http\Requests\ValiderMarchandiseRequest;
 use App\Models\Entrepot;
 use App\Models\HistoriqueOperation;
+use App\Models\Incident;
 use App\Models\Production;
 use App\Models\Reservation;
 use App\Models\Transporteur;
@@ -665,6 +666,10 @@ class ReservationController extends Controller
 
             $depuis = CircuitDepot::depuis($etape, $r->mode_transport) ?? [];
 
+            if (Incident::bloque('reservation', $r->id)) {
+                return $this->refus('Un incident est en cours : attendez la décision de l\'entrepôt.', $r);
+            }
+
             if (! in_array($r->statut, $depuis, true)) {
                 return $this->refus('Cette étape n\'est pas possible maintenant : les étapes se suivent dans l\'ordre.', $r);
             }
@@ -714,6 +719,7 @@ class ReservationController extends Controller
             'producteur.utilisateur:id,nom,prenom,telephone,adresse',
             'transporteur:id,utilisateur_id,type_vehicule',
             'transporteur.utilisateur:id,nom,prenom,telephone',
+            'incidents' => fn ($q) => $q->ouverts(),
         ])->orderByDesc('date_reservation');
 
         // Historique : utile au producteur, au gestionnaire et à l'administrateur ;
@@ -750,7 +756,7 @@ class ReservationController extends Controller
         // administrateur : aucun filtre, toutes les réservations
 
         $reservations = $query->get()->map(fn (Reservation $r) => array_merge($r->toArray(), [
-            'actions'         => CircuitDepot::actions($r, $utilisateur),
+            'actions'         => CircuitDepot::actions($r, $utilisateur, $r->incidents->contains(fn (Incident $i) => $i->estBloquant())),
             'prochaine_etape' => CircuitDepot::prochaineEtape($r),
         ]));
 

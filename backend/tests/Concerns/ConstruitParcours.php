@@ -44,7 +44,12 @@ trait ConstruitParcours
             'statut'        => 'disponible',
         ]);
 
-        $p->commande = $this->commande($p->acheteur, $p->stock, 'confirmee');
+        // Statut de commande cohérent avec l'avancement de la livraison (circuit lot 3)
+        $p->commande = $this->commande($p->acheteur, $p->stock, match ($statutLivraison) {
+            'en_attente', 'prise_en_charge' => 'prete',
+            'livree'                        => 'receptionnee',
+            default                         => 'en_livraison',
+        });
 
         $p->livraison = Livraison::create([
             'commande_id'     => $p->commande->id,
@@ -52,10 +57,11 @@ trait ConstruitParcours
             'origine'         => 'Entrepôt test',
             'destination'     => 'Dakar Plateau, rue 10',
             'statut'          => $statutLivraison,
+            'mission_acceptee_le' => $statutLivraison === 'en_attente' ? null : now(),
         ]);
 
         // Livraison partie : la quantité réservée est déjà sortie du stock.
-        if ($statutLivraison !== 'en_attente') {
+        if (! in_array($statutLivraison, ['en_attente', 'prise_en_charge'], true)) {
             $p->commande->update(['etat_stock' => 'sorti']);
             $p->stock->update(['quantite_reservee' => 0]);
         }
@@ -114,7 +120,7 @@ trait ConstruitParcours
     /** Commande de 10 kg à 150 FCFA/kg ; confirmée, sa quantité est réservée sur le stock. */
     protected function commande(Utilisateur $acheteur, Stock $stock, string $statut = 'en_attente'): Commande
     {
-        $confirmee = $statut === 'confirmee';
+        $confirmee = in_array($statut, ['confirmee', 'en_preparation', 'prete', 'en_livraison', 'receptionnee', 'litige'], true);
 
         if ($confirmee) {
             $stock->increment('quantite_reservee', 10);

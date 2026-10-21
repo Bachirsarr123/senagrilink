@@ -156,7 +156,7 @@ class CircuitDepotTest extends TestCase
         $this->etape($this->producteur, $rid, 'chargee')->assertStatus(422);
         $this->etape($this->transporteurA, $rid, 'en_route')->assertStatus(403);
         $this->etape($this->producteur, $rid, 'en_route')->assertOk();
-        $this->assertSame(['arriver'], $this->vue($this->producteur, $rid)['actions']);
+        $this->assertSame(['arriver', 'declarer_incident'], $this->vue($this->producteur, $rid)['actions']);
         $this->etape($this->producteur, $rid, 'arrivee_entrepot')->assertOk();
 
         $this->receptionner($this->gestionnaire, $rid, 60)->assertStatus(201);

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Ligne du journal des mouvements d'un stock : chaque variation du stock
  * physique ou réservé en laisse une, avec son auteur et l'opération d'origine.
- * Types : ouverture | entree | reservation | liberation | sortie | ajustement.
+ * Types : ouverture | entree | reservation | liberation | sortie | retour | ajustement.
  */
 class MouvementStock extends Model
 {

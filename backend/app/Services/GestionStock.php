@@ -77,6 +77,18 @@ class GestionStock
         return $this->consigner($stock, 'sortie', -$quantite, -$quantite, $auteur, $operationType, $operationId);
     }
 
+    /** Retour à l'entrepôt d'une quantité sortie (livraison interrompue ou refusée). */
+    public function retourner(int $stockId, float $quantite, ?Utilisateur $auteur, string $operationType, int $operationId, ?string $motif = null): Stock
+    {
+        $stock = $this->verrouiller($stockId);
+
+        $stock->quantite = round($stock->quantite + $quantite, 3);
+        $this->majStatut($stock);
+        $stock->save();
+
+        return $this->consigner($stock, 'retour', $quantite, 0, $auteur, $operationType, $operationId, $motif);
+    }
+
     /**
      * Ajustement manuel motivé. Une baisse ne peut entamer que le disponible
      * (jamais une quantité promise à une commande) ; seule une correction

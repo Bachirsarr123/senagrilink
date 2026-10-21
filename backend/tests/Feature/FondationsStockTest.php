@@ -158,26 +158,30 @@ class FondationsStockTest extends TestCase
                            ->assertStatus(201)->json('commande.id');
         $this->en($this->gestionnaire)->putJson("/api/commandes/{$commandeId}/confirmer")->assertOk();
         $this->assertEquals([60.0, 20.0], [$stock->fresh()->quantite, $stock->fresh()->quantite_reservee]);
+        $this->en($this->gestionnaire)->putJson("/api/commandes/{$commandeId}/preparer")->assertOk();
+        $this->en($this->gestionnaire)->putJson("/api/commandes/{$commandeId}/prete")->assertOk();
 
         $livraisonId = $this->en($this->gestionnaire)->postJson('/api/livraisons', [
             'commande_id' => $commandeId, 'transporteur_id' => $transporteur->transporteur->id,
-            'origine' => 'Entrepôt', 'destination' => 'Dakar',
         ])->assertStatus(201)->json('livraison.id');
+        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/accepter-mission")->assertOk();
 
-        // Départ : sortie physique de la quantité réservée
-        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/statut", ['statut' => 'en_cours'])->assertOk();
+        // Chargement : sortie physique de la quantité réservée
+        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/etape", ['etape' => 'chargee'])->assertOk();
         $this->assertEquals([40.0, 0.0], [$stock->fresh()->quantite, $stock->fresh()->quantite_reservee]);
         $this->assertSame('sorti', Commande::find($commandeId)->etat_stock);
 
-        // Rejeu du départ : refusé, rien n'est déduit une seconde fois
-        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/statut", ['statut' => 'en_cours'])->assertStatus(422);
-        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/statut", ['statut' => 'livree'])->assertOk();
+        // Rejeu du chargement : refusé, rien n'est déduit une seconde fois
+        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/etape", ['etape' => 'chargee'])->assertStatus(422);
+        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/etape", ['etape' => 'en_cours'])->assertOk();
+        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/etape", ['etape' => 'arrivee'])->assertOk();
+        $this->en($transporteur)->putJson("/api/livraisons/{$livraisonId}/remise", ['code' => Commande::find($commandeId)->code_reception])->assertOk();
 
         $this->assertEquals(40, $stock->fresh()->quantite);
-        $this->assertSame('livree', Commande::find($commandeId)->statut);
+        $this->assertSame('receptionnee', Commande::find($commandeId)->statut);
         $this->assertSame(['entree', 'reservation', 'sortie'], $stock->mouvements()->pluck('type')->all());
         $this->assertSame(
-            ['creation', 'confirmation', 'livraison'],
+            ['creation', 'confirmation', 'preparation', 'prete', 'chargement', 'reception'],
             Commande::find($commandeId)->historique()->pluck('action')->all(),
         );
     }

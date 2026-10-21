@@ -46,7 +46,9 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::put('/commandes/{id}/confirmer', [\App\Http\Controllers\Api\CommandeController::class, 'confirmer']);
         Route::put('/commandes/{id}/refuser',   [\App\Http\Controllers\Api\CommandeController::class, 'refuser']);
         Route::put('/commandes/{id}/annuler-confirmation', [\App\Http\Controllers\Api\CommandeController::class, 'annulerConfirmation']);
-        // Option B : création explicite de livraison après confirmation de commande
+        Route::put('/commandes/{id}/preparer',  [\App\Http\Controllers\Api\CommandeController::class, 'preparer']);
+        Route::put('/commandes/{id}/prete',     [\App\Http\Controllers\Api\CommandeController::class, 'marquerPrete']);
+        // Livraison organisée quand la commande est prête (transporteur obligatoire)
         Route::post('/livraisons',              [\App\Http\Controllers\Api\LivraisonController::class, 'store'])->middleware('idempotence');
         Route::put('/livraisons/{id}/transporteur', [\App\Http\Controllers\Api\LivraisonController::class, 'changerTransporteur']);
 
@@ -68,6 +70,9 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::put('/commandes/{id}',           [\App\Http\Controllers\Api\CommandeController::class, 'update']);
         Route::delete('/commandes/{id}',        [\App\Http\Controllers\Api\CommandeController::class, 'destroy']);
         Route::get('/commandes/historique',     [\App\Http\Controllers\Api\CommandeController::class, 'historique']);
+        Route::put('/commandes/{id}/reception', [\App\Http\Controllers\Api\CommandeController::class, 'confirmerReception']);
+        Route::post('/commandes/{id}/demande-annulation', [\App\Http\Controllers\Api\CommandeController::class, 'demanderAnnulation']);
+        Route::post('/commandes/{id}/anomalie', [\App\Http\Controllers\Api\CommandeController::class, 'declarerAnomalie']);
     });
 
     // ── Module Transporteur ───────────────────────────────────────────────────
@@ -75,6 +80,11 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
         Route::get('/livraisons',                       [\App\Http\Controllers\Api\LivraisonController::class, 'index']);
         Route::put('/livraisons/{id}/statut',           [\App\Http\Controllers\Api\LivraisonController::class, 'updateStatut']);
         Route::post('/livraisons/{id}/probleme',        [\App\Http\Controllers\Api\LivraisonController::class, 'signalerProbleme']);
+        Route::put('/livraisons/{id}/accepter-mission', [\App\Http\Controllers\Api\LivraisonController::class, 'accepterMission']);
+        Route::put('/livraisons/{id}/refuser-mission',  [\App\Http\Controllers\Api\LivraisonController::class, 'refuserMission']);
+        Route::put('/livraisons/{id}/etape',            [\App\Http\Controllers\Api\LivraisonController::class, 'etape']);
+        // Code à 4 chiffres : nombre d'essais limité
+        Route::put('/livraisons/{id}/remise',           [\App\Http\Controllers\Api\LivraisonController::class, 'confirmerParCode'])->middleware('throttle:5,1');
 
         // Suivi GPS temps réel
         Route::post('/transporteur/position',           [\App\Http\Controllers\Api\PositionGpsController::class, 'store']);
@@ -104,6 +114,11 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     Route::get('/reservations', [\App\Http\Controllers\Api\ReservationController::class, 'index']);
     // Étapes de transport : transporteur de la mission ou producteur qui livre lui-même (vérifié dans le contrôleur)
     Route::put('/reservations/{id}/etape', [\App\Http\Controllers\Api\ReservationController::class, 'etape']);
+
+    // ── Incidents : déclaration (transporteur, producteur qui livre, acheteur), décision (entrepôt) ──
+    Route::get('/incidents',                [\App\Http\Controllers\Api\IncidentController::class, 'index']);
+    Route::post('/incidents',               [\App\Http\Controllers\Api\IncidentController::class, 'store'])->middleware('idempotence');
+    Route::put('/incidents/{id}/resoudre',  [\App\Http\Controllers\Api\IncidentController::class, 'resoudre'])->middleware('role:gestionnaire_entrepot');
 
     // ── Notifications (communes à tous les rôles authentifiés) ────────────────
     Route::get('/notifications',            [\App\Http\Controllers\Api\NotificationController::class, 'index']);

@@ -18,6 +18,8 @@ class Commande extends Model
         'prix',
         'prix_unitaire',
         'etat_stock',
+        'panier',
+        'code_reception',
         'date_commande',
         'statut',
     ];
@@ -26,6 +28,9 @@ class Commande extends Model
      * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
      * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
      */
+    /** Le code de réception n'est donné qu'à l'acheteur (ajouté explicitement à son historique). */
+    protected $hidden = ['code_reception'];
+
     protected $casts = [
         'quantite' => 'float',
         'prix'          => 'float',
@@ -51,9 +56,15 @@ class Commande extends Model
         return $this->belongsTo(Stock::class, 'stock_id');
     }
 
+    /** Livraison active (la plus récente : une livraison annulée peut être remplacée). */
     public function livraison()
     {
-        return $this->hasOne(Livraison::class, 'commande_id');
+        return $this->hasOne(Livraison::class, 'commande_id')->orderByDesc('id');
+    }
+
+    public function incidents()
+    {
+        return $this->hasMany(Incident::class, 'sujet_id')->where('sujet_type', 'commande')->orderBy('id');
     }
 
     /**

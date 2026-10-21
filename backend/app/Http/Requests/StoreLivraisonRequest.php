@@ -15,9 +15,9 @@ class StoreLivraisonRequest extends FormRequest
     {
         return [
             'commande_id'    => ['required', 'integer', 'exists:commandes,id'],
-            'transporteur_id'=> ['nullable', 'integer', 'exists:transporteurs,id'],
-            'origine'        => ['required', 'string', 'max:255'],
-            'destination'    => ['required', 'string', 'max:255'],
+            'transporteur_id'=> ['required', 'integer', 'exists:transporteurs,id'],
+            'origine'        => ['nullable', 'string', 'max:255'],
+            'destination'    => ['nullable', 'string', 'max:255'],
             'destination_latitude'  => ['nullable', 'numeric', 'between:-90,90'],
             'destination_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'date_depart'    => ['nullable', 'date'],
@@ -30,8 +30,7 @@ class StoreLivraisonRequest extends FormRequest
             'commande_id.required'   => 'La commande associée est obligatoire.',
             'commande_id.exists'     => 'La commande référencée est introuvable.',
             'transporteur_id.exists' => 'Le transporteur sélectionné est introuvable.',
-            'origine.required'       => 'L\'adresse d\'origine est obligatoire.',
-            'destination.required'   => 'L\'adresse de destination est obligatoire.',
+            'transporteur_id.required' => 'Choisissez le transporteur de la livraison.',
         ];
     }
 }

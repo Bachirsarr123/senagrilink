@@ -109,7 +109,7 @@ class ConfidentialiteTracabiliteTest extends TestCase
         $this->assertTrue($commande['informations_masquees']);
         // Le parcours du lot reste traçable
         $this->assertSame('riz', $commande['produit']);
-        $this->assertSame('confirmee', $commande['statut']);
+        $this->assertSame('en_livraison', $commande['statut']);
         $this->assertSame('en_cours', $commande['livraison']['statut']);
     }
 

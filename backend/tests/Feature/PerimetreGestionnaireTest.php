@@ -64,7 +64,10 @@ class PerimetreGestionnaireTest extends TestCase
 
     private function donneesLivraison(Commande $commande): array
     {
-        return ['commande_id' => $commande->id, 'origine' => 'Entrepôt test', 'destination' => 'Dakar'];
+        return [
+            'commande_id' => $commande->id, 'origine' => 'Entrepôt test', 'destination' => 'Dakar',
+            'transporteur_id' => Utilisateur::factory()->transporteur()->create()->transporteur->id,
+        ];
     }
 
     // ── V2 : confirmation de commande ─────────────────────────────────────────
@@ -171,7 +174,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_gestionnaire_de_lentrepot_cree_la_livraison(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
 
         $this->en($this->gestionnaire)
              ->postJson('/api/livraisons', $this->donneesLivraison($commande))
@@ -183,7 +186,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_gestionnaire_dun_autre_entrepot_ne_peut_pas_creer_la_livraison(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
 
         $this->en($this->autreGestionnaire)
              ->postJson('/api/livraisons', $this->donneesLivraison($commande))
@@ -194,7 +197,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_administrateur_peut_creer_la_livraison(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
 
         $this->en($this->admin)
              ->postJson('/api/livraisons', $this->donneesLivraison($commande))
@@ -227,7 +230,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_seconde_livraison_pour_la_meme_commande_refusee(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
 
         $this->en($this->gestionnaire)
              ->postJson('/api/livraisons', $this->donneesLivraison($commande))
@@ -249,7 +252,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_livraison_pour_commande_sans_stock_refusee_au_gestionnaire(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
         $commande->forceFill(['stock_id' => null])->save();
 
         $this->en($this->gestionnaire)

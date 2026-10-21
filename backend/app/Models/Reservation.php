@@ -66,6 +66,11 @@ class Reservation extends Model
         return $this->belongsTo(Transporteur::class, 'transporteur_id');
     }
 
+    public function incidents()
+    {
+        return $this->hasMany(Incident::class, 'sujet_id')->where('sujet_type', 'reservation')->orderBy('id');
+    }
+
     /** Étapes, corrections et annulations successives (plus ancienne d'abord). */
     public function historique()
     {

@@ -20,6 +20,9 @@ class Livraison extends Model
         'date_depart',
         'date_livraison',
         'statut',
+        'mission_acceptee_le',
+        'parti_le',
+        'arrive_le',
     ];
 
     /**
@@ -29,7 +32,15 @@ class Livraison extends Model
     protected $casts = [
         'destination_latitude'  => 'float',
         'destination_longitude' => 'float',
+        'mission_acceptee_le'   => 'datetime',
+        'parti_le'              => 'datetime',
+        'arrive_le'             => 'datetime',
     ];
+
+    public function incidents()
+    {
+        return $this->hasMany(Incident::class, 'sujet_id')->where('sujet_type', 'livraison')->orderBy('id');
+    }
 
     protected static function booted(): void
     {

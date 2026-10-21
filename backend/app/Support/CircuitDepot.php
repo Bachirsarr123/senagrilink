@@ -36,6 +36,9 @@ final class CircuitDepot
     /** Le gestionnaire peut affecter, réaffecter ou retirer le transporteur avant l'arrivée chez le producteur. */
     public const TRANSPORTEUR_MODIFIABLE = ['confirmee', 'prise_en_charge'];
 
+    /** Pendant l'acheminement, la personne qui transporte peut déclarer un incident. */
+    public const INCIDENT_POSSIBLE = ['prise_en_charge', 'au_point_collecte', 'chargee', 'en_route'];
+
     /** Étapes de transport : étape => statuts de départ possibles, par mode. */
     public const ETAPES = [
         'au_point_collecte' => [self::MODE_TRANSPORTEUR => ['prise_en_charge']],
@@ -71,7 +74,7 @@ final class CircuitDepot
      * Actions possibles pour cet utilisateur sur cette réservation, dans l'ordre
      * d'affichage. L'administrateur dispose des actions du gestionnaire.
      */
-    public static function actions(Reservation $r, Utilisateur $u): array
+    public static function actions(Reservation $r, Utilisateur $u, bool $incidentBloquant = false): array
     {
         $actions = [];
         $statut  = $r->statut;
@@ -106,9 +109,12 @@ final class CircuitDepot
 
         if (self::estConducteur($r, $u)) {
             foreach (self::ETAPES as $etape => $parMode) {
-                if (in_array($statut, $parMode[$r->mode_transport] ?? [], true)) {
+                if (! $incidentBloquant && in_array($statut, $parMode[$r->mode_transport] ?? [], true)) {
                     $actions[] = self::ACTION_ETAPE[$etape];
                 }
+            }
+            if (in_array($statut, self::INCIDENT_POSSIBLE, true)) {
+                $actions[] = 'declarer_incident';
             }
         }
 
