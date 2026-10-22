@@ -52,6 +52,7 @@ class NavigationController extends Controller
             'statut' => $mission->statut, 'vers' => $vers, 'cible' => $cible,
             'details' => SuiviGps::details($mission), 'actions' => self::actions($mission, $request),
         ];
+        $base['action_principale'] = self::actionPrincipale($base['actions']);
 
         if ($cible['latitude'] === null || $cible['longitude'] === null) {
             return response()->json([...$base, 'itineraire' => null,
@@ -63,10 +64,14 @@ class NavigationController extends Controller
         $route = $itineraire->calculer($lat, $lng, (float) $cible['latitude'], (float) $cible['longitude']);
         $restantM = SuiviGps::distanceKm($lat, $lng, (float) $cible['latitude'], (float) $cible['longitude']) * 1000;
 
+        $proche = $restantM <= self::ARRIVEE_M;
+
         return response()->json([...$base,
             'itineraire' => [...$route, 'arrivee_vers' => now()->addSeconds((int) round($route['secondes']))->toIso8601String()],
-            'proche' => $restantM <= self::ARRIVEE_M,
+            'proche' => $proche,
             'distance_directe_m' => (int) round($restantM),
+            // Lot 10 : arrivé chez le producteur, l'étape s'enregistre d'elle-même (position GPS)
+            'arrivee_automatique' => $proche && in_array('arriver_collecte', $base['actions'], true),
         ]);
     }
 
@@ -90,6 +95,21 @@ class NavigationController extends Controller
             'chargee', 'en_cours' => 'destination',
             default => null,
         };
+    }
+
+    /**
+     * Le gros bouton (lot 10) : un seul appui par lieu. « demarrer » enregistre le
+     * chargement puis le départ ; l'arrivée chez le producteur est automatique.
+     */
+    public static function actionPrincipale(array $actions): ?string
+    {
+        foreach (['accepter_mission' => 'accepter_mission', 'charger' => 'demarrer', 'partir' => 'demarrer', 'arriver' => 'arriver', 'arriver_collecte' => 'arriver_collecte'] as $a => $bouton) {
+            if (in_array($a, $actions, true)) {
+                return $bouton;
+            }
+        }
+
+        return null;
     }
 
     private static function actions(Model $m, Request $request): array

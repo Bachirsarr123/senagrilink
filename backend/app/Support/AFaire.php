@@ -201,22 +201,37 @@ final class AFaire
     /**
      * Lot 9 : l'action principale se fait depuis « À faire », d'un appui. Pour
      * confier une mission, le transporteur libre le plus proche est proposé.
+     * Lot 10 : « accepter_et_confier » (dépôt) et « prete_et_confier » (commande)
+     * enchaînent les étapes côté client, chacune restant datée dans l'historique.
      * Les actions qui demandent un motif ou une saisie (refus, réception, code)
      * restent sur l'écran de la mission.
      */
     private static function avecAction(object $sujet, array $actions, array $element): array
     {
         $action = collect($actions)->first(fn ($a) => in_array($a, self::ACTIONS_DIRECTES, true));
-        $element['action'] = $action;
 
-        if (in_array($action, ['assigner', 'organiser_livraison'], true)) {
+        // Lot 10 : étapes regroupées en un appui quand un transporteur libre peut être proposé
+        $groupee = match (true) {
+            $sujet instanceof Reservation && $action === 'confirmer' && $sujet->mode_transport !== CircuitDepot::MODE_PRODUCTEUR => 'accepter_et_confier',
+            $sujet instanceof Commande && in_array($action, ['preparer', 'marquer_prete'], true) => 'prete_et_confier',
+            default => null,
+        };
+        $element['action'] = $groupee ?? $action;
+        $element['statut'] = $sujet->statut;
+
+        if (in_array($element['action'], ['assigner', 'organiser_livraison', 'accepter_et_confier', 'prete_et_confier'], true)) {
             $depart = $sujet instanceof Reservation
                 ? SuiviGps::extremites($sujet->loadMissing('producteur.utilisateur', 'entrepot'))['origine']
                 : ['latitude' => $sujet->stock?->entrepot?->latitude, 'longitude' => $sujet->stock?->entrepot?->longitude];
-            $element['transporteur_propose'] = PropositionTransporteur::meilleur(
+            $propose = PropositionTransporteur::meilleur(
                 $depart['latitude'] !== null ? (float) $depart['latitude'] : null,
                 $depart['longitude'] !== null ? (float) $depart['longitude'] : null,
             );
+            $element['transporteur_propose'] = $propose;
+            // Aucun transporteur disponible : l'étape simple, sans regroupement
+            if ($propose === null && $groupee !== null) {
+                $element['action'] = $action;
+            }
         }
 
         return $element;
