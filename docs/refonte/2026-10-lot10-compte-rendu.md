@@ -38,3 +38,10 @@ Aucune migration.
 ## 4. Vérifications GitHub
 
 *À compléter.*
+
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16, cycle des migrations, garde de démarrage (exécution 39769627213) | `cac154e` | **Réussi** |
+| Site : tests et compilation de production (exécution 39770635394). La première exécution (39769627129) avait échoué : un test laissait une fausse position GPS au test suivant. Le test est corrigé, et le site ne plante plus si le navigateur ne fournit pas la position. | `7c694d7` | **Réussi** |
+| Mobile : analyse, tests, APK de test vers la préproduction construit et contrôlé, sans publication (exécution 39770643770) | `7c694d7` | **Réussi** |
+
