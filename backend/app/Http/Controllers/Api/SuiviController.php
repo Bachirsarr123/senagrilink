@@ -198,7 +198,7 @@ class SuiviController extends Controller
         return response()->json([
             'tuiles_url'       => config('services.carte.tuiles_url'),
             'attribution'      => config('services.carte.attribution'),
-            'routage_routier'  => (bool) config('services.routage.url'),
+            'routage_routier'  => app(\App\Services\Itineraire::class)->fournisseur() !== null,
             'position_recente_s' => self::POSITION_RECENTE_S,
         ]);
     }

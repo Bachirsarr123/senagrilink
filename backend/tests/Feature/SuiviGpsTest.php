@@ -175,6 +175,9 @@ class SuiviGpsTest extends TestCase
         $this->en($this->acheteur)->getJson('/api/suivi/configuration')->assertOk()
              ->assertJsonPath('tuiles_url', 'https://tuiles.exemple/{z}/{x}/{y}.png?key=publique')
              ->assertJsonPath('routage_routier', false);
+        // Clé OpenRouteService seule (lot 9) : trajet par la route annoncé
+        config(['services.routage.cle' => 'cle-test']);
+        $this->en($this->acheteur)->getJson('/api/suivi/configuration')->assertJsonPath('routage_routier', true);
         $this->app['auth']->forgetGuards();
         $this->withoutToken()->getJson('/api/suivi/configuration')->assertStatus(401);
     }
