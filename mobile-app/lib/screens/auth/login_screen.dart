@@ -38,7 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 40),
           const Icon(Icons.agriculture, size: 64, color: Colors.white),
           const SizedBox(height: 8),
-          const Text('AgriPlatform',
+          const Text('SenAgriLink',
               style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
           const Text('Gestion agricole intégrée',
               style: TextStyle(color: Colors.white70, fontSize: 13)),
