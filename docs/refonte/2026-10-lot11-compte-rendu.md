@@ -74,4 +74,8 @@ Ce parcours a aussi permis de corriger trois défauts :
 
 ## 4. Vérifications GitHub
 
-*À compléter.*
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16, cycle des migrations 000025 → 000018, garde de démarrage (exécution 39778265763) | `1daf0d3` | **Réussi** |
+| Site : tests et compilation de production (exécution 39778265730) | `1daf0d3` | **Réussi** |
+| Mobile : analyse, tests, APK de test construit et contrôlé, sans publication (exécution 39778265755) | `1daf0d3` | **Réussi** |
