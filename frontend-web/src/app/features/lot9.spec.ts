@@ -49,18 +49,26 @@ describe('Lot 9 — site web', () => {
     http = TestBed.inject(HttpTestingController);
   }
 
+  const geolocationOrigine = Object.getOwnPropertyDescriptor(navigator, 'geolocation');
+
   beforeEach(() => {
     dit = [];
     surPosition = null;
     Object.defineProperty(navigator, 'geolocation', { configurable: true, value: {
       watchPosition: (ok: (p: any) => void) => { surPosition = ok; return 1; }, clearWatch: () => {},
+      getCurrentPosition: (_ok: any, erreur: (e: any) => void) => erreur({ code: 2 }),
     } });
     (globalThis as any).SpeechSynthesisUtterance = class { lang = ''; constructor(public text: string) {} };
     (globalThis as any).speechSynthesis = { speak: (u: any) => dit.push(u.text), cancel: () => {} };
     ConduiteComponent.delaiAnnulationMs = 50;
     AFaireComponent.delaiAnnulationMs = 50;
   });
-  afterEach(() => { http?.verify(); vi.restoreAllMocks(); localStorage.clear(); });
+  afterEach(() => {
+    http?.verify(); vi.restoreAllMocks(); localStorage.clear();
+    // Position simulée retirée : les autres fichiers de test retrouvent le navigateur d'origine
+    if (geolocationOrigine) Object.defineProperty(navigator, 'geolocation', geolocationOrigine);
+    else delete (navigator as any).geolocation;
+  });
 
   const attendre = (ms = 120) => new Promise(r => setTimeout(r, ms));
 

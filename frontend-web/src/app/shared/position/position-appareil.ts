@@ -21,7 +21,7 @@ export class PositionAppareilService {
 
   /** Position actuelle, ou null (refusée, indisponible, délai dépassé). */
   async actuelle(delaiMs = 12000): Promise<Position | null> {
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return null;
+    if (typeof navigator === 'undefined' || typeof navigator.geolocation?.getCurrentPosition !== 'function') return null;
     try {
       const etat = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
       if (etat?.state === 'denied') return null;
