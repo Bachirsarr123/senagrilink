@@ -37,7 +37,18 @@ services:
       - key: APP_URL
         value: https://senagrilink-backend.onrender.com
       - key: APP_LOCALE
-        value: en
+        value: fr
+      # Lot 4 : fond de carte du suivi GPS (MapTiler, offre gratuite)
+      - key: CARTE_TUILES_URL
+        value: https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=yudqv6lhTMnEvCpCwt7t
+      - key: CARTE_ATTRIBUTION
+        value: © MapTiler © les contributeurs d'OpenStreetMap
+      # Lot 6 : notifications push (contenu du fichier JSON Firebase). SECRÈTE : à coller par vous dans Render.
+      - key: FIREBASE_CREDENTIALS_BASE64
+        sync: false
+      # Lot 9 : itinéraire guidé (clé OpenRouteService). SECRÈTE : à coller par vous dans Render.
+      - key: ROUTAGE_CLE
+        sync: false
       - key: APP_FALLBACK_LOCALE
         value: en
       - key: LOG_CHANNEL
