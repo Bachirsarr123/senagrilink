@@ -264,6 +264,14 @@ class ApiService {
   static Future<dynamic> updateProfile(Map<String, dynamic> data) => put('/profile', data);
   /// Lot 11 : « Ma journée » du gestionnaire et fiche par agriculteur.
   static Future<dynamic> getJournee() => get('/journee');
+  /// Lot 12 : paiements (simulés en attendant Wave Business) et « Mon argent ».
+  static Future<dynamic> getDevis(int stockId, double quantite, {double? latitude, double? longitude}) =>
+      get('/commandes/devis?stock_id=$stockId&quantite=$quantite${latitude != null && longitude != null ? '&livraison_latitude=$latitude&livraison_longitude=$longitude' : ''}');
+  static Future<dynamic> payer(List<int> commandes, String moyen, {String? cleIdempotence}) =>
+      post('/paiements', {'commandes': commandes, 'moyen': moyen}, cleIdempotence: cleIdempotence);
+  static Future<dynamic> getPaiement(String reference) => get('/paiements/$reference');
+  static Future<dynamic> simulerPaiement(String reference, String resultat) => post('/paiements/$reference/simulation', {'resultat': resultat});
+  static Future<dynamic> getArgent() => get('/argent');
   static Future<dynamic> getAgriculteurs(String q) => get('/entrepot/producteurs${q.isEmpty ? '' : '?q=${Uri.encodeQueryComponent(q)}'}');
   static Future<dynamic> getAgriculteur(int id) => get('/entrepot/producteurs/$id');
 

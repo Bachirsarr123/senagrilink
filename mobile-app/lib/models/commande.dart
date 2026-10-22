@@ -22,6 +22,10 @@ class Commande {
   final String? codeReception;
   final String? panier;
   final List<Map<String, dynamic>> incidents;
+  /// Lot 12 : ce que l'acheteur paie (marchandise + livraison) et où en est le paiement.
+  final double? totalAPayer;
+  final double? fraisLivraison;
+  final String statutPaiement;
 
   const Commande({
     required this.id,
@@ -41,7 +45,13 @@ class Commande {
     this.codeReception,
     this.panier,
     this.incidents = const [],
+    this.totalAPayer,
+    this.fraisLivraison,
+    this.statutPaiement = 'a_payer',
   });
+
+  /// Payable maintenant (en ligne ou en espèces à la livraison).
+  bool get aPayer => statutPaiement == 'a_payer' && !const ['annulee', 'refusee', 'receptionnee'].contains(statut) && (totalAPayer ?? 0) > 0;
 
   bool peut(String action) => actions.contains(action);
 
@@ -63,5 +73,8 @@ class Commande {
         codeReception: j['code_reception'] as String?,
         panier: j['panier'] as String?,
         incidents: ((j['incidents'] as List?) ?? const []).cast<Map<String, dynamic>>(),
+        totalAPayer: nombre(j['total_a_payer']),
+        fraisLivraison: nombre(j['frais_livraison']),
+        statutPaiement: j['statut_paiement'] as String? ?? 'a_payer',
       );
 }

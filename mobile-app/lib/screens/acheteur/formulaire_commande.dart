@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../utils/nombres.dart';
@@ -45,15 +47,37 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
 
   double? get _quantite => nombre(_quantiteCtl.text.replaceAll(',', '.'));
 
+  /// Lot 12 : total à payer (marchandise + livraison), recalculé par le serveur.
+  Map<String, dynamic>? _devis;
+  Timer? _attenteDevis;
+
   @override
   void initState() {
     super.initState();
-    _quantiteCtl.addListener(() => setState(() {}));
+    _quantiteCtl.addListener(() {
+      setState(() {});
+      _attenteDevis?.cancel();
+      _attenteDevis = Timer(const Duration(milliseconds: 400), _calculerDevis);
+    });
+  }
+
+  Future<void> _calculerDevis() async {
+    final q = _quantite;
+    if (q == null || q <= 0 || q > _disponible) { if (mounted) setState(() => _devis = null); return; }
+    try {
+      final r = await ApiService.getDevis(widget.produit['stock_id'] as int, q,
+          latitude: nombre(widget.lieu['livraison_latitude']), longitude: nombre(widget.lieu['livraison_longitude']));
+      final d = r is Map ? r['devis'] : null;
+      if (mounted) setState(() => _devis = d is Map ? d.cast<String, dynamic>() : null);
+    } catch (_) {
+      if (mounted) setState(() => _devis = null); // le total sans livraison reste affiché
+    }
   }
 
   @override
   void dispose() {
     _quantiteCtl.dispose();
+    _attenteDevis?.cancel();
     super.dispose();
   }
 
@@ -122,6 +146,9 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
               Text('Total : ${fcfa(((_quantite! * _prixUnitaire!) * 100).round() / 100)}',
                   key: const Key('commande-total'),
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              if (_devis != null)
+                Text('À payer avec la livraison : ${fcfa(nombre(_devis!['total_a_payer']) ?? 0)} (livraison ${fcfa(nombre(_devis!['frais_livraison']) ?? 0)})',
+                    key: const Key('commande-a-payer'), style: const TextStyle(color: AppTheme.vertFonce, fontWeight: FontWeight.w600)),
             ],
             if (_erreur != null) ...[
               const SizedBox(height: 12),

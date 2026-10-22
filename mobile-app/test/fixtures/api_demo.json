@@ -1220,5 +1220,45 @@
    "auto_affecter_transporteurs": true,
    "delai_reponse_min": 10
   }
+ },
+ "/argent": {
+  "totaux": {
+   "mis_de_cote": 1250000,
+   "verse": 8420500,
+   "a_regler": 35000,
+   "regle": 0
+  },
+  "moyen_paiement": "orange_money",
+  "numero_paiement": "771234567",
+  "versements": [
+   {
+    "id": 1,
+    "beneficiaire": "producteur",
+    "montant": 1250000,
+    "statut": "bloque",
+    "commande": {
+     "numero_commande": "CMD-2026-000008",
+     "produit": "Arachide décortiquée de qualité supérieure",
+     "quantite": 1250.5,
+     "prix": 1300000,
+     "frais_stockage": 6252,
+     "commission": 26000
+    }
+   },
+   {
+    "id": 2,
+    "beneficiaire": "producteur",
+    "montant": 35000,
+    "statut": "a_regler",
+    "commande": {
+     "numero_commande": "CMD-2026-000009",
+     "produit": "Mil",
+     "quantite": 50,
+     "prix": 36000,
+     "frais_stockage": 250,
+     "commission": 720
+    }
+   }
+  ]
  }
 }

@@ -11,6 +11,7 @@ import '../shared/fiche_commande_screen.dart';
 import '../shared/notifications_screen.dart';
 import '../shared/profil_screen.dart';
 import 'agriculteurs_screen.dart';
+import '../paiement/argent_screen.dart';
 
 /// « Ma journée » du gestionnaire (lot 11), même rôle que la page du site : en
 /// tête ce qui demande son attention, puis ce qui arrive, ce qui est à préparer
@@ -93,6 +94,8 @@ class _MaJourneeScreenState extends State<MaJourneeScreen> {
       appBar: AppBar(
         title: const Text('Ma journée'),
         actions: [
+          IconButton(key: const Key('mon-argent'), tooltip: 'Mon argent', icon: const Icon(Icons.account_balance_wallet_outlined),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ArgentScreen()))),
           IconButton(key: const Key('agriculteurs'), tooltip: 'Agriculteurs', icon: const Icon(Icons.person_search),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgriculteursScreen()))),
           IconButton(tooltip: 'Notifications', icon: const Icon(Icons.notifications_outlined),

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../models/commande.dart';
 import '../../services/api_service.dart';
 import '../../utils/nombres.dart';
+import '../../utils/paiement.dart';
 import '../../widgets/app_theme.dart';
+import '../paiement/paiement_screen.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
 import 'suivi_livraison_screen.dart';
@@ -131,6 +133,17 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
     _charger();
   }
 
+  Future<void> _payer(Commande c) async {
+    final messager = ScaffoldMessenger.of(context);
+    try {
+      final message = await payerCommandes(context, [c.id], c.totalAPayer ?? 0);
+      if (message != null) messager.showSnackBar(SnackBar(content: Text(message), backgroundColor: AppTheme.vert));
+    } on ApiException catch (e) {
+      messager.showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));
+    }
+    _charger();
+  }
+
   Future<void> _confirmerReception(Commande c) async {
     if (!await confirmerAction(context, 'Confirmer que vous avez bien reçu la commande ${c.numeroCommande} (${kg(c.quantite)} de ${c.produit}) ?\n'
         'En cas de problème, utilisez plutôt « Signaler un problème ».')) { return; }
@@ -184,6 +197,21 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
                                   '${c.prixUnitaire != null ? ' × ${fcfa(c.prixUnitaire!)}/kg' : ''}'
                                   '${c.prix != null ? ' = ${fcfa(c.prix!)}' : ''}',
                                   style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                              // Lot 12 : total avec la livraison, état du paiement, bouton « Payer »
+                              if ((c.totalAPayer ?? 0) > 0) ...[
+                                const SizedBox(height: 4),
+                                Text('À payer : ${fcfa(c.totalAPayer!)} (dont livraison ${fcfa(c.fraisLivraison ?? 0)})',
+                                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                                Text(etatsPaiement[c.statutPaiement] ?? c.statutPaiement,
+                                    style: TextStyle(fontSize: 12, color: c.statutPaiement == 'litige' ? AppTheme.rouge : AppTheme.vertFonce)),
+                                if (c.aPayer) Padding(padding: const EdgeInsets.only(top: 6), child: SizedBox(width: double.infinity, height: 48,
+                                  child: ElevatedButton.icon(
+                                    key: Key('payer-${c.id}'),
+                                    icon: const Icon(Icons.payments_outlined),
+                                    label: const Text('Payer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                    onPressed: () => _payer(c),
+                                  ))),
+                              ],
 
                               if (c.alerteLivraison)
                                 Container(

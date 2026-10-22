@@ -25,7 +25,7 @@ services:
     name: senagrilink-backend-preprod
     runtime: docker
     repo: https://github.com/Bachirsarr123/senagrilink
-    branch: claude/lot11-pilote-automatique
+    branch: claude/lot12-paiements
     autoDeployTrigger: off
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
@@ -114,7 +114,7 @@ services:
     name: senagrilink-frontend-preprod
     runtime: static
     repo: https://github.com/Bachirsarr123/senagrilink
-    branch: claude/lot11-pilote-automatique
+    branch: claude/lot12-paiements
     autoDeployTrigger: off
     buildCommand: cd frontend-web && npm ci && npm run build -- --configuration production
     staticPublishPath: ./frontend-web/dist/sen-agri-link/browser

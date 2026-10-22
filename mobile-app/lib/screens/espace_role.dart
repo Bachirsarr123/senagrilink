@@ -8,6 +8,7 @@ import 'gestionnaire/stocks_screen.dart';
 import 'producteur/depots_screen.dart';
 import 'producteur/productions_screen.dart';
 import 'shared/a_faire_screen.dart';
+import 'paiement/argent_screen.dart';
 import 'gestionnaire/ma_journee_screen.dart';
 import 'transporteur/livraisons_screen.dart';
 import 'transporteur/reservations_screen.dart';
@@ -24,10 +25,12 @@ class EspaceRole extends StatefulWidget {
     'producteur' => [
       (libelle: 'Récoltes', icone: Icons.grass, ecran: () => const ProductionsScreen(), categories: const []),
       (libelle: 'Dépôts', icone: Icons.warehouse_outlined, ecran: () => const DepotsScreen(), categories: const ['depot']),
+      (libelle: 'Mon argent', icone: Icons.account_balance_wallet_outlined, ecran: () => const ArgentScreen(), categories: const []),
     ],
     'transporteur' => [
       (libelle: 'Livraisons', icone: Icons.local_shipping_outlined, ecran: () => const LivraisonsScreen(), categories: const ['livraison']),
       (libelle: 'Acheminements', icone: Icons.agriculture, ecran: () => const ReservationsScreen(), categories: const ['depot']),
+      (libelle: 'Mon argent', icone: Icons.account_balance_wallet_outlined, ecran: () => const ArgentScreen(), categories: const []),
     ],
     'gestionnaire_entrepot' => [
       (libelle: 'Dépôts', icone: Icons.move_to_inbox_outlined, ecran: () => const DepotsEntrepotScreen(), categories: const ['depot']),
