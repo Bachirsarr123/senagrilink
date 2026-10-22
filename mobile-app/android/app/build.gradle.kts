@@ -83,6 +83,11 @@ android {
             // Clé de distribution si elle est configurée (voir en tête de fichier),
             // sinon clé de debug : build de TEST uniquement, jamais distribuée.
             signingConfig = signingConfigs.getByName(if (signatureDistributionComplete) "distribution" else "debug")
+            // Réduction et obscurcissement du code (R8), comme Flutter le fait par défaut
+            // en release ; écrit explicitement (Sonar kotlin:S7204).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }

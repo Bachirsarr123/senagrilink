@@ -26,6 +26,10 @@ services:
     build:
       context: ./backend
       dockerfile: docker/Dockerfile
+      args:
+        # Identifiant de votre utilisateur (commande `id -u` / `id -g`) : le conteneur écrit avec vos droits
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     container_name: agri_app
     restart: unless-stopped
     working_dir: /var/www

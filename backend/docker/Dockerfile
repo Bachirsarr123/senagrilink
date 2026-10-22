@@ -28,7 +28,15 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 WORKDIR /var/www
 
-# Exécution en root pour l'environnement de développement (permissions storage/).
-# En production, utiliser un utilisateur dédié avec les volumes correctement configurés.
+# Exécution sans privilèges root (Sonar docker:S6471). L'utilisateur www-data
+# reçoit l'identifiant de l'utilisateur de l'hôte (UID/GID, docker-compose) :
+# il peut donc écrire dans le dossier monté sans permissions ouvertes à tous.
+ARG UID=1000
+ARG GID=1000
+RUN apk add --no-cache shadow \
+    && groupmod -o -g "${GID}" www-data \
+    && usermod -o -u "${UID}" -g www-data www-data \
+    && chown www-data:www-data /var/www
+USER www-data
 EXPOSE 9000
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

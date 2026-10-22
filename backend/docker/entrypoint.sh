@@ -33,8 +33,9 @@ mkdir -p /var/www/storage/framework/cache \
          /var/www/storage/logs \
          /var/www/bootstrap/cache
 
-# 777 requis car PHP-FPM tourne en www-data (other) et le volume est root:root
-chmod -R 777 /var/www/storage /var/www/bootstrap/cache
+# Le conteneur tourne avec l'identifiant de l'utilisateur de l'hôte (propriétaire
+# du dossier monté) : écriture pour lui et son groupe seulement (Sonar shell:S2612).
+chmod -R u+rwX,g+rwX,o-w /var/www/storage /var/www/bootstrap/cache
 
 # ── 4. Clé d'application ──────────────────────────────────────────────────────
 if grep -q "^APP_KEY=$" /var/www/.env 2>/dev/null || ! grep -q "^APP_KEY=" /var/www/.env 2>/dev/null; then
