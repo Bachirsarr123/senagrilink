@@ -7,7 +7,7 @@ import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/carte_depot.dart' show confirmerAction, demanderMotifAction;
 import '../../widgets/declarer_incident.dart';
-import '../../widgets/itineraire.dart';
+import '../../widgets/bouton_conduite.dart';
 import '../../widgets/status_badge.dart';
 
 /// Mission de livraison : les boutons viennent des actions renvoyées par le
@@ -187,12 +187,14 @@ class _DetailLivraisonScreenState extends State<DetailLivraisonScreen> {
                 ]),
               )),
               const SizedBox(height: 8),
-              if (statutsLivraisonActifs.contains(_l.statut)) Padding(
+              // Lot 9 : guidage dans l'application (chemin, consignes, gros bouton d'étape)
+              if (['prise_en_charge', 'chargee', 'en_cours'].contains(_l.statut)) Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: SizedBox(width: double.infinity, child: ['en_attente', 'prise_en_charge'].contains(_l.statut)
-                    ? BoutonItineraire(latitude: entrepot?['latitude'], longitude: entrepot?['longitude'], libelle: 'Itinéraire vers l\'entrepôt')
-                    : BoutonItineraire(latitude: _l.destinationLatitude ?? (commande?['acheteur'] as Map?)?['latitude'],
-                        longitude: _l.destinationLongitude ?? (commande?['acheteur'] as Map?)?['longitude'], libelle: 'Itinéraire vers l\'acheteur')),
+                child: SizedBox(width: double.infinity, child: BoutonConduite(
+                  type: 'livraison', id: _l.id, numero: _l.numeroLivraison,
+                  libelle: _l.statut == 'prise_en_charge' ? 'Conduire jusqu\'à l\'entrepôt' : 'Conduire jusqu\'à l\'acheteur',
+                  auRetour: () async { _modifiee = true; await _actualiser(); await _synchroniserSuivi(); },
+                )),
               ),
 
               if (_l.peut('confirmer_par_code')) Card(child: Padding(

@@ -249,6 +249,12 @@ class ApiService {
   static Future<dynamic> envoyerPositions(String type, int id, List<Map<String, dynamic>> positions) =>
       post('/suivi/$type/$id/positions', {'positions': positions});
   static Future<dynamic> getSuivi(String type, int id) => get('/suivi/$type/$id');
+  /// Lot 9 : guidage du conducteur depuis sa position (chemin, consignes, action en arrivant).
+  static Future<dynamic> getNavigation(String type, int id, double latitude, double longitude) =>
+      get('/navigation/$type/$id?latitude=$latitude&longitude=$longitude');
+  /// Transporteurs classés : libres d'abord, puis les plus proches du lieu de prise en charge.
+  static Future<dynamic> getTransporteursProches({double? latitude, double? longitude}) =>
+      get('/transporteurs${latitude != null && longitude != null ? '?latitude=$latitude&longitude=$longitude' : ''}');
   static Future<dynamic> getSuivisActifs() => get('/suivi/actifs');
   static Future<dynamic> getConfigurationCarte() => get('/suivi/configuration');
   static Future<dynamic> getPositionLivraison(int livraisonId) =>

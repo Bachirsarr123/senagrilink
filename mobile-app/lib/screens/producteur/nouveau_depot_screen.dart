@@ -9,6 +9,8 @@ import '../../widgets/choix_position.dart';
 import '../../widgets/info_card.dart';
 
 /// Demande de dépôt : entrepôt qui a la place, récolte (lot), mode de transport.
+/// Lot 9 : tout est prérempli (dernière récolte, entrepôt le plus proche,
+/// transporteur, position) ; le producteur vérifie et envoie.
 /// Produit et quantité sont repris de la récolte (pas de ressaisie). La clé
 /// d'idempotence est réutilisée si le producteur réessaie après une erreur.
 class NouveauDepotScreen extends StatefulWidget {
@@ -56,11 +58,17 @@ class _NouveauDepotScreenState extends State<NouveauDepotScreen> {
             .map((e) => Production.fromJson(e as Map<String, dynamic>))
             .where((p) => p.statut != 'annulee')
             .toList();
+        // Lot 9 : tout est prérempli — entrepôt le plus proche, transporteur ; il ne reste qu'à vérifier et envoyer
+        _entrepotId ??= _entrepots.isNotEmpty ? _entrepots.first['id'] as int : null;
+        _mode ??= 'transporteur';
         _chargement = false;
       });
     } on ApiException catch (e) {
       setState(() { _erreurChargement = e.message; _chargement = false; });
+      return;
     }
+    // Récolte la plus récente, quantité reprise
+    if (_recolte == null && _recoltes.isNotEmpty) _choisirRecolte(_recoltes.reduce((a, b) => a.id > b.id ? a : b));
   }
 
   void _choisirRecolte(Production? p) {

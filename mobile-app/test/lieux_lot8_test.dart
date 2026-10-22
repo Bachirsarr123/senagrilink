@@ -109,7 +109,7 @@ void main() {
     expect([corps['livraison_latitude'], corps['livraison_longitude']], [14.75, -17.38]);
   });
 
-  testWidgets('transporteur : itinéraire vers le lieu de prise en charge choisi au dépôt', (tester) async {
+  testWidgets('transporteur : guidé dans l\'application vers le producteur', (tester) async {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: CarteDepot(
       reservation: {
         'id': 7, 'numero_reservation': 'RES-7', 'produit': 'mil', 'quantite_reservee': '40', 'statut': 'prise_en_charge',
@@ -121,6 +121,6 @@ void main() {
       onAction: (_) {},
     )))));
     await tester.pumpAndSettle();
-    expect(find.text('Itinéraire vers le producteur'), findsOneWidget);
+    expect(find.text('Conduire jusqu\'au producteur'), findsOneWidget);
   });
 }

@@ -1088,5 +1088,66 @@
     "motif": "Le premier véhicule est en révision au garage"
    }
   ]
+ },
+ "/navigation/livraison/5": {
+  "sujet_type": "livraison",
+  "sujet_id": 5,
+  "numero": "LIV-2026-000005",
+  "statut": "chargee",
+  "vers": "destination",
+  "cible": {
+   "nom": "Aminata Mariama Ndiaye-Diop Fall",
+   "adresse": "Quartier Médina, rue 22 x 15, en face de la grande mosquée, Thiès",
+   "latitude": 14.79,
+   "longitude": -16.93
+  },
+  "actions": [
+   "partir",
+   "declarer_incident"
+  ],
+  "proche": false,
+  "itineraire": {
+   "km": 72.4,
+   "secondes": 5400,
+   "routier": true,
+   "arrivee_vers": "2026-10-22T11:30:00Z",
+   "points": [
+    [
+     14.8,
+     -16.95
+    ],
+    [
+     14.795,
+     -16.94
+    ],
+    [
+     14.79,
+     -16.93
+    ]
+   ],
+   "etapes": [
+    {
+     "instruction": "Partez par la Route nationale 1",
+     "type": "depart",
+     "distance_m": 1200,
+     "debut": 0,
+     "fin": 1
+    },
+    {
+     "instruction": "Au rond-point, prenez la 3e sortie sur la Route nationale 2 en direction de Saint-Louis",
+     "type": "rond_point",
+     "distance_m": 1100,
+     "debut": 1,
+     "fin": 2
+    },
+    {
+     "instruction": "Arrivée à destination",
+     "type": "arrivee",
+     "distance_m": 0,
+     "debut": 2,
+     "fin": 2
+    }
+   ]
+  }
  }
 }

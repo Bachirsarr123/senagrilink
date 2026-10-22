@@ -23,6 +23,8 @@ import 'package:agri_platform_mobile/screens/gestionnaire/commandes_entrepot_scr
 import 'package:agri_platform_mobile/screens/gestionnaire/depots_entrepot_screen.dart';
 import 'package:agri_platform_mobile/screens/gestionnaire/incidents_screen.dart';
 import 'package:agri_platform_mobile/screens/shared/a_faire_screen.dart';
+import 'package:agri_platform_mobile/screens/conduite/conduite_screen.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:agri_platform_mobile/screens/shared/notifications_screen.dart';
 import 'package:agri_platform_mobile/screens/shared/fiche_commande_screen.dart';
 import 'package:agri_platform_mobile/services/api_service.dart';
@@ -92,6 +94,7 @@ void main() {
     'Notifications':            ('acheteur_gros', () => const NotificationsScreen(), 'Tout lire'),
     'Profil':                   ('producteur', () => const ProfilScreen(afficherTuiles: false), 'Position de votre exploitation'),
     'Traçabilité':              ('acheteur_gros', () => const TracabiliteScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
+    'Conduite':                 ('transporteur', () => const ConduiteScreen(type: 'livraison', id: 5, numero: 'LIV-2026-000005'), 'Route nationale 2'),
   };
 
   // Police réelle (Roboto, fournie avec le SDK Flutter) plutôt que la police de
@@ -110,6 +113,8 @@ void main() {
   });
 
   setUp(() {
+    ConduiteScreen.sourcePositions = () => Stream.value(const LatLng(14.80, -16.95));
+    ConduiteScreen.parler = (_) async {};
     ApiService.client = MockClient((req) async {
       final chemin = req.url.path.replaceFirst(RegExp(r'^.*/api'), '');
       final corps = reponses[chemin];

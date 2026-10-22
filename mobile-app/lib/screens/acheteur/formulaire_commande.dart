@@ -57,6 +57,13 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
     super.dispose();
   }
 
+  double get _pas => _disponible >= 50 ? 10 : 1;
+
+  void _ajuster(double delta) {
+    final q = ((_quantite ?? 0) + delta).clamp(0, _disponible).toDouble();
+    _quantiteCtl.text = q <= 0 ? '' : nombreLisible(q);
+  }
+
   String? _validerQuantite(String? v) {
     final q = nombre(v?.replaceAll(',', '.'));
     if (q == null) return 'Indiquez la quantité souhaitée.';
@@ -92,13 +99,24 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
                 '${_prixUnitaire != null ? ' — ${fcfa(_prixUnitaire!)} / kg' : ''}',
                 style: const TextStyle(color: Colors.grey)),
             const SizedBox(height: 16),
-            TextFormField(
-              key: const Key('commande-quantite'),
-              controller: _quantiteCtl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Quantité souhaitée (kg) *'),
-              validator: _validerQuantite,
-            ),
+            // Lot 9 : − / + pour choisir sans clavier (pas de 10 kg), le champ reste modifiable
+            Row(children: [
+              IconButton.filledTonal(key: const Key('commande-moins'), iconSize: 30, icon: const Icon(Icons.remove),
+                  onPressed: () => _ajuster(-_pas)),
+              const SizedBox(width: 8),
+              Expanded(child: TextFormField(
+                key: const Key('commande-quantite'),
+                controller: _quantiteCtl,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Quantité (kg) *'),
+                validator: _validerQuantite,
+              )),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(key: const Key('commande-plus'), iconSize: 30, icon: const Icon(Icons.add),
+                  onPressed: () => _ajuster(_pas)),
+            ]),
             if (_prixUnitaire != null && (_quantite ?? 0) > 0) ...[
               const SizedBox(height: 12),
               Text('Total : ${fcfa(((_quantite! * _prixUnitaire!) * 100).round() / 100)}',

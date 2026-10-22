@@ -6,7 +6,7 @@ import 'app_theme.dart';
 import 'declarer_incident.dart';
 import 'choix_transporteur.dart';
 import 'reception_depot.dart';
-import 'itineraire.dart';
+import 'bouton_conduite.dart';
 import '../screens/acheteur/suivi_livraison_screen.dart';
 import '../services/suivi_gps_service.dart';
 import '../utils/livraison.dart' show libelleIncident;
@@ -102,15 +102,14 @@ class CarteDepot extends StatelessWidget {
             )),
           if (statut == 'en_route' && SuiviGpsService.instance.suit('reservation', r['id'] as int))
             ligne(Icons.gps_fixed, 'Position partagée avec l\'entrepôt jusqu\'à l\'arrivée'),
-          if (vueTransporteur && ['prise_en_charge', 'au_point_collecte'].contains(statut))
-            Padding(padding: const EdgeInsets.only(top: 8), child: BoutonItineraire(
-                // Lieu de prise en charge choisi au dépôt (lot 8), sinon lieu habituel du producteur
-                latitude: r['collecte_latitude'] ?? (r['producteur'] as Map?)?['latitude'],
-                longitude: r['collecte_longitude'] ?? (r['producteur'] as Map?)?['longitude'],
-                libelle: 'Itinéraire vers le producteur')),
-          if (['chargee', 'en_route'].contains(statut) && (vueTransporteur || r['mode_transport'] == 'producteur') || (statut == 'confirmee' && r['mode_transport'] == 'producteur'))
-            Padding(padding: const EdgeInsets.only(top: 8), child: BoutonItineraire(
-                latitude: (r['entrepot'] as Map?)?['latitude'], longitude: (r['entrepot'] as Map?)?['longitude'], libelle: 'Itinéraire vers l\'entrepôt')),
+          // Lot 9 : guidage dans l'application, vers le producteur puis vers l'entrepôt
+          if ((vueTransporteur && ['prise_en_charge', 'au_point_collecte', 'chargee', 'en_route'].contains(statut))
+              || (!vueTransporteur && !vueGestionnaire && r['mode_transport'] == 'producteur' && ['confirmee', 'en_route'].contains(statut)))
+            Padding(padding: const EdgeInsets.only(top: 8), child: SizedBox(width: double.infinity, child: BoutonConduite(
+              type: 'reservation', id: r['id'] as int, numero: r['numero_reservation'] as String? ?? '',
+              libelle: ['prise_en_charge', 'au_point_collecte'].contains(statut) ? 'Conduire jusqu\'au producteur' : 'Conduire jusqu\'à l\'entrepôt',
+              auRetour: () => onAction('actualiser'),
+            ))),
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -142,6 +141,7 @@ Future<bool> executerActionDepot(BuildContext context, Map<String, dynamic> r, S
   final messager = ScaffoldMessenger.of(context);
 
   Future<dynamic> Function()? appel;
+  if (action == 'actualiser') return true; // retour de l'écran Conduite : relire la liste
   if (action == 'accepter_mission') {
     if (!await _confirmer(context, 'Accepter la mission $numero : ${r['produit'] ?? ''} à aller chercher chez le producteur ?')) return false;
     appel = () => ApiService.accepterMission(id);

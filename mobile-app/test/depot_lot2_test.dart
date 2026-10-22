@@ -103,7 +103,7 @@ void main() {
     expect(jsonDecode(req.body), {'etape': 'en_route'});
   });
 
-  testWidgets('demande de dépôt depuis le téléphone : récolte, entrepôt, mode, quantité reprise', (tester) async {
+  testWidgets('demande de dépôt depuis le téléphone : tout prérempli, le producteur choisit de livrer lui-même', (tester) async {
     await afficher(tester, 'producteur', const NouveauDepotScreen(), (req) async {
       if (req.url.path.endsWith('/entrepots/disponibles')) {
         return json({'entrepots': [{'id': 2, 'nom_entrepot': 'Nord', 'capacite_disponible': '500'}]});
@@ -114,21 +114,11 @@ void main() {
       return json({'reservation': {'id': 1}}, 201);
     });
 
-    await tester.tap(find.byKey(const Key('depot-recolte')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('LOT-1 — mil').last);
-    await tester.pumpAndSettle();
-    expect(find.text('80'), findsOneWidget); // quantité reprise de la récolte
-
-    await tester.tap(find.byKey(const Key('depot-entrepot')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('Nord').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('depot-envoyer')));
-    await tester.pumpAndSettle();
-    expect(find.text('Choisissez qui transporte la marchandise.'), findsOneWidget);
-    expect(requetes.where((r) => r.method == 'POST'), isEmpty);
+    // Lot 9 : tout est prérempli — dernière récolte, quantité reprise, entrepôt le plus proche, transporteur
+    expect(find.text('LOT-1 — mil'), findsOneWidget);
+    expect(find.text('80'), findsOneWidget);
+    expect(find.textContaining('Nord'), findsOneWidget);
+    expect(find.text('Où le transporteur vient-il chercher la marchandise ?'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('mode-producteur')));
     await tester.pumpAndSettle();

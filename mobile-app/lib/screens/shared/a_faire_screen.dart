@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/info_card.dart';
+import '../../utils/action_directe.dart';
+import '../conduite/conduite_screen.dart';
 import 'fiche_commande_screen.dart';
 import 'notifications_screen.dart';
 import 'profil_screen.dart';
@@ -14,6 +17,8 @@ class AFaireScreen extends StatefulWidget {
   /// Ouvre l'onglet du rôle qui convient (dépôts, commandes, incidents…).
   final void Function(String categorie)? ouvrirOnglet;
   const AFaireScreen({super.key, this.ouvrirOnglet});
+  /// Délai pour annuler un appui par erreur sur un bouton d'action (lot 9).
+  static Duration delaiAnnulation = const Duration(seconds: 4);
   @override
   State<AFaireScreen> createState() => _AFaireScreenState();
 }
@@ -51,6 +56,54 @@ class _AFaireScreenState extends State<AFaireScreen> {
       widget.ouvrirOnglet?.call(e['categorie'] as String);
     }
     _charger();
+  }
+
+  /// Lot 9 : l'action principale se fait d'ici, d'un appui (quelques secondes pour annuler).
+  /// Les étapes de transport ouvrent l'écran Conduite ; confier une mission va au transporteur proposé.
+  static const _conduite = {'arriver_collecte', 'charger', 'partir', 'arriver'};
+  int? _enCours;
+
+  Future<void> _agirDirect(Map<String, dynamic> e) async {
+    final action = e['action'] as String;
+    final type = e['sujet_type'] as String;
+    final id = e['sujet_id'] as int;
+    final numero = e['numero'] as String? ?? '';
+    if (_conduite.contains(action)) {
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => ConduiteScreen(type: type, id: id, numero: numero)));
+      return _charger();
+    }
+    final propose = (e['transporteur_propose'] as Map?)?.cast<String, dynamic>();
+    if ((action == 'assigner' || action == 'organiser_livraison') && propose == null) return _ouvrir(e);
+
+    final messager = ScaffoldMessenger.of(context);
+    final libelle = _libelle(e);
+    final annule = await messager.showSnackBar(SnackBar(
+      content: Text('« $libelle » — $numero'), duration: AFaireScreen.delaiAnnulation,
+      persist: false, // se ferme seul : l'action part si personne n'annule
+      action: SnackBarAction(label: 'ANNULER', onPressed: () {}),
+    )).closed;
+    if (annule == SnackBarClosedReason.action || !mounted) return;
+    setState(() => _enCours = id);
+    try {
+      final message = await executerActionDirecte(type, id, action, transporteurId: propose?['id'] as int?);
+      messager.showSnackBar(SnackBar(content: Text(message), backgroundColor: AppTheme.vert));
+      if (action == 'accepter_mission' && mounted) {
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => ConduiteScreen(type: type, id: id, numero: numero)));
+      }
+    } on ApiException catch (err) {
+      messager.showSnackBar(SnackBar(content: Text(err.message), backgroundColor: AppTheme.rouge));
+    }
+    if (mounted) setState(() => _enCours = null);
+    _charger();
+  }
+
+  String _libelle(Map<String, dynamic> e) {
+    final action = e['action'] as String;
+    if (_conduite.contains(action)) return 'Conduire';
+    final propose = (e['transporteur_propose'] as Map?)?.cast<String, dynamic>();
+    final nom = propose == null ? null
+        : '${propose['nom']}${propose['distance_km'] != null ? ' (à ${nombreLisible(propose['distance_km'] as num)} km)' : ''}';
+    return libelleActionDirecte(action, sujetType: e['sujet_type'] as String? ?? '', transporteur: nom);
   }
 
   String _depuis(Object? iso) {
@@ -104,7 +157,7 @@ class _AFaireScreenState extends State<AFaireScreen> {
                       shape: e['urgence'] == 'haute'
                           ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppTheme.rouge, width: 1.5))
                           : null,
-                      child: ListTile(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [ListTile(
                         key: Key('a-faire-${e['categorie']}-${e['sujet_id']}'),
                         leading: Icon(_icone(e['categorie'] as String? ?? ''), color: e['urgence'] == 'haute' ? AppTheme.rouge : AppTheme.vert),
                         title: Text(e['etape'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -113,6 +166,15 @@ class _AFaireScreenState extends State<AFaireScreen> {
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => _ouvrir(e),
                       ),
+                      if (e['action'] != null) Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        child: SizedBox(height: 50, child: ElevatedButton(
+                          key: Key('a-faire-action-${e['categorie']}-${e['sujet_id']}'),
+                          onPressed: _enCours == e['sujet_id'] ? null : () => _agirDirect(e),
+                          child: Text(_enCours == e['sujet_id'] ? 'Envoi…' : _libelle(e), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        )),
+                      ),
+                      ]),
                     ),
                   ]),
                 ),
