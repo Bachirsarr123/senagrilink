@@ -69,7 +69,8 @@ class JourneeController extends Controller
             ]);
 
         return response()->json([
-            'attention' => AFaire::pour($u),
+            // Les commandes sont dans « À préparer » : pas de doublon dans « À traiter »
+            'attention' => array_values(array_filter(AFaire::pour($u), fn ($e) => $e['categorie'] !== 'commande')),
             'arrivent' => $arrivent, 'a_preparer' => $aPreparer, 'partent' => $partent,
             'pilote' => $e->only(['auto_accepter_depots', 'auto_confirmer_commandes', 'auto_affecter_transporteurs', 'delai_reponse_min']),
         ]);

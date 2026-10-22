@@ -387,11 +387,12 @@ export class ProducteurReservationsComponent implements OnInit {
       ...(lieu ? { collecte_latitude: lieu.latitude, collecte_longitude: lieu.longitude } : {}),
     };
     this.api.storeReservation(data, this.cleReservation.valeur).subscribe({
-      next: () => {
+      next: (res: any) => {
         this.cleReservation.renouveler();
         this.loadingModal.set(false);
         this.fermerModal();
-        this.message.set('Demande de réservation envoyée.');
+        // Lot 11 : le serveur dit si le dépôt est déjà accepté et confié (pilote automatique)
+        this.message.set(res?.message ?? 'Demande de réservation envoyée.');
         this.chargerEntrepots();
         this.chargerReservations();
         setTimeout(() => this.message.set(null), 4000);

@@ -101,6 +101,8 @@ export class AFaireComponent implements OnInit {
 
   /** Intégré à « Ma journée » (lot 11) : sans titre ni raccourcis. */
   integre = input(false);
+  /** Catégories déjà montrées ailleurs (« Ma journée » affiche les commandes à part). */
+  exclure = input<string[]>([]);
   elements = signal<any[]>([]);
   chargement = signal(true);
   erreur = signal<string | null>(null);
@@ -151,7 +153,7 @@ export class AFaireComponent implements OnInit {
   charger(): void {
     this.erreur.set(null);
     this.api.getAFaire().subscribe({
-      next: res => { this.elements.set(res.elements ?? []); this.chargement.set(false); },
+      next: res => { this.elements.set((res.elements ?? []).filter((e: any) => !this.exclure().includes(e.categorie))); this.chargement.set(false); },
       error: err => {
         this.chargement.set(false);
         this.erreur.set(err.status === 0 ? 'Serveur injoignable. Vérifiez votre connexion.' : err.error?.message ?? 'Impossible de charger vos actions.');

@@ -47,11 +47,10 @@ class _DepotsScreenState extends State<DepotsScreen> {
   }
 
   Future<void> _nouveau() async {
-    final cree = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const NouveauDepotScreen()));
-    if (cree == true) {
+    final message = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const NouveauDepotScreen()));
+    if (message != null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Demande de dépôt envoyée. L\'entrepôt a été prévenu.'), backgroundColor: AppTheme.vert));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AppTheme.vert));
       }
       _charger();
     }

@@ -82,7 +82,7 @@ class _NouveauDepotScreenState extends State<NouveauDepotScreen> {
     setState(() { _envoi = true; _erreur = null; });
     final aujourdhui = DateTime.now();
     try {
-      await ApiService.demanderDepot({
+      final res = await ApiService.demanderDepot({
         'entrepot_id': _entrepotId,
         'production_id': _recolte!.id,
         'mode_transport': _mode,
@@ -93,7 +93,8 @@ class _NouveauDepotScreenState extends State<NouveauDepotScreen> {
         'quantite_reservee': nombre(_quantiteCtl.text.trim().replaceAll(',', '.')),
         'date_debut': '${aujourdhui.year}-${aujourdhui.month.toString().padLeft(2, '0')}-${aujourdhui.day.toString().padLeft(2, '0')}',
       }, cleIdempotence: _cle);
-      if (mounted) Navigator.pop(context, true);
+      // Lot 11 : le message du serveur dit si le dépôt est déjà accepté et confié
+      if (mounted) Navigator.pop(context, (res is Map ? res['message'] as String? : null) ?? 'Demande de dépôt envoyée. L\'entrepôt a été prévenu.');
     } on ApiException catch (e) {
       if (mounted) setState(() { _erreur = e.message; _envoi = false; });
     }

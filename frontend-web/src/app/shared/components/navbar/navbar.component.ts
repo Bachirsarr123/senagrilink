@@ -22,7 +22,10 @@ import { EchoService } from '../../../core/services/echo.service';
       <div class="navbar-collapsible" id="navbar-menu" [class.open]="menuMobileOuvert()">
         <ul class="navbar-links" (click)="fermerMenuMobile()">
           @if (role() !== 'administrateur') {
+            <!-- Le gestionnaire a « Ma journée » à la place (lot 11) -->
+            @if (role() !== 'gestionnaire_entrepot') {
             <li><a routerLink="/a-faire" routerLinkActive="active">À faire</a></li>
+            }
           }
           @if (role() === 'producteur') {
             <li><a routerLink="/producteur/productions" routerLinkActive="active">Mes productions</a></li>
@@ -37,7 +40,6 @@ import { EchoService } from '../../../core/services/echo.service';
             <li><a routerLink="/entrepot/reservations" routerLinkActive="active">Dépôts</a></li>
             <li><a routerLink="/entrepot/commandes" routerLinkActive="active">Commandes</a></li>
             <li><a routerLink="/entrepot/incidents" routerLinkActive="active">Incidents</a></li>
-            <li><a routerLink="/entrepot/alertes" routerLinkActive="active">Alertes</a></li>
             <li><a routerLink="/entrepot/rapport" routerLinkActive="active">Rapport</a></li>
           }
           @if (role() === 'acheteur_gros') {

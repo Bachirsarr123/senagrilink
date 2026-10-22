@@ -31,14 +31,15 @@ const ACTUALISATION_MS = 30_000;
         <label><input type="checkbox" [checked]="pilote()?.auto_confirmer_commandes" (change)="regler('auto_confirmer_commandes', $event)" /> Confirmer les commandes</label>
         <label><input type="checkbox" [checked]="pilote()?.auto_affecter_transporteurs" (change)="regler('auto_affecter_transporteurs', $event)" /> Trouver les transporteurs</label>
         <label>Délai de réponse
-          <select [value]="pilote()?.delai_reponse_min ?? 10" (change)="reglerDelai($event)">
-            @for (m of [5, 10, 15, 30]; track m) { <option [value]="m">{{ m }} min</option> }
+          <select (change)="reglerDelai($event)">
+            @for (m of [5, 10, 15, 30]; track m) { <option [value]="m" [selected]="m === (pilote()?.delai_reponse_min ?? 10)">{{ m }} min</option> }
           </select></label>
       </section>
 
       <section aria-label="À traiter">
         <h2>⚠️ À traiter</h2>
-        <app-a-faire [integre]="true" />
+        <!-- Les commandes sont dans « À préparer » : pas de doublon -->
+        <app-a-faire [integre]="true" [exclure]="['commande']" />
       </section>
 
       @if (erreur()) { <div class="alert alert-error" role="alert">{{ erreur() }}</div> }
