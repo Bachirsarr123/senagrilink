@@ -116,6 +116,8 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     Route::get('/suivi/configuration',               [\App\Http\Controllers\Api\SuiviController::class, 'configuration']);
     Route::get('/suivi/actifs',                      [\App\Http\Controllers\Api\SuiviController::class, 'actifs']);
     Route::post('/suivi/{type}/{id}/positions',      [\App\Http\Controllers\Api\SuiviController::class, 'enregistrer'])->whereNumber('id')->middleware('throttle:120,1');
+    // Lot 9 : guidage du conducteur (chemin, consignes, action en arrivant)
+    Route::get('/navigation/{type}/{id}', [\App\Http\Controllers\Api\NavigationController::class, 'itineraire'])->whereNumber('id')->middleware('throttle:60,1');
     Route::get('/suivi/{type}/{id}',                 [\App\Http\Controllers\Api\SuiviController::class, 'consulter'])->whereNumber('id');
 
     // ── Suivi GPS (producteur/acheteur concernés + admin, filtré dans le contrôleur) ──

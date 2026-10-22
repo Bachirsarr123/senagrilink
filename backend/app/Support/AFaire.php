@@ -66,7 +66,10 @@ final class AFaire
             $actions = array_diff(CircuitDepot::actions($r, $u, $bloque), ['annuler', 'declarer_incident', 'remettre_en_attente', 'retirer_transporteur']);
 
             return $etape && $etape['acteur'] === $u->role && $actions !== [];
-        })->map(fn (Reservation $r) => [
+        })->map(fn (Reservation $r) => self::avecAction($r, array_diff(
+            CircuitDepot::actions($r, $u, $r->incidents->contains(fn (Incident $i) => $i->estBloquant())),
+            ['annuler', 'declarer_incident', 'remettre_en_attente', 'retirer_transporteur', 'refuser', 'refuser_mission', 'refuser_reception'],
+        ), [
             'categorie'  => 'depot',
             'sujet_type' => 'reservation',
             'sujet_id'   => $r->id,
@@ -74,7 +77,7 @@ final class AFaire
             'titre'      => sprintf('%s — %s kg', $r->produit, rtrim(rtrim(number_format((float) $r->quantite_reservee, 2, ',', ' '), '0'), ',')),
             'etape'      => CircuitDepot::prochaineEtape($r)['libelle'],
             'depuis'     => self::derniereEtape('reservation', $r->id, $r->date_reservation),
-        ]);
+        ]));
     }
 
     private static function commandes(Utilisateur $u): Collection
@@ -83,7 +86,7 @@ final class AFaire
             return collect();
         }
 
-        $q = Commande::with(['stock:id,entrepot_id', 'livraison', 'incidents'])
+        $q = Commande::with(['stock:id,entrepot_id', 'stock.entrepot:id,latitude,longitude', 'livraison', 'incidents'])
             ->whereNotIn('statut', ['receptionnee', 'annulee']);
         $u->acheteurGros
             ? $q->where('acheteur_id', $u->acheteurGros->id)
@@ -94,7 +97,10 @@ final class AFaire
             $actions = array_diff(CircuitLivraison::actionsCommande($c, $u), ['modifier', 'annuler', 'demander_annulation', 'annuler_commande', 'refuser']);
 
             return $etape && $etape['acteur'] === $u->role && $actions !== [];
-        })->map(fn (Commande $c) => [
+        })->map(fn (Commande $c) => self::avecAction($c, array_diff(
+            CircuitLivraison::actionsCommande($c, $u),
+            ['modifier', 'annuler', 'demander_annulation', 'annuler_commande', 'refuser', 'changer_transporteur', 'declarer_anomalie'],
+        ), [
             'categorie'  => 'commande',
             'sujet_type' => 'commande',
             'sujet_id'   => $c->id,
@@ -102,7 +108,7 @@ final class AFaire
             'titre'      => sprintf('%s — %s kg', $c->produit, rtrim(rtrim(number_format((float) $c->quantite, 2, ',', ' '), '0'), ',')),
             'etape'      => CircuitLivraison::prochaineEtape($c)['libelle'],
             'depuis'     => self::derniereEtape('commande', $c->id, $c->date_commande),
-        ]);
+        ]));
     }
 
     private static function livraisons(Utilisateur $u): Collection
@@ -121,7 +127,10 @@ final class AFaire
 
                 return $actions !== [];
             })
-            ->map(fn (Livraison $l) => [
+            ->map(fn (Livraison $l) => self::avecAction($l, array_diff(
+                CircuitLivraison::actionsLivraison($l, $u, $l->incidents->contains(fn (Incident $i) => $i->estBloquant())),
+                ['declarer_incident', 'refuser_mission'],
+            ), [
                 'categorie'  => 'livraison',
                 'sujet_type' => 'livraison',
                 'sujet_id'   => $l->id,
@@ -130,7 +139,7 @@ final class AFaire
                 'etape'      => CircuitLivraison::prochaineEtape($l->commande->setRelation('livraison', $l))['libelle'] ?? 'Mission en cours',
                 'depuis'     => self::derniereEtape('livraison', $l->id, null),
                 'urgence'    => $l->statut === 'en_attente' ? null : 'haute',
-            ]);
+            ]));
     }
 
     /** Incidents ouverts à décider par le gestionnaire de l'entrepôt concerné. */
@@ -188,6 +197,36 @@ final class AFaire
                 'urgence'    => 'normale',
             ]);
     }
+
+    /**
+     * Lot 9 : l'action principale se fait depuis « À faire », d'un appui. Pour
+     * confier une mission, le transporteur libre le plus proche est proposé.
+     * Les actions qui demandent un motif ou une saisie (refus, réception, code)
+     * restent sur l'écran de la mission.
+     */
+    private static function avecAction(object $sujet, array $actions, array $element): array
+    {
+        $action = collect($actions)->first(fn ($a) => in_array($a, self::ACTIONS_DIRECTES, true));
+        $element['action'] = $action;
+
+        if (in_array($action, ['assigner', 'organiser_livraison'], true)) {
+            $depart = $sujet instanceof Reservation
+                ? SuiviGps::extremites($sujet->loadMissing('producteur.utilisateur', 'entrepot'))['origine']
+                : ['latitude' => $sujet->stock?->entrepot?->latitude, 'longitude' => $sujet->stock?->entrepot?->longitude];
+            $element['transporteur_propose'] = PropositionTransporteur::meilleur(
+                $depart['latitude'] !== null ? (float) $depart['latitude'] : null,
+                $depart['longitude'] !== null ? (float) $depart['longitude'] : null,
+            );
+        }
+
+        return $element;
+    }
+
+    /** Actions faisables d'un appui (sans motif ni saisie). */
+    private const ACTIONS_DIRECTES = [
+        'confirmer', 'assigner', 'accepter_mission', 'arriver_collecte', 'charger', 'partir', 'arriver',
+        'preparer', 'marquer_prete', 'organiser_livraison',
+    ];
 
     /** Entrepôt sans emplacement sur la carte : les transporteurs ne sauraient pas où aller. */
     private static function lieuEntrepot(Utilisateur $u): Collection

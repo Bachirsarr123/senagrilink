@@ -49,7 +49,11 @@ return [
         'attribution' => env('CARTE_ATTRIBUTION', '© les contributeurs d\'OpenStreetMap'),
     ],
 
+    // Lot 9 : itinéraire guidé. OpenRouteService (clé ROUTAGE_CLE, secrète,
+    // saisie dans Render) ou service compatible OSRM (ROUTAGE_URL).
     'routage' => [
+        'fournisseur'  => env('ROUTAGE_FOURNISSEUR'),
+        'cle'          => env('ROUTAGE_CLE'),
         'url'          => env('ROUTAGE_URL'),
         'delai_s'      => (int) env('ROUTAGE_DELAI_S', 4),
     ],
