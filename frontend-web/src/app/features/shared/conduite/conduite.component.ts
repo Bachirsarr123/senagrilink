@@ -3,7 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import * as L from 'leaflet';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/auth/auth.service';
-import { ACTIONS_CONDUITE, executerActionDirecte, libelleActionDirecte } from '../../../shared/action-directe';
+import { executerActionDirecte, libelleActionDirecte } from '../../../shared/action-directe';
 import { PositionAppareilService } from '../../../shared/position/position-appareil';
 import { PartagePositionService } from '../../../shared/suivi/partage-position';
 
@@ -160,10 +160,9 @@ export class ConduiteComponent implements OnInit, AfterViewInit, OnDestroy {
 
   points = computed<Point[]>(() => (this.nav()?.itineraire?.points ?? []).map((p: number[]) => [+p[0], +p[1]] as Point));
 
-  action = computed<string | null>(() => {
-    const actions: string[] = this.nav()?.actions ?? [];
-    return ['accepter_mission', ...ACTIONS_CONDUITE].find(a => actions.includes(a)) ?? null;
-  });
+  /** Le gros bouton, choisi par le serveur (lot 10) : un seul appui par lieu. */
+  action = computed<string | null>(() => this.nav()?.action_principale ?? null);
+  private arriveeEnCours = false;
 
   /** Prochaine consigne et distance jusqu'à elle. */
   prochaine = computed<{ etape: any; distance: number } | null>(() => {
@@ -217,11 +216,27 @@ export class ConduiteComponent implements OnInit, AfterViewInit, OnDestroy {
     this.dernierAppel = Date.now();
     this.dernierCalcul = p;
     this.api.getNavigation(this.type, this.id, p[0], p[1]).subscribe({
-      next: res => { this.nav.set(res); this.erreur.set(null); this.redessiner(); this.annoncer(); },
+      next: res => { this.nav.set(res); this.erreur.set(null); this.redessiner(); this.annoncer(); this.arriveeAutomatique(); },
       error: err => {
         if (err.status === 422 && !err.error?.vers) { this.router.navigate([this.retour()]); return; }
         this.erreur.set(err.status === 0 ? 'Serveur injoignable : le trajet se mettra à jour au retour du réseau.' : err.error?.message ?? 'Trajet indisponible.');
       },
+    });
+  }
+
+  /** Lot 10 : arrivé chez le producteur, l'étape s'enregistre d'elle-même (position GPS). */
+  private arriveeAutomatique(): void {
+    if (this.arriveeEnCours || !this.nav()?.arrivee_automatique) return;
+    this.arriveeEnCours = true;
+    executerActionDirecte(this.api, this.type, this.id, 'arriver_collecte').subscribe({
+      next: () => {
+        this.arriveeEnCours = false;
+        this.prochePrevenu = true;
+        this.message.set('Arrivée chez le producteur enregistrée.');
+        this.dire('Vous êtes arrivé chez le producteur. Chargez la marchandise, puis touchez Démarrer.');
+        this.calculer();
+      },
+      error: () => { this.arriveeEnCours = false; }, // le bouton « Je suis chez le producteur » reste disponible
     });
   }
 
@@ -287,11 +302,11 @@ export class ConduiteComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private executer(action: string): void {
     this.envoi.set(true);
-    executerActionDirecte(this.api, this.type, this.id, action).subscribe({
+    executerActionDirecte(this.api, this.type, this.id, action, undefined, undefined, this.nav()?.actions ?? []).subscribe({
       next: res => {
         this.envoi.set(false);
         this.message.set(res?.message ?? "C'est fait.");
-        if (action === 'partir') this.partage.demarrer({ type: this.type as any, id: this.id, numero: this.nav()?.numero ?? '' });
+        if (action === 'partir' || action === 'demarrer') this.partage.demarrer({ type: this.type as any, id: this.id, numero: this.nav()?.numero ?? '' });
         if (action === 'arriver' && this.partage.partage(this.type, this.id)) this.partage.arreter();
         this.prochePrevenu = false;
         this.derniereConsigne = null;

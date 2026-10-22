@@ -7,6 +7,7 @@ import 'package:agri_platform_mobile/screens/shared/a_faire_screen.dart';
 import 'package:agri_platform_mobile/services/api_service.dart';
 import 'package:agri_platform_mobile/services/auth_provider.dart';
 import 'package:agri_platform_mobile/services/suivi_gps_service.dart';
+import 'package:agri_platform_mobile/utils/action_directe.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
@@ -48,10 +49,11 @@ void main() {
     SuiviGpsService.sourcePositions = () => const Stream<Position>.empty();
   });
 
-  Map<String, dynamic> navigation({bool proche = false, List<String> actions = const ['charger'], String statut = 'prise_en_charge'}) => {
-        'sujet_type': 'livraison', 'sujet_id': 5, 'numero': 'LIV-5', 'statut': statut, 'vers': 'origine',
+  Map<String, dynamic> navigation({bool proche = false, List<String> actions = const ['charger'], String statut = 'prise_en_charge',
+      String principale = 'demarrer', bool automatique = false, String type = 'livraison'}) => {
+        'sujet_type': type, 'sujet_id': 5, 'numero': 'LIV-5', 'statut': statut, 'vers': 'origine',
         'cible': {'nom': 'Entrepôt Thiès', 'adresse': 'Route de Dakar', 'latitude': 14.79, 'longitude': -16.93},
-        'actions': actions, 'proche': proche,
+        'actions': actions, 'proche': proche, 'action_principale': principale, 'arrivee_automatique': automatique,
         'itineraire': {
           'km': 2.3, 'secondes': 300, 'routier': true, 'arrivee_vers': '2026-10-22T10:05:00Z',
           'points': [[14.80, -16.95], [14.795, -16.94], [14.79, -16.93]],
@@ -65,6 +67,7 @@ void main() {
 
   testWidgets('conduite : consigne en gros et à voix haute, heure d\'arrivée, gros bouton d\'étape', (tester) async {
     final positions = StreamController<LatLng>();
+    SuiviGpsService.autorisation = () async => false; // pas de partage réel dans ce test
     ConduiteScreen.sourcePositions = () => positions.stream;
     var proche = false;
     await afficher(tester, 'transporteur', const ConduiteScreen(type: 'livraison', id: 5, numero: 'LIV-5'), (req) async {
@@ -81,7 +84,7 @@ void main() {
     expect(find.textContaining('5 min · 2,3 km'), findsOneWidget);
     expect(dit.single, startsWith('Dans '));
     expect(dit.single, endsWith('Tournez à droite sur Route de Dakar'));
-    expect(find.text('Marchandise chargée'), findsOneWidget);
+    expect(find.text('Démarrer'), findsOneWidget);
 
     // Voix coupée : plus rien n'est dit
     await tester.tap(find.byKey(const Key('conduite-voix')));
@@ -103,17 +106,19 @@ void main() {
     await tester.tap(find.byKey(const Key('conduite-action')));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();
-    final put = requetes.singleWhere((r) => r.method == 'PUT');
-    expect(put.url.path, endsWith('/livraisons/5/etape'));
-    expect(jsonDecode(put.body), {'etape': 'chargee'});
+    // « Démarrer » : chargement puis départ, en un appui
+    final puts = requetes.where((r) => r.method == 'PUT').toList();
+    expect(puts.map((r) => r.url.path.endsWith('/livraisons/5/etape')), [true, true]);
+    expect(puts.map((r) => jsonDecode(r.body)['etape']), ['chargee', 'en_cours']);
     expect(find.byKey(const Key('conduite-proche')), findsOneWidget);
+    expect(demarrePartage('demarrer'), isTrue); // au départ, la position est partagée (vérifié au lot 4)
     await positions.close();
   });
 
   testWidgets('sans lieu connu : message clair au lieu du trajet', (tester) async {
     ConduiteScreen.sourcePositions = () => Stream.value(const LatLng(14.8, -16.95));
     await afficher(tester, 'transporteur', const ConduiteScreen(type: 'reservation', id: 3, numero: 'RES-3'), (req) async => json({
-      ...navigation(actions: const ['arriver_collecte']), 'itineraire': null,
+      ...navigation(actions: const ['arriver_collecte'], principale: 'arriver_collecte'), 'itineraire': null,
       'message': 'Le lieu exact de prise en charge n\'est pas encore connu : appelez votre contact.',
     }));
     expect(find.textContaining('appelez votre contact'), findsOneWidget);
@@ -147,5 +152,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('10'), findsOneWidget);
     expect(find.byKey(const Key('commande-total')), findsOneWidget);
+  });
+
+  testWidgets('arrivé chez le producteur : l\'étape s\'enregistre toute seule, sans appui', (tester) async {
+    ConduiteScreen.sourcePositions = () => Stream.value(const LatLng(14.85, -16.80));
+    var arrive = false;
+    await afficher(tester, 'transporteur', const ConduiteScreen(type: 'reservation', id: 5, numero: 'RES-5'), (req) async {
+      if (req.method == 'PUT') { arrive = true; return json({'message': 'Étape enregistrée.'}); }
+      return json(arrive
+          ? navigation(type: 'reservation', actions: const ['charger'], principale: 'demarrer', statut: 'au_point_collecte')
+          : navigation(type: 'reservation', actions: const ['arriver_collecte'], principale: 'arriver_collecte', proche: true, automatique: true));
+    });
+    await tester.pumpAndSettle();
+    final put = requetes.singleWhere((r) => r.method == 'PUT');
+    expect(put.url.path, endsWith('/reservations/5/etape'));
+    expect(jsonDecode(put.body), {'etape': 'au_point_collecte'});
+    expect(find.text('Démarrer'), findsOneWidget);
+    expect(dit.last, contains('Chargez la marchandise'));
+  });
+
+  testWidgets('À faire : « Accepter et confier » enchaîne acceptation et affectation', (tester) async {
+    await afficher(tester, 'gestionnaire_entrepot', const AFaireScreen(), (req) async {
+      if (req.url.path.endsWith('/a-faire')) {
+        return json({'elements': [{
+          'categorie': 'depot', 'sujet_type': 'reservation', 'sujet_id': 3, 'numero': 'RES-3', 'titre': 'mil — 40 kg',
+          'etape': 'Dépôt à examiner', 'depuis': null, 'urgence': 'normale', 'action': 'accepter_et_confier', 'statut': 'en_attente',
+          'transporteur_propose': {'id': 4, 'nom': 'Awa Fall', 'distance_km': null},
+        }]});
+      }
+      return json({'message': 'Transporteur affecté.'});
+    });
+    expect(find.text('Accepter et confier à Awa Fall'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('a-faire-action-depot-3')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    final puts = requetes.where((r) => r.method == 'PUT').toList();
+    expect(puts.map((r) => r.url.path.split('/api').last), ['/reservations/3/confirmer', '/reservations/3/assigner-transporteur']);
+    expect(jsonDecode(puts.last.body)['transporteur_id'], 4);
   });
 }

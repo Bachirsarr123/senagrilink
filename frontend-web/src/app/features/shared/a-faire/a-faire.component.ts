@@ -126,7 +126,7 @@ export class AFaireComponent implements OnInit {
       if (reste > 0) { this.attente.set({ cle: this.cle(e), reste: Math.ceil(reste / 1000) }); return; }
       this.annuler();
       this.envoi.set(this.cle(e));
-      executerActionDirecte(this.api, e.sujet_type, e.sujet_id, e.action, e.transporteur_propose?.id).subscribe({
+      executerActionDirecte(this.api, e.sujet_type, e.sujet_id, e.action, e.transporteur_propose?.id, e.statut).subscribe({
         next: res => {
           this.envoi.set(null);
           this.message.set(res?.message ?? "C'est fait.");

@@ -35,8 +35,6 @@ class ConduiteScreen extends StatefulWidget {
   State<ConduiteScreen> createState() => _ConduiteScreenState();
 }
 
-/// Actions de conduite proposées sur le gros bouton, dans l'ordre de priorité.
-const _actionsConduite = ['accepter_mission', 'arriver_collecte', 'charger', 'partir', 'arriver'];
 
 class _ConduiteScreenState extends State<ConduiteScreen> {
   final _carte = MapController();
@@ -100,6 +98,7 @@ class _ConduiteScreenState extends State<ConduiteScreen> {
       if (!mounted) return;
       setState(() { _nav = res; _chargement = false; _erreur = null; });
       _annoncer();
+      _arriveeAutomatique();
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.statusCode == 422 && e.donnees?['vers'] == null) {
@@ -185,12 +184,27 @@ class _ConduiteScreenState extends State<ConduiteScreen> {
 
   // ── Gros bouton ───────────────────────────────────────────────────────────
 
-  String? get _actionPrincipale {
-    final actions = ((_nav?['actions'] as List?) ?? const []).cast<String>();
-    for (final a in _actionsConduite) {
-      if (actions.contains(a)) return a;
+  /// Le gros bouton, choisi par le serveur (lot 10) : un seul appui par lieu.
+  String? get _actionPrincipale => _nav?['action_principale'] as String?;
+  List<String> get _actions => ((_nav?['actions'] as List?) ?? const []).cast<String>();
+  bool _arriveeEnCours = false;
+
+  /// Lot 10 : arrivé chez le producteur, l'étape s'enregistre d'elle-même (position GPS).
+  Future<void> _arriveeAutomatique() async {
+    if (_arriveeEnCours || _nav?['arrivee_automatique'] != true) return;
+    _arriveeEnCours = true;
+    final messager = ScaffoldMessenger.of(context);
+    try {
+      await executerActionDirecte(widget.type, widget.id, 'arriver_collecte');
+      messager.showSnackBar(const SnackBar(content: Text('Arrivée chez le producteur enregistrée.'), backgroundColor: AppTheme.vert));
+      await _dire('Vous êtes arrivé chez le producteur. Chargez la marchandise, puis touchez Démarrer.');
+      _prochePrevenu = true;
+      await _calculer();
+    } on ApiException catch (_) {
+      // Pas grave : le bouton « Je suis chez le producteur » reste disponible
+    } finally {
+      _arriveeEnCours = false;
     }
-    return null;
   }
 
   Future<void> _agir(String action) async {
@@ -206,7 +220,7 @@ class _ConduiteScreenState extends State<ConduiteScreen> {
     if (annule == SnackBarClosedReason.action || !mounted) return;
     setState(() => _action = true);
     try {
-      final message = await executerActionDirecte(widget.type, widget.id, action);
+      final message = await executerActionDirecte(widget.type, widget.id, action, actions: _actions);
       if (demarrePartage(action)) await SuiviGpsService.instance.demarrer((type: widget.type, id: widget.id, numero: widget.numero));
       if (arretePartage(action) && SuiviGpsService.instance.suit(widget.type, widget.id)) await SuiviGpsService.instance.arreter();
       messager.showSnackBar(SnackBar(content: Text(message), backgroundColor: AppTheme.vert));
@@ -321,7 +335,7 @@ class _ConduiteScreenState extends State<ConduiteScreen> {
           if (action != null) SizedBox(height: 64, child: ElevatedButton.icon(
             key: const Key('conduite-action'),
             style: ElevatedButton.styleFrom(backgroundColor: proche ? AppTheme.vertFonce : AppTheme.vert, textStyle: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-            icon: Icon(action == 'partir' ? Icons.play_arrow : Icons.check_circle, size: 28),
+            icon: Icon(action == 'demarrer' ? Icons.play_arrow : Icons.check_circle, size: 28),
             label: Text(_action ? 'Envoi…' : libelleActionDirecte(action, sujetType: widget.type)),
             onPressed: _action ? null : () => _agir(action),
           )),

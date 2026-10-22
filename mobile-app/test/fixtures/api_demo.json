@@ -1148,6 +1148,8 @@
      "fin": 2
     }
    ]
-  }
+  },
+  "action_principale": "demarrer",
+  "arrivee_automatique": false
  }
 }

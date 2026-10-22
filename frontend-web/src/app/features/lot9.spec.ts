@@ -21,7 +21,7 @@ class FausseCarte implements CarteConduite {
 const NAV = {
   sujet_type: 'livraison', sujet_id: 5, numero: 'LIV-5', statut: 'prise_en_charge', vers: 'origine',
   cible: { nom: 'Entrepôt Thiès', adresse: 'Route de Dakar', latitude: 14.79, longitude: -16.93 },
-  actions: ['charger', 'declarer_incident'], proche: false,
+  actions: ['charger', 'declarer_incident'], proche: false, action_principale: 'demarrer', arrivee_automatique: false,
   itineraire: {
     km: 2.3, secondes: 300, routier: true, arrivee_vers: '2026-10-22T10:05:00Z',
     points: [[14.80, -16.95], [14.795, -16.94], [14.79, -16.93]],
@@ -80,11 +80,11 @@ describe('Lot 9 — site web', () => {
     expect(FausseCarte.derniere.trajets.at(-1)!.length).toBe(3);
     expect(dit.at(-1)).toMatch(/^Dans .*Tournez à droite sur Route de Dakar$/);
 
-    const bouton = () => Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Marchandise chargée')) as HTMLButtonElement;
+    const bouton = () => Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Démarrer')) as HTMLButtonElement;
     // Appui puis « Annuler » : rien n'est envoyé
     ConduiteComponent.delaiAnnulationMs = 2000;
     bouton().click(); fixture.detectChanges();
-    expect(el.textContent).toContain('« Marchandise chargée » dans');
+    expect(el.textContent).toContain('« Démarrer » dans');
     (Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Annuler')) as HTMLButtonElement).click();
     fixture.detectChanges();
     http.expectNone(`${API}/livraisons/5/etape`);
@@ -93,13 +93,17 @@ describe('Lot 9 — site web', () => {
     ConduiteComponent.delaiAnnulationMs = 50;
     bouton().click();
     await attendre();
-    const etape = http.expectOne(`${API}/livraisons/5/etape`);
-    expect(etape.request.body).toEqual({ etape: 'chargee' });
-    etape.flush({ message: 'Chargement enregistré.' });
-    http.expectOne(r => r.url === `${API}/navigation/livraison/5`).flush({ ...NAV, statut: 'chargee', vers: 'destination', actions: ['partir'] });
+    // « Démarrer » : chargement puis départ, en un appui
+    const charge = http.expectOne(`${API}/livraisons/5/etape`);
+    expect(charge.request.body).toEqual({ etape: 'chargee' });
+    charge.flush({ message: 'Chargement enregistré.' });
+    const depart = http.expectOne(`${API}/livraisons/5/etape`);
+    expect(depart.request.body).toEqual({ etape: 'en_cours' });
+    depart.flush({ message: 'Départ enregistré.' });
+    http.expectOne(r => r.url === `${API}/navigation/livraison/5`).flush({ ...NAV, statut: 'en_cours', vers: 'destination', actions: ['arriver'], action_principale: 'arriver' });
     fixture.detectChanges();
-    expect(el.textContent).toContain('Chargement enregistré.');
-    expect(el.textContent).toContain("Je pars vers l'acheteur");
+    expect(el.textContent).toContain('Départ enregistré.');
+    expect(el.textContent).toContain('Je suis arrivé');
     fixture.destroy();
   });
 
@@ -122,6 +126,43 @@ describe('Lot 9 — site web', () => {
     expect(post.request.body).toEqual({ commande_id: 8, transporteur_id: 4 });
     expect(post.request.headers.get('Idempotency-Key')).toBeTruthy();
     post.flush({ message: 'Livraison organisée.' });
+    http.expectOne(`${API}/a-faire`).flush({ elements: [] });
+  });
+
+  it('lot 10 — arrivé chez le producteur : l\'étape s\'enregistre toute seule', async () => {
+    configurer('transporteur', { type: 'reservation', id: '3' });
+    const fixture = TestBed.createComponent(ConduiteComponent);
+    fixture.detectChanges();
+    surPosition!({ coords: { latitude: 14.85, longitude: -16.80 } });
+    http.expectOne(r => r.url === `${API}/navigation/reservation/3`).flush({ ...NAV, sujet_type: 'reservation', actions: ['arriver_collecte'],
+      action_principale: 'arriver_collecte', proche: true, arrivee_automatique: true });
+    const etape = http.expectOne(`${API}/reservations/3/etape`);
+    expect(etape.request.body).toEqual({ etape: 'au_point_collecte' });
+    etape.flush({ message: 'ok' });
+    http.expectOne(r => r.url === `${API}/navigation/reservation/3`).flush({ ...NAV, sujet_type: 'reservation', actions: ['charger'], action_principale: 'demarrer' });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Arrivée chez le producteur enregistrée.');
+    expect(fixture.nativeElement.textContent).toContain('Démarrer');
+    expect(dit.at(-1)).toContain('Chargez la marchandise');
+    fixture.destroy();
+  });
+
+  it('lot 10 — À faire : « Accepter et confier » enchaîne acceptation et affectation', async () => {
+    configurer('gestionnaire_entrepot');
+    const fixture = TestBed.createComponent(AFaireComponent);
+    fixture.detectChanges();
+    http.expectOne(`${API}/a-faire`).flush({ elements: [
+      { categorie: 'depot', sujet_type: 'reservation', sujet_id: 3, numero: 'RES-3', titre: 'mil', etape: 'Dépôt à examiner',
+        action: 'accepter_et_confier', statut: 'en_attente', transporteur_propose: { id: 4, nom: 'Awa Fall', distance_km: null } },
+    ] });
+    fixture.detectChanges();
+    const el: HTMLElement = fixture.nativeElement;
+    (Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Accepter et confier à Awa Fall')) as HTMLButtonElement).click();
+    await attendre();
+    http.expectOne(`${API}/reservations/3/confirmer`).flush({});
+    const affecter = http.expectOne(`${API}/reservations/3/assigner-transporteur`);
+    expect(affecter.request.body.transporteur_id).toBe(4);
+    affecter.flush({ message: 'Transporteur affecté.' });
     http.expectOne(`${API}/a-faire`).flush({ elements: [] });
   });
 });

@@ -1,4 +1,4 @@
-import { Observable, throwError } from 'rxjs';
+import { Observable, of, switchMap, throwError } from 'rxjs';
 import { ApiService } from '../core/services/api.service';
 import { CleSoumission } from './idempotence/cle-soumission';
 
@@ -9,6 +9,9 @@ import { CleSoumission } from './idempotence/cle-soumission';
 export function libelleActionDirecte(action: string, sujetType = 'reservation', transporteur?: string | null): string {
   switch (action) {
     case 'confirmer': return 'Accepter';
+    case 'accepter_et_confier': return transporteur ? `Accepter et confier à ${transporteur}` : 'Accepter';
+    case 'prete_et_confier': return transporteur ? `Prête — confier à ${transporteur}` : 'Commande prête';
+    case 'demarrer': return 'Démarrer';
     case 'assigner':
     case 'organiser_livraison': return transporteur ? `Confier à ${transporteur}` : 'Choisir un transporteur';
     case 'accepter_mission': return "J'accepte la mission";
@@ -28,7 +31,22 @@ const ETAPES_LIVRAISON: Record<string, string> = { charger: 'chargee', partir: '
 /** Étapes de transport : elles se font depuis la page Conduite. */
 export const ACTIONS_CONDUITE = ['arriver_collecte', 'charger', 'partir', 'arriver'];
 
-export function executerActionDirecte(api: ApiService, sujetType: string, id: number, action: string, transporteurId?: number): Observable<any> {
+/**
+ * Lot 10 : les actions regroupées enchaînent les étapes (chacune reste datée dans
+ * l'historique) ; `statut` et `actions` disent par où commencer.
+ */
+export function executerActionDirecte(api: ApiService, sujetType: string, id: number, action: string, transporteurId?: number,
+  statut?: string, actions: string[] = []): Observable<any> {
+  const suite = (a: string) => () => executerActionDirecte(api, sujetType, id, a, transporteurId);
+  if (sujetType === 'reservation' && action === 'accepter_et_confier') return api.confirmerReservation(id).pipe(switchMap(suite('assigner')));
+  if (sujetType === 'commande' && action === 'prete_et_confier') {
+    const preparer = statut === 'confirmee' ? api.preparerCommande(id) : of(null);
+    return preparer.pipe(switchMap(() => api.marquerCommandePrete(id)), switchMap(suite('organiser_livraison')));
+  }
+  if (action === 'demarrer') {
+    const charger = actions.includes('charger') ? executerActionDirecte(api, sujetType, id, 'charger') : of(null);
+    return charger.pipe(switchMap(suite('partir')));
+  }
   if (sujetType === 'reservation') {
     if (action === 'confirmer') return api.confirmerReservation(id);
     if (action === 'assigner' && transporteurId) return api.assignerTransporteur(id, transporteurId);

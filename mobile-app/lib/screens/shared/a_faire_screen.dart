@@ -73,7 +73,7 @@ class _AFaireScreenState extends State<AFaireScreen> {
       return _charger();
     }
     final propose = (e['transporteur_propose'] as Map?)?.cast<String, dynamic>();
-    if ((action == 'assigner' || action == 'organiser_livraison') && propose == null) return _ouvrir(e);
+    if (const ['assigner', 'organiser_livraison'].contains(action) && propose == null) return _ouvrir(e);
 
     final messager = ScaffoldMessenger.of(context);
     final libelle = _libelle(e);
@@ -85,7 +85,7 @@ class _AFaireScreenState extends State<AFaireScreen> {
     if (annule == SnackBarClosedReason.action || !mounted) return;
     setState(() => _enCours = id);
     try {
-      final message = await executerActionDirecte(type, id, action, transporteurId: propose?['id'] as int?);
+      final message = await executerActionDirecte(type, id, action, transporteurId: propose?['id'] as int?, statut: e['statut'] as String?);
       messager.showSnackBar(SnackBar(content: Text(message), backgroundColor: AppTheme.vert));
       if (action == 'accepter_mission' && mounted) {
         await Navigator.push(context, MaterialPageRoute(builder: (_) => ConduiteScreen(type: type, id: id, numero: numero)));
