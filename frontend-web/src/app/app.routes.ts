@@ -42,6 +42,14 @@ export const routes: Routes = [
         loadComponent: () => import('./features/shared/fiche-commande/fiche-commande.component').then(m => m.FicheCommandeComponent),
       },
 
+      // Conduite guidée (lot 9) : la personne qui conduit, vérifiée par le serveur
+      {
+        path: 'conduite/:type/:id',
+        canActivate: [roleGuard],
+        data: { roles: ['transporteur', 'producteur'] },
+        loadComponent: () => import('./features/shared/conduite/conduite.component').then(m => m.ConduiteComponent),
+      },
+
       // Profil — accessible à tous les rôles authentifiés
       {
         path: 'profil',

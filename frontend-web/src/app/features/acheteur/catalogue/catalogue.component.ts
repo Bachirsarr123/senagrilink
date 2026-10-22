@@ -93,7 +93,12 @@ import { PositionAppareilService } from '../../../shared/position/position-appar
                 <form [formGroup]="formCommande" (ngSubmit)="passerCommande(p)" class="commande-form">
                   <div class="form-group">
                     <label>Quantité souhaitée (kg, au plus {{ p.quantite_disponible | number }})</label>
-                    <input type="number" formControlName="quantite" [max]="p.quantite_disponible" min="0.01" step="any" />
+                    <!-- Lot 9 : − / + pour choisir sans clavier (pas de 10 kg), le champ reste modifiable -->
+                    <div class="quantite">
+                      <button type="button" class="btn-secondary pas" aria-label="Moins" (click)="ajuster(p, -1)">−</button>
+                      <input type="number" formControlName="quantite" [max]="p.quantite_disponible" min="0.01" step="any" />
+                      <button type="button" class="btn-secondary pas" aria-label="Plus" (click)="ajuster(p, 1)">+</button>
+                    </div>
                   </div>
                   @if (montant(p) !== null) {
                     <p class="montant">Total : <strong>{{ montant(p) | number:'1.0-2' }} FCFA</strong>
@@ -124,6 +129,9 @@ import { PositionAppareilService } from '../../../shared/position/position-appar
   styleUrls: ['../../shared.styles.scss'],
   styles: [`
     .montant { margin: .25rem 0 .75rem; font-size: .95rem; }
+    .quantite { display:flex; gap:.5rem; align-items:center; }
+    .quantite input { text-align:center; font-size:1.2rem; font-weight:700; }
+    .pas { min-width:48px; min-height:48px; font-size:1.5rem; line-height:1; }
     .lieu-livraison { padding:.8rem 1rem; }
     .lieu-livraison__ligne { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:space-between; margin-bottom:.4rem; }
     .panier ul { list-style:none; margin:0 0 .5rem; padding:0; display:grid; gap:.4rem; }
@@ -161,6 +169,14 @@ export class CatalogueComponent implements OnInit {
       this.rechercheLieu.set(false);
       if (p && this.lieuOrigine() !== 'carte') { this.lieuLivraison.set(p); this.lieuOrigine.set('appareil'); }
     });
+  }
+
+  /** − / + : pas de 10 kg (1 kg pour les petits stocks), entre 0 et la quantité disponible. */
+  ajuster(produit: any, sens: number): void {
+    const dispo = +produit.quantite_disponible || 0;
+    const pas = dispo >= 50 ? 10 : 1;
+    const q = Math.min(dispo, Math.max(0, (+this.formCommande.value.quantite || 0) + sens * pas));
+    this.formCommande.patchValue({ quantite: q || null });
   }
 
   lieuChoisi(p: Position | null): void { if (p) { this.lieuLivraison.set(p); this.lieuOrigine.set('carte'); } }

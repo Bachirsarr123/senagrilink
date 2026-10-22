@@ -117,8 +117,9 @@ describe('TransporteurMissionsComponent — missions assignées', () => {
     repondre([MISSION]);
     fixture.detectChanges();
     const bouton = () => Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Je suis arrivé à l\'entrepôt')) as HTMLButtonElement;
-    // En route : l'itinéraire mène à l'entrepôt
-    expect(el.querySelector('a.lien-itineraire')?.getAttribute('href')).toContain('destination=14.79,-16.93');
+    // En route : guidé dans le site jusqu'à l'entrepôt (lot 9)
+    expect(el.querySelector('a.lien-itineraire')?.getAttribute('href')).toBe('/conduite/reservation/7');
+    expect(el.querySelector('a.lien-itineraire')?.textContent).toContain("Conduire jusqu'à l'entrepôt");
 
     vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
     bouton().click();
@@ -156,17 +157,18 @@ describe('TransporteurMissionsComponent — missions assignées', () => {
     repondre([{ ...MISSION, statut: 'prise_en_charge', actions: ['arriver_collecte'] }]);
   });
 
-  it('livraison : itinéraire vers l\'entrepôt puis l\'acheteur, remise avec le code à 4 chiffres', () => {
+  it('livraison : guidée dans le site jusqu\'à l\'entrepôt, puis remise avec le code à 4 chiffres', () => {
     const { fixture, el } = creer();
     repondre([], [{ ...LIVRAISON, statut: 'prise_en_charge', actions: ['charger', 'declarer_incident'] }]);
     fixture.detectChanges();
-    expect(el.querySelector('a.lien-itineraire')?.getAttribute('href')).toContain('destination=14.79,-16.93');
+    expect(el.querySelector('a.lien-itineraire')?.getAttribute('href')).toBe('/conduite/livraison/4');
+    expect(el.querySelector('a.lien-itineraire')?.textContent).toContain("Conduire jusqu'à l'entrepôt");
 
     fixture.componentInstance.charger();
     http.expectOne(`${API}/reservations`).flush({ reservations: [] });
     http.expectOne(`${API}/livraisons`).flush({ livraisons: [{ ...LIVRAISON, statut: 'arrivee', actions: ['confirmer_par_code', 'declarer_incident'] }] });
     fixture.detectChanges();
-    expect(el.querySelector('a.lien-itineraire')?.getAttribute('href')).toContain('destination=14.7,-17.4');
+    expect(el.querySelector('a.lien-itineraire')).toBeNull(); // arrivé : plus de trajet
 
     const champ = el.querySelector('#code-4') as HTMLInputElement;
     const remettre = Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes('Remettre avec le code')) as HTMLButtonElement;

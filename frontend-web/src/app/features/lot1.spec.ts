@@ -141,7 +141,7 @@ describe('Lot 1 — site web', () => {
     req.flush({ production: { ...lot, prix_unitaire: 180 } });
   });
 
-  it('demande de dépôt : la récolte est obligatoire et préremplit produit et quantité', () => {
+  it('demande de dépôt : dernière récolte préremplie (produit, quantité), récolte obligatoire', () => {
     configurer();
     const fixture = TestBed.createComponent(ReservationsComponent);
     fixture.detectChanges();
@@ -151,11 +151,12 @@ describe('Lot 1 — site web', () => {
     });
     const comp = fixture.componentInstance;
     comp.ouvrirFormulaire({ id: 2, capacite_disponible: 500 });
-    expect(comp.form.get('production_id')!.valid).toBe(false);
-
-    comp.form.patchValue({ production_id: 9 });
-    comp.recolteChoisie();
+    // Lot 9 : dernière récolte préremplie, avec son produit et sa quantité
+    expect(comp.form.value.production_id).toBe(9);
     expect(comp.form.value.produit).toBe('mil');
     expect(comp.form.value.quantite_reservee).toBe(80);
+
+    comp.form.patchValue({ production_id: null });
+    expect(comp.form.get('production_id')!.valid).toBe(false);
   });
 });

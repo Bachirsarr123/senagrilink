@@ -31,6 +31,10 @@ import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, Ac
       <div class="card">
         <h2>Entrepôts avec de la place</h2>
         @if (positionAppareil()) { <p class="aide-proximite">📍 Les plus proches de vous d'abord.</p> }
+        @if (entrepots().length > 0 && productions().length > 0) {
+          <!-- Lot 9 : un appui, tout est prérempli (entrepôt le plus proche, dernière récolte, transporteur) -->
+          <button class="btn-primary btn-full depot-rapide" (click)="ouvrirFormulaire(entrepots()[0])">🌾 Déposer ma récolte chez {{ entrepots()[0].nom_entrepot }}</button>
+        }
         @if (chargementEntrepots()) {
           <p class="loading">Chargement...</p>
         } @else if (entrepots().length === 0) {
@@ -163,6 +167,10 @@ import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, Ac
                       @if (r.statut === 'en_route' && r.mode_transport === 'transporteur') {
                         <a class="btn-secondary btn-sm" [routerLink]="['/suivi', 'reservation', r.id]">📍 Suivre</a>
                       }
+                      <!-- Lot 9 : le producteur qui livre lui-même est guidé jusqu'à l'entrepôt -->
+                      @if (r.mode_transport === 'producteur' && ['confirmee', 'en_route'].includes(r.statut)) {
+                        <a class="btn-primary btn-sm" [routerLink]="['/conduite', 'reservation', r.id]">🧭 Conduire jusqu'à l'entrepôt</a>
+                      }
                       @if (peut(r, 'partir')) {
                         <button class="btn-primary btn-sm" [disabled]="actionEnCours() === r.id" (click)="etape(r, 'partir')">{{ libelle('partir') }}</button>
                       }
@@ -190,6 +198,7 @@ import { CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, LIBELLE_MODE, Ac
     </div>
   `,
   styles: [`
+    .depot-rapide { min-height:52px; font-size:1.05rem; font-weight:700; margin-bottom:1rem; }
     .aide-proximite { color:#6b7280; font-size:.85rem; margin:-.4rem 0 .8rem; }
     .modal-box { --modal-largeur: 480px; }
     .text-muted { color:#6b7280; font-size:.85rem; }
@@ -324,6 +333,14 @@ export class ProducteurReservationsComponent implements OnInit {
   ouvrirFormulaire(entrepot: any): void {
     this.entrepotSelectionne.set(entrepot);
     this.form.reset();
+    // Lot 9 : prérempli — dernière récolte et sa quantité, transporteur, aujourd'hui
+    const derniere = [...this.productions()].filter(p => p.statut !== 'annulee').sort((a, b) => b.id - a.id)[0];
+    const aujourdhui = new Date();
+    this.form.patchValue({
+      production_id: derniere?.id ?? null, mode_transport: 'transporteur',
+      date_debut: `${aujourdhui.getFullYear()}-${String(aujourdhui.getMonth() + 1).padStart(2, '0')}-${String(aujourdhui.getDate()).padStart(2, '0')}`,
+    });
+    if (derniere) this.recolteChoisie();
     this.collecte.set(this.lieuDepart());
     this.cleReservation.renouveler();
     this.erreurModal.set(null);

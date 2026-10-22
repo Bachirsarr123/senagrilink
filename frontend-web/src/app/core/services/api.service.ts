@@ -87,6 +87,10 @@ export class ApiService {
   /** Lot 4 : suivi d'une mission (livraison ou reservation) — position, trace, trajet, arrivée estimée. */
   getSuivi(type: string, id: number): Observable<any> { return this.http.get(`${this.base}/suivi/${type}/${id}`); }
   getConfigurationCarte(): Observable<any> { return this.http.get(`${this.base}/suivi/configuration`); }
+  /** Lot 9 : guidage du conducteur depuis sa position (chemin, consignes, action en arrivant). */
+  getNavigation(type: string, id: number, latitude: number, longitude: number): Observable<any> {
+    return this.http.get(`${this.base}/navigation/${type}/${id}`, { params: { latitude, longitude } });
+  }
   /** Positions prises par le navigateur du conducteur (paquets, avec l'heure de prise). */
   envoyerPositions(type: string, id: number, positions: any[]): Observable<any> { return this.http.post(`${this.base}/suivi/${type}/${id}/positions`, { positions }); }
   getSuivisActifs(): Observable<any> { return this.http.get(`${this.base}/suivi/actifs`); }
@@ -115,7 +119,10 @@ export class ApiService {
   etapeReservation(id: number, etape: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/etape`, { etape }); }
   validerMarchandise(id: number, data: any): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/valider`, data); }
   refuserReception(id: number, motif: string): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/refuser-reception`, { motif }); }
-  getTransporteurs(): Observable<any> { return this.http.get(`${this.base}/transporteurs`); }
+  /** Avec le lieu de prise en charge : libres d'abord, puis les plus proches (lot 9). */
+  getTransporteurs(position?: { latitude: number; longitude: number } | null): Observable<any> {
+    return this.http.get(`${this.base}/transporteurs`, { params: position ? { latitude: position.latitude, longitude: position.longitude } : {} });
+  }
 
   // ── Profil ─────────────────────────────────────────────────────────────────
   updateProfile(data: any): Observable<any> { return this.http.put(`${this.base}/profile`, data); }

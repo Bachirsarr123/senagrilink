@@ -57,7 +57,8 @@ describe('Lot 2 — site web', () => {
     it('le mode de transport est obligatoire et envoyé', () => {
       const { comp } = creer([]);
       comp.ouvrirFormulaire({ id: 2, capacite_disponible: 500 });
-      comp.form.patchValue({ production_id: 9, quantite_reservee: 40, date_debut: '2026-10-22' });
+      expect(comp.form.value.mode_transport).toBe('transporteur'); // lot 9 : prérempli
+      comp.form.patchValue({ production_id: 9, quantite_reservee: 40, date_debut: '2026-10-22', mode_transport: null });
       comp.reserver();
       http.expectNone(`${API}/reservations`);
       expect(comp.form.get('mode_transport')!.invalid).toBe(true);

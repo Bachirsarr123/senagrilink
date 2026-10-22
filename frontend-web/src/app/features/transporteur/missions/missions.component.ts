@@ -85,8 +85,9 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
                       @if (partage.erreur(); as e) { <span class="partage__erreur">{{ e }}</span> }
                     </div>
                   }
-                  @if (itineraire(r); as lien) {
-                    <a class="btn-secondary btn-full lien-itineraire" [href]="lien" target="_blank" rel="noopener">{{ versLeProducteur(r) ? 'Itinéraire vers le producteur' : "Itinéraire vers l'entrepôt" }}</a>
+                  <!-- Lot 9 : guidage dans le site, à la place de Google Maps -->
+                  @if (conduisible(r.statut, 'reservation')) {
+                    <a class="btn-primary btn-full lien-itineraire" [routerLink]="['/conduite', 'reservation', r.id]">🧭 {{ versLeProducteur(r) ? 'Conduire jusqu\'au producteur' : "Conduire jusqu'à l'entrepôt" }}</a>
                   }
                   <div class="btn-group">
                     @for (a of actionsTransporteur(r); track a) {
@@ -138,8 +139,8 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
                       @if (partage.erreur(); as e) { <span class="partage__erreur">{{ e }}</span> }
                     </div>
                   }
-                  @if (itineraireLivraison(l); as lien) {
-                    <a class="btn-secondary btn-full lien-itineraire" [href]="lien" target="_blank" rel="noopener">{{ versLEntrepot(l) ? "Itinéraire vers l'entrepôt" : "Itinéraire vers l'acheteur" }}</a>
+                  @if (conduisible(l.statut, 'livraison')) {
+                    <a class="btn-primary btn-full lien-itineraire" [routerLink]="['/conduite', 'livraison', l.id]">🧭 {{ versLEntrepot(l) ? "Conduire jusqu'à l'entrepôt" : "Conduire jusqu'à l'acheteur" }}</a>
                   }
                   @if (peutFaire(l, 'confirmer_par_code')) {
                     <div class="remise">
@@ -277,14 +278,9 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
 
   versLeProducteur(r: any): boolean { return VERS_LE_PRODUCTEUR.includes(r.statut); }
 
-  /** Lien de navigation (Google Maps) vers la prochaine adresse, si sa position est connue. */
-  itineraire(r: any): string | null {
-    // Lieu de prise en charge choisi par le producteur au dépôt, sinon son lieu habituel
-    const point = this.versLeProducteur(r)
-      ? { latitude: r.collecte_latitude ?? r.producteur?.latitude, longitude: r.collecte_longitude ?? r.producteur?.longitude }
-      : r.entrepot;
-    if (point?.latitude == null || point?.longitude == null) return null;
-    return `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`;
+  /** Étapes où il y a un trajet à faire (même règle que le serveur, NavigationController::versOu). */
+  conduisible(statut: string, type: 'reservation' | 'livraison'): boolean {
+    return (type === 'reservation' ? ['prise_en_charge', 'au_point_collecte', 'chargee', 'en_route'] : ['prise_en_charge', 'chargee', 'en_cours']).includes(statut);
   }
 
   agir(r: any, a: ActionDepot): void {
@@ -320,15 +316,6 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
 
   /** Avant le chargement, le transporteur se rend à l'entrepôt ; ensuite, chez l'acheteur. */
   versLEntrepot(l: any): boolean { return ['en_attente', 'prise_en_charge'].includes(l.statut); }
-
-  itineraireLivraison(l: any): string | null {
-    const e = l.commande?.stock?.entrepot;
-    const a = l.commande?.acheteur;
-    const [lat, lng] = this.versLEntrepot(l)
-      ? [e?.latitude, e?.longitude]
-      : [l.destination_latitude ?? a?.latitude, l.destination_longitude ?? a?.longitude];
-    return lat == null || lng == null ? null : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-  }
 
   agirLivraison(l: any, a: ActionLivraison): void {
     const cle = 'l' + l.id;
