@@ -31,6 +31,8 @@ import { EchoService } from '../../../core/services/echo.service';
             <li><a routerLink="/producteur/commandes-disponibles" routerLinkActive="active">Demandes</a></li>
           }
           @if (role() === 'gestionnaire_entrepot') {
+            <li><a routerLink="/entrepot/journee" routerLinkActive="active">Ma journée</a></li>
+            <li><a routerLink="/entrepot/agriculteurs" routerLinkActive="active">Agriculteurs</a></li>
             <li><a routerLink="/entrepot/stocks" routerLinkActive="active">Stocks</a></li>
             <li><a routerLink="/entrepot/reservations" routerLinkActive="active">Dépôts</a></li>
             <li><a routerLink="/entrepot/commandes" routerLinkActive="active">Commandes</a></li>

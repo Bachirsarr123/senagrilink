@@ -12,6 +12,7 @@ export function libelleActionDirecte(action: string, sujetType = 'reservation', 
     case 'accepter_et_confier': return transporteur ? `Accepter et confier à ${transporteur}` : 'Accepter';
     case 'prete_et_confier': return transporteur ? `Prête — confier à ${transporteur}` : 'Commande prête';
     case 'demarrer': return 'Démarrer';
+    case 'prete': return 'Commande prête';
     case 'assigner':
     case 'organiser_livraison': return transporteur ? `Confier à ${transporteur}` : 'Choisir un transporteur';
     case 'accepter_mission': return "J'accepte la mission";
@@ -42,6 +43,10 @@ export function executerActionDirecte(api: ApiService, sujetType: string, id: nu
   if (sujetType === 'commande' && action === 'prete_et_confier') {
     const preparer = statut === 'confirmee' ? api.preparerCommande(id) : of(null);
     return preparer.pipe(switchMap(() => api.marquerCommandePrete(id)), switchMap(suite('organiser_livraison')));
+  }
+  // Lot 11 : « Prête » (préparation comprise) ; le pilote automatique trouve ensuite le transporteur
+  if (sujetType === 'commande' && action === 'prete') {
+    return (statut === 'confirmee' ? api.preparerCommande(id) : of(null)).pipe(switchMap(() => api.marquerCommandePrete(id)));
   }
   if (action === 'demarrer') {
     const charger = actions.includes('charger') ? executerActionDirecte(api, sujetType, id, 'charger') : of(null);

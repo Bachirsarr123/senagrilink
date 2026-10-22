@@ -126,4 +126,8 @@ export class ApiService {
 
   // ── Profil ─────────────────────────────────────────────────────────────────
   updateProfile(data: any): Observable<any> { return this.http.put(`${this.base}/profile`, data); }
+  /** Lot 11 : « Ma journée » du gestionnaire et fiche par agriculteur. */
+  getJournee(): Observable<any> { return this.http.get(`${this.base}/journee`); }
+  getAgriculteurs(q = ''): Observable<any> { return this.http.get(`${this.base}/entrepot/producteurs`, { params: q ? { q } : {} }); }
+  getAgriculteur(id: number): Observable<any> { return this.http.get(`${this.base}/entrepot/producteurs/${id}`); }
 }

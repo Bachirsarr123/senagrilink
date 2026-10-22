@@ -102,7 +102,16 @@ export const routes: Routes = [
         canActivate: [roleGuard],
         data: { roles: ['gestionnaire_entrepot'] },
         children: [
-          { path: '', redirectTo: 'stocks', pathMatch: 'full' },
+          { path: '', redirectTo: 'journee', pathMatch: 'full' },
+          // Lot 11 : accueil du gestionnaire et fiche par agriculteur
+          {
+            path: 'journee',
+            loadComponent: () => import('./features/entrepot/journee/journee.component').then(m => m.JourneeComponent),
+          },
+          {
+            path: 'agriculteurs',
+            loadComponent: () => import('./features/entrepot/agriculteurs/agriculteurs.component').then(m => m.AgriculteursComponent),
+          },
           {
             path: 'stocks',
             loadComponent: () => import('./features/entrepot/stocks/stocks.component').then(m => m.StocksComponent),

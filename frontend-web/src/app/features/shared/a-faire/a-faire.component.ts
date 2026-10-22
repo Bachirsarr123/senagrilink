@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
@@ -11,7 +11,8 @@ import { ACTIONS_CONDUITE, executerActionDirecte, libelleActionDirecte } from '.
   standalone: true,
   imports: [DatePipe, RouterLink],
   template: `
-    <div class="page">
+    <div [class.page]="!integre()">
+      @if (!integre()) {
       <div class="page-header">
         <h1>À faire</h1>
         <span class="subtitle">
@@ -20,13 +21,17 @@ import { ACTIONS_CONDUITE, executerActionDirecte, libelleActionDirecte } from '.
           @else { {{ elements().length }} action(s) en attente@if (enRetard()) { · <strong class="retard">{{ enRetard() }} en retard</strong> } }
         </span>
       </div>
+      }
 
       @if (message()) { <div class="alert alert-success" role="status">{{ message() }}</div> }
       @if (erreur()) {
         <div class="alert alert-error" role="alert">{{ erreur() }} <button class="btn-secondary btn-sm" (click)="charger()">Réessayer</button></div>
       }
 
-      @if (!chargement() && !erreur() && elements().length === 0) {
+      @if (!chargement() && !erreur() && elements().length === 0 && integre()) {
+        <p class="rien">✅ Rien ne demande votre attention : le pilote automatique s'occupe du reste.</p>
+      }
+      @if (!chargement() && !erreur() && elements().length === 0 && !integre()) {
         <div class="card vide">
           <p>✅ Tout est à jour. Les nouvelles demandes apparaîtront ici.</p>
           <div class="btn-group">
@@ -85,6 +90,7 @@ import { ACTIONS_CONDUITE, executerActionDirecte, libelleActionDirecte } from '.
     .attente { flex:1; font-weight:600; background:#fef3c7; padding:.6rem; border-radius:8px; }
     .retard { color:#b91c1c; }
     .vide p { margin:0 0 .75rem; }
+    .rien { color:#166534; margin:.2rem 0 0; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })
@@ -93,6 +99,8 @@ export class AFaireComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
 
+  /** Intégré à « Ma journée » (lot 11) : sans titre ni raccourcis. */
+  integre = input(false);
   elements = signal<any[]>([]);
   chargement = signal(true);
   erreur = signal<string | null>(null);
