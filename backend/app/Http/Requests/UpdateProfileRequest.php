@@ -38,6 +38,11 @@ class UpdateProfileRequest extends FormRequest
             'nom_entrepot' => ['nullable', 'string', 'max:150'],
             'capacite'     => ['nullable', 'numeric'],
             'localisation' => ['nullable', 'string', 'max:255'],
+            // Lot 11 : réglages du pilote automatique (gestionnaire)
+            'auto_accepter_depots'        => ['sometimes', 'boolean'],
+            'auto_confirmer_commandes'    => ['sometimes', 'boolean'],
+            'auto_affecter_transporteurs' => ['sometimes', 'boolean'],
+            'delai_reponse_min'           => ['sometimes', 'integer', 'between:2,120'],
 
             // Position sur la carte (producteur, entrepôt, acheteur) : préremplit les missions
             'latitude'     => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitude'],

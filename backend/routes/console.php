@@ -18,3 +18,10 @@ Artisan::command('suivi:purger {--jours=}', function () {
 })->purpose('Supprime les positions GPS plus anciennes que la durée de conservation');
 
 Schedule::command('suivi:purger')->dailyAt('03:15');
+
+// Lot 11 : missions sans réponse proposées au transporteur suivant (aussi déclenché au fil des requêtes)
+Artisan::command('pilote:relancer', function () {
+    $this->info(app(\App\Services\PiloteAutomatique::class)->relancerSansReponse().' mission(s) relancée(s).');
+})->purpose('Propose au transporteur suivant les missions restées sans réponse');
+
+Schedule::command('pilote:relancer')->everyMinute()->withoutOverlapping();

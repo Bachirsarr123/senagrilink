@@ -148,7 +148,9 @@ class CommandeController extends Controller
             $stock->entrepot?->utilisateur?->notify(new NouvelleCommandeNotification($commande));
         }
 
-        $commandes = collect($resultat)->map(fn ($r) => $r[0]->load('stock.entrepot'));
+        // Lot 11 : confirmation automatique (le stock est déjà réservé)
+        app(\App\Services\PiloteAutomatique::class)->commandesPassees(collect($resultat)->map(fn ($r) => $r[0]->load('stock.entrepot')));
+        $commandes = collect($resultat)->map(fn ($r) => $r[0]->fresh()->load('stock.entrepot'));
 
         return response()->json([
             'message'   => $commandes->count() > 1 ? sprintf('Panier commandé : %d commandes passées.', $commandes->count()) : 'Commande passée avec succès.',
@@ -493,8 +495,22 @@ class CommandeController extends Controller
     /** Commande préparée, prête à être chargée : la livraison peut être organisée. */
     public function marquerPrete(Request $request, int $id): JsonResponse
     {
-        return $this->avancer($request, $id, 'en_preparation', 'prete', 'prete', 'Commande prête. Organisez maintenant sa livraison.',
+        $reponse = $this->avancer($request, $id, 'en_preparation', 'prete', 'prete', 'Commande prête. Organisez maintenant sa livraison.',
             'Votre commande %s est prête : sa livraison va être organisée.');
+
+        // Lot 11 : la livraison est confiée d'office au transporteur libre le plus proche
+        if ($reponse->isSuccessful() && ! \App\Services\PiloteAutomatique::$enCours) {
+            $c = Commande::with('stock.entrepot', 'livraison')->find($id);
+            app(\App\Services\PiloteAutomatique::class)->commandePrete($c);
+            if ($c->fresh()->livraison) {
+                $donnees = $reponse->getData(true);
+                $donnees['message'] = 'Commande prête. Un transporteur a été prévenu automatiquement.';
+
+                return response()->json($donnees, $reponse->getStatusCode());
+            }
+        }
+
+        return $reponse;
     }
 
     private function avancer(Request $request, int $id, string $depuis, string $vers, string $action, string $message, string $pourAcheteur): JsonResponse

@@ -21,6 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'compte.actif' => EnsureCompteActif::class,
             'idempotence'  => Idempotence::class,
         ]);
+        // Lot 11 : le pilote automatique relance les missions sans réponse
+        $middleware->appendToGroup('api', \App\Http\Middleware\RelancePilote::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

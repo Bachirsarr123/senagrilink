@@ -35,6 +35,10 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
 
     // ── Module Gestionnaire d'entrepôt ────────────────────────────────────────
     Route::middleware('role:gestionnaire_entrepot')->group(function () {
+        // Lot 11 : « Ma journée » et fiche par agriculteur
+        Route::get('/journee',                    [\App\Http\Controllers\Api\JourneeController::class, 'journee']);
+        Route::get('/entrepot/producteurs',       [\App\Http\Controllers\Api\JourneeController::class, 'producteurs']);
+        Route::get('/entrepot/producteurs/{id}',  [\App\Http\Controllers\Api\JourneeController::class, 'producteur'])->whereNumber('id');
         Route::get('/stocks',                   [\App\Http\Controllers\Api\StockController::class, 'index']);
         Route::get('/stocks/alertes',           [\App\Http\Controllers\Api\StockController::class, 'alertes']);
         Route::get('/stocks/rapport',           [\App\Http\Controllers\Api\StockController::class, 'rapport']);

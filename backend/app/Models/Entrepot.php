@@ -8,7 +8,11 @@ class Entrepot extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['utilisateur_id', 'nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude'];
+    protected $fillable = [
+        'utilisateur_id', 'nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude',
+        // Lot 11 : pilote automatique
+        'auto_accepter_depots', 'auto_confirmer_commandes', 'auto_affecter_transporteurs', 'delai_reponse_min',
+    ];
 
     /**
      * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
@@ -18,6 +22,10 @@ class Entrepot extends Model
         'capacite'  => 'float',
         'latitude'  => 'float',
         'longitude' => 'float',
+        'auto_accepter_depots'        => 'boolean',
+        'auto_confirmer_commandes'    => 'boolean',
+        'auto_affecter_transporteurs' => 'boolean',
+        'delai_reponse_min'           => 'integer',
     ];
 
     public function utilisateur()

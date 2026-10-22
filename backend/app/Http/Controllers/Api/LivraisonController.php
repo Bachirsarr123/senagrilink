@@ -265,6 +265,9 @@ class LivraisonController extends Controller
             $this->nomComplet($request->user()), $livraison->numero_livraison, $request->motif,
         ), $this->reference($livraison)));
 
+        // Lot 11 : la mission est proposée au transporteur suivant
+        app(\App\Services\PiloteAutomatique::class)->missionRefusee('livraison', $id);
+
         return response()->json(['message' => 'Mission refusée. L\'entrepôt va affecter un autre transporteur.', 'livraison' => $livraison->fresh()]);
     }
 

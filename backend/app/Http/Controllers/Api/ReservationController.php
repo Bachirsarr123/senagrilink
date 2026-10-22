@@ -143,8 +143,16 @@ class ReservationController extends Controller
             $reservation->mode_transport === CircuitDepot::MODE_PRODUCTEUR ? 'le producteur livre lui-même' : 'transporteur à prévoir',
         ), $this->reference($reservation)));
 
+        // Lot 11 : acceptation et transporteur automatiques si l'entrepôt l'a choisi
+        app(\App\Services\PiloteAutomatique::class)->depotDemande($reservation);
+        $reservation->refresh();
+
         return response()->json([
-            'message'     => 'Demande de dépôt envoyée. L\'entrepôt a été notifié.',
+            'message'     => match (true) {
+                $reservation->transporteur_id !== null => 'Dépôt accepté par l\'entrepôt. Un transporteur va venir chercher la marchandise.',
+                $reservation->statut === 'confirmee'   => 'Dépôt accepté par l\'entrepôt.',
+                default                                => 'Demande de dépôt envoyée. L\'entrepôt a été notifié.',
+            },
             'reservation' => $reservation->load('entrepot:id,nom_entrepot,localisation'),
         ], 201);
     }
@@ -642,6 +650,9 @@ class ReservationController extends Controller
             '%s a refusé la mission %s. Motif : %s. Affectez un autre transporteur.',
             $this->nomComplet($request->user()), $reservation->numero_reservation, $request->motif,
         ), $this->reference($reservation)));
+
+        // Lot 11 : la mission est proposée au transporteur suivant
+        app(\App\Services\PiloteAutomatique::class)->missionRefusee('reservation', $id);
 
         return response()->json(['message' => 'Mission refusée. L\'entrepôt va affecter un autre transporteur.', 'reservation' => $reservation->fresh()]);
     }

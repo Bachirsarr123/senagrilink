@@ -86,7 +86,7 @@ final class AFaire
             return collect();
         }
 
-        $q = Commande::with(['stock:id,entrepot_id', 'stock.entrepot:id,latitude,longitude', 'livraison', 'incidents'])
+        $q = Commande::with(['stock:id,entrepot_id', 'stock.entrepot:id,latitude,longitude,auto_affecter_transporteurs', 'livraison', 'incidents'])
             ->whereNotIn('statut', ['receptionnee', 'annulee']);
         $u->acheteurGros
             ? $q->where('acheteur_id', $u->acheteurGros->id)
@@ -213,7 +213,9 @@ final class AFaire
         // Lot 10 : étapes regroupées en un appui quand un transporteur libre peut être proposé
         $groupee = match (true) {
             $sujet instanceof Reservation && $action === 'confirmer' && $sujet->mode_transport !== CircuitDepot::MODE_PRODUCTEUR => 'accepter_et_confier',
-            $sujet instanceof Commande && in_array($action, ['preparer', 'marquer_prete'], true) => 'prete_et_confier',
+            // Pilote automatique (lot 11) : « Prête » suffit, le transporteur est trouvé ensuite
+            $sujet instanceof Commande && in_array($action, ['preparer', 'marquer_prete'], true)
+                => $sujet->stock?->entrepot?->auto_affecter_transporteurs ? 'prete' : 'prete_et_confier',
             default => null,
         };
         $element['action'] = $groupee ?? $action;
