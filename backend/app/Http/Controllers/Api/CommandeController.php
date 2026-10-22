@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Support\Lieux;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCommandeRequest;
 use App\Http\Requests\UpdateCommandeRequest;
@@ -84,10 +85,11 @@ class CommandeController extends Controller
         $lignes = $request->has('lignes')
             ? $request->input('lignes')
             : [['stock_id' => $request->stock_id, 'quantite' => $request->quantite]];
+        [$livLat, $livLng, $livAdresse] = Lieux::retenir($request, 'livraison', $acheteur, $request->user()->adresse);
         $panier = count($lignes) > 1 ? 'PAN-'.now()->format('Ymd').'-'.strtoupper(Str::random(5)) : null;
 
         // Une ligne impossible lève une exception : la transaction annule tout le panier.
-        $resultat = DB::transaction(function () use ($lignes, $acheteur, $panier, $request) {
+        $resultat = DB::transaction(function () use ($lignes, $acheteur, $panier, $request, $livLat, $livLng, $livAdresse) {
             $commandes = [];
 
             foreach ($lignes as $index => $ligne) {
@@ -122,6 +124,9 @@ class CommandeController extends Controller
                     'prix_unitaire' => $prixUnitaire,
                     'prix'          => round($prixUnitaire * $quantite, 2),
                     'panier'        => $panier,
+                    'livraison_latitude'  => $livLat,
+                    'livraison_longitude' => $livLng,
+                    'livraison_adresse'   => $livAdresse,
                     'date_commande' => now(),
                     'statut'        => 'en_attente',
                 ]);

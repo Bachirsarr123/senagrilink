@@ -79,9 +79,10 @@ class LivraisonController extends Controller
                 'commande_id'           => $c->id,
                 'transporteur_id'       => (int) $request->transporteur_id,
                 'origine'               => $request->origine ?: ($entrepot?->localisation ?: $entrepot?->nom_entrepot ?: 'Entrepôt'),
-                'destination'           => $request->destination ?: ($acheteur?->utilisateur?->adresse ?: 'Adresse de l\'acheteur'),
-                'destination_latitude'  => $request->destination_latitude ?? $acheteur?->latitude,
-                'destination_longitude' => $request->destination_longitude ?? $acheteur?->longitude,
+                'destination'           => $request->destination ?: ($c->livraison_adresse ?: $acheteur?->utilisateur?->adresse ?: 'Adresse de l\'acheteur'),
+                // Lieu choisi par l'acheteur à la commande, sinon son lieu habituel
+                'destination_latitude'  => $request->destination_latitude ?? $c->livraison_latitude ?? $acheteur?->latitude,
+                'destination_longitude' => $request->destination_longitude ?? $c->livraison_longitude ?? $acheteur?->longitude,
                 'date_depart'           => $request->date_depart,
                 'statut'                => 'en_attente',
             ]);

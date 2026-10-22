@@ -91,6 +91,11 @@ jobs:
           # plus ancien affiche « Migration not found » et n'est PAS annulée.
           colonne() { psql -h 127.0.0.1 -U senagri -d senagrilink_migrations -tAc "select count(*) from information_schema.columns where table_name='$1' and column_name='$2'"; }
           php artisan migrate:rollback --force --no-interaction \
+            --path=database/migrations/2025_01_01_000024_create_lieux_automatiques.php
+          [ "$(colonne reservations collecte_latitude)" = 0 ] && [ "$(colonne commandes livraison_latitude)" = 0 ] || { echo "::error::000024 non annulée"; exit 1; }
+          [ "$(table appareils)" = t ] || { echo "::error::le retour de 000024 a annulé 000023"; exit 1; }
+
+          php artisan migrate:rollback --force --no-interaction \
             --path=database/migrations/2025_01_01_000023_create_comptes_et_notifications.php
           [ "$(table appareils)" = f ] || { echo "::error::000023 non annulée"; exit 1; }
           [ "$(colonne positions_gps sujet_type)" = 1 ] || { echo "::error::le retour de 000023 a annulé 000022"; exit 1; }
@@ -120,12 +125,12 @@ jobs:
           [ "$(table requetes_idempotentes)" = f ] || { echo "::error::000018 non annulée"; exit 1; }
           [ "$(table historique_operations)" = t ] || { echo "::error::le retour ciblé a supprimé historique_operations"; exit 1; }
 
-          # Réapplication : 000018 à 000023 forment un nouveau lot, dont la plus récente s'annule de nouveau
+          # Réapplication : 000018 à 000024 forment un nouveau lot, dont la plus récente s'annule de nouveau
           php artisan migrate --force --no-interaction
-          [ "$(table mouvements_stock)" = t ] && [ "$(table requetes_idempotentes)" = t ] && [ "$(colonne reservations mode_transport)" = 1 ] && [ "$(table incidents)" = t ] && [ "$(colonne positions_gps sujet_type)" = 1 ] && [ "$(table appareils)" = t ]
+          [ "$(table mouvements_stock)" = t ] && [ "$(table requetes_idempotentes)" = t ] && [ "$(colonne reservations mode_transport)" = 1 ] && [ "$(table incidents)" = t ] && [ "$(colonne positions_gps sujet_type)" = 1 ] && [ "$(table appareils)" = t ] && [ "$(colonne commandes livraison_latitude)" = 1 ]
           php artisan migrate:rollback --force --no-interaction \
-            --path=database/migrations/2025_01_01_000023_create_comptes_et_notifications.php
-          [ "$(table appareils)" = f ] || { echo "::error::000023 réappliquée non annulable"; exit 1; }
+            --path=database/migrations/2025_01_01_000024_create_lieux_automatiques.php
+          [ "$(colonne commandes livraison_latitude)" = 0 ] || { echo "::error::000024 réappliquée non annulable"; exit 1; }
           php artisan migrate --force --no-interaction
 
           php artisan migrate:reset --force --no-interaction

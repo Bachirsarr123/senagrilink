@@ -97,7 +97,10 @@ export class ApiService {
   toutMarquerLu(): Observable<any> { return this.http.put(`${this.base}/notifications/lues`, {}); }
 
   // ── Réservations d'entrepôt ────────────────────────────────────────────────
-  getEntrepotsDisponibles(): Observable<any> { return this.http.get(`${this.base}/entrepots/disponibles`); }
+  /** Avec la position du producteur : les entrepôts les plus proches d'abord (lot 8). */
+  getEntrepotsDisponibles(position?: { latitude: number; longitude: number } | null): Observable<any> {
+    return this.http.get(`${this.base}/entrepots/disponibles`, { params: position ? { latitude: position.latitude, longitude: position.longitude } : {} });
+  }
   getReservations(): Observable<any> { return this.http.get(`${this.base}/reservations`); }
   storeReservation(data: any, cle?: string): Observable<any> { return this.http.post(`${this.base}/reservations`, data, this.idempotence(cle)); }
   confirmerReservation(id: number): Observable<any> { return this.http.put(`${this.base}/reservations/${id}/confirmer`, {}); }

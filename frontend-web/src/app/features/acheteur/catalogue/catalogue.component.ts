@@ -1,13 +1,15 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
+import { ChoixPositionComponent, Position } from '../../../shared/position/choix-position';
+import { PositionAppareilService } from '../../../shared/position/position-appareil';
 
 @Component({
   selector: 'app-catalogue',
   standalone: true,
-  imports: [ReactiveFormsModule, DecimalPipe],
+  imports: [ReactiveFormsModule, DecimalPipe, ChoixPositionComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -17,6 +19,20 @@ import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 
       @if (succes()) { <div class="alert alert-success">{{ succes() }}</div> }
       @if (erreurCommande()) { <div class="alert alert-error">{{ erreurCommande() }}</div> }
+
+      <!-- Lot 8 : lieu de livraison pris automatiquement, modifiable sur la carte -->
+      <div class="card lieu-livraison" aria-label="Lieu de livraison">
+        <div class="lieu-livraison__ligne">
+          <span>📍 <strong>Livraison :</strong>
+            @if (lieuLivraison()) { {{ lieuOrigine() === 'appareil' ? 'à votre position actuelle' : 'à votre adresse habituelle' }} }
+            @else if (rechercheLieu()) { recherche de votre position… }
+            @else { lieu à placer sur la carte }</span>
+          <button type="button" class="btn-ghost btn-sm" (click)="carteLieuOuverte.set(!carteLieuOuverte())">{{ carteLieuOuverte() ? 'Fermer la carte' : 'Modifier sur la carte' }}</button>
+        </div>
+        @if (carteLieuOuverte()) {
+          <app-choix-position libelle="Où voulez-vous être livré ?" [initiale]="lieuLivraison()" [effacable]="false" (changement)="lieuChoisi($event)" />
+        }
+      </div>
 
       @if (panier().length > 0) {
         <div class="card panier" aria-label="Panier">
@@ -108,6 +124,8 @@ import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
   styleUrls: ['../../shared.styles.scss'],
   styles: [`
     .montant { margin: .25rem 0 .75rem; font-size: .95rem; }
+    .lieu-livraison { padding:.8rem 1rem; }
+    .lieu-livraison__ligne { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:space-between; margin-bottom:.4rem; }
     .panier ul { list-style:none; margin:0 0 .5rem; padding:0; display:grid; gap:.4rem; }
     .panier li { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:space-between; }
     .compteur { display:inline-block; min-width:1.6rem; padding:0 .45rem; border-radius:999px; background:#d8f3dc; color:#1b4332; font-size:.85rem; text-align:center; }
@@ -128,6 +146,31 @@ export class CatalogueComponent implements OnInit {
   totalPanier = computed(() => Math.round(this.panier().reduce((t, l) => t + l.quantite * l.prix_unitaire, 0) * 100) / 100);
   private clePanier = new CleSoumission();
 
+  private readonly appareil = inject(PositionAppareilService);
+  lieuLivraison   = signal<Position | null>(null);
+  lieuOrigine     = signal<'appareil' | 'habituel' | 'carte' | null>(null);
+  rechercheLieu   = signal(false);
+  carteLieuOuverte = signal(false);
+
+  /** Lieu habituel, puis position actuelle de l'appareil dès qu'elle arrive. */
+  private trouverLieu(): void {
+    const habituel = this.appareil.lieuHabituel();
+    if (habituel) { this.lieuLivraison.set(habituel); this.lieuOrigine.set('habituel'); }
+    this.rechercheLieu.set(true);
+    this.appareil.actuelle().then(p => {
+      this.rechercheLieu.set(false);
+      if (p && this.lieuOrigine() !== 'carte') { this.lieuLivraison.set(p); this.lieuOrigine.set('appareil'); }
+    });
+  }
+
+  lieuChoisi(p: Position | null): void { if (p) { this.lieuLivraison.set(p); this.lieuOrigine.set('carte'); } }
+
+  /** Lieu de livraison joint à la commande ; sans lieu, le serveur reprend l'adresse habituelle. */
+  private lieu(): Record<string, number> {
+    const p = this.lieuLivraison();
+    return p ? { livraison_latitude: p.latitude, livraison_longitude: p.longitude } : {};
+  }
+
   /** Clé de la commande en cours de saisie : un nouvel essai ne crée pas de doublon. */
   private cleCommande = new CleSoumission();
 
@@ -139,6 +182,7 @@ export class CatalogueComponent implements OnInit {
 
   ngOnInit(): void {
     this.chargerCatalogue();
+    this.trouverLieu();
   }
 
   chargerCatalogue(): void {
@@ -173,7 +217,7 @@ export class CatalogueComponent implements OnInit {
     if (this.formCommande.invalid) { this.formCommande.markAllAsTouched(); return; }
     this.loadingCmd.set(true); this.erreurCommande.set(null);
 
-    this.api.passerCommande({ stock_id: produit.stock_id, ...this.formCommande.value }, this.cleCommande.valeur).subscribe({
+    this.api.passerCommande({ stock_id: produit.stock_id, ...this.formCommande.value, ...this.lieu() }, this.cleCommande.valeur).subscribe({
       next: res => {
         this.cleCommande.renouveler();
         this.succes.set(`Commande ${res.commande.numero_commande} passée : ${res.commande.quantite} kg pour ${res.commande.prix} FCFA. L'entrepôt va la confirmer.`);
@@ -206,7 +250,7 @@ export class CatalogueComponent implements OnInit {
     const lignes = this.panier().map(({ stock_id, quantite }) => ({ stock_id, quantite }));
     if (!confirm(`Commander ${lignes.length} produit(s) pour ${this.totalPanier()} FCFA ?`)) return;
     this.loadingCmd.set(true); this.erreurCommande.set(null);
-    this.api.passerCommande({ lignes }, this.clePanier.valeur).subscribe({
+    this.api.passerCommande({ lignes, ...this.lieu() }, this.clePanier.valeur).subscribe({
       next: res => {
         this.clePanier.renouveler();
         this.panier.set([]);

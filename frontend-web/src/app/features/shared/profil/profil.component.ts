@@ -117,7 +117,7 @@ import { ChoixPositionComponent, Position } from '../../../shared/position/choix
           <!-- Position sur la carte : préremplit les missions, permet l'itinéraire du transporteur -->
           @if (aUnePosition()) {
             <div class="form-group">
-              <app-choix-position [libelle]="libellePosition()" [initiale]="positionDepart" (changement)="positionChoisie($event)" />
+              <app-choix-position [libelle]="libellePosition()" [initiale]="positionDepart" [auto]="true" (changement)="positionChoisie($event)" />
             </div>
           }
 

@@ -14,17 +14,19 @@ import '../../widgets/app_theme.dart';
 ///
 /// Renvoie le numéro de commande créé, ou null si l'acheteur renonce.
 /// Avec [surPanier], un second bouton ajoute la quantité au panier au lieu de commander.
-Future<String?> ouvrirFormulaireCommande(BuildContext context, Map<String, dynamic> produit, {ValueChanged<double>? surPanier}) =>
+Future<String?> ouvrirFormulaireCommande(BuildContext context, Map<String, dynamic> produit, {ValueChanged<double>? surPanier, Map<String, dynamic> lieu = const {}}) =>
     showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => FormulaireCommande(produit: produit, surPanier: surPanier),
+      builder: (_) => FormulaireCommande(produit: produit, surPanier: surPanier, lieu: lieu),
     );
 
 class FormulaireCommande extends StatefulWidget {
   final Map<String, dynamic> produit;
   final ValueChanged<double>? surPanier;
-  const FormulaireCommande({super.key, required this.produit, this.surPanier});
+  /// Lieu de livraison (lot 8) joint à la commande.
+  final Map<String, dynamic> lieu;
+  const FormulaireCommande({super.key, required this.produit, this.surPanier, this.lieu = const {}});
   @override
   State<FormulaireCommande> createState() => _FormulaireCommandeState();
 }
@@ -70,6 +72,7 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
       final res = await ApiService.passerCommande({
         'stock_id': widget.produit['stock_id'],
         'quantite': _quantite,
+        ...widget.lieu,
       }, cleIdempotence: _cle);
       if (mounted) Navigator.pop(context, (res['commande']?['numero_commande'] ?? '') as String);
     } on ApiException catch (e) {

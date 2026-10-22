@@ -19,6 +19,7 @@ use App\Notifications\OperationModifieeNotification;
 use App\Notifications\ReservationConfirmeeNotification;
 use App\Services\GestionStock;
 use App\Support\CircuitDepot;
+use App\Support\Lieux;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,8 +46,19 @@ class ReservationController extends Controller
         $entrepots = Entrepot::with('utilisateur:id,nom,prenom,telephone')
             ->get()
             ->map(fn (Entrepot $entrepot) => $this->avecCapaciteDisponible($entrepot))
-            ->filter(fn (array $e) => $e['capacite_disponible'] > 0)
-            ->values();
+            ->filter(fn (array $e) => $e['capacite_disponible'] > 0);
+
+        // Depuis la position du producteur (ou son lieu habituel) : le plus proche d'abord
+        $lat = $request->query('latitude', $request->user()->producteur?->latitude);
+        $lng = $request->query('longitude', $request->user()->producteur?->longitude);
+        if (is_numeric($lat) && is_numeric($lng)) {
+            $entrepots = $entrepots
+                ->map(fn (array $e) => $e + ['distance_km' => $e['latitude'] !== null && $e['longitude'] !== null
+                    ? round(Lieux::distanceKm((float) $lat, (float) $lng, (float) $e['latitude'], (float) $e['longitude']), 1)
+                    : null])
+                ->sortBy(fn (array $e) => $e['distance_km'] ?? INF);
+        }
+        $entrepots = $entrepots->values();
 
         return response()->json(['entrepots' => $entrepots]);
     }
@@ -91,7 +103,14 @@ class ReservationController extends Controller
                 ], 422);
             }
 
+            [$lat, $lng, $adresse] = $request->mode_transport === CircuitDepot::MODE_PRODUCTEUR
+                ? [null, null, null]
+                : Lieux::retenir($request, 'collecte', $producteur, $request->user()->adresse);
+
             $reservation = Reservation::create([
+                'collecte_latitude'  => $lat,
+                'collecte_longitude' => $lng,
+                'collecte_adresse'   => $adresse,
                 'entrepot_id'       => $entrepot->id,
                 'producteur_id'     => $producteur->id,
                 'production_id'     => $production->id,
@@ -931,6 +950,8 @@ class ReservationController extends Controller
             'id'                  => $entrepot->id,
             'nom_entrepot'        => $entrepot->nom_entrepot,
             'localisation'        => $entrepot->localisation,
+            'latitude'            => $entrepot->latitude,
+            'longitude'           => $entrepot->longitude,
             'capacite'            => $entrepot->capacite,
             'capacite_disponible' => $this->capaciteDisponible($entrepot),
             'gestionnaire'        => $entrepot->utilisateur,

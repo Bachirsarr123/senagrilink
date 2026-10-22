@@ -19,6 +19,9 @@ class Commande extends Model
         'prix_unitaire',
         'etat_stock',
         'panier',
+        'livraison_latitude',
+        'livraison_longitude',
+        'livraison_adresse',
         'code_reception',
         'date_commande',
         'statut',
@@ -32,6 +35,8 @@ class Commande extends Model
     protected $hidden = ['code_reception'];
 
     protected $casts = [
+        'livraison_latitude'  => 'float',
+        'livraison_longitude' => 'float',
         'quantite' => 'float',
         'prix'          => 'float',
         'prix_unitaire' => 'float',

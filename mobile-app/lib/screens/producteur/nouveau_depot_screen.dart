@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../../models/production.dart';
 import '../../services/api_service.dart';
+import '../../services/position_appareil.dart';
 import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
+import '../../widgets/choix_position.dart';
 import '../../widgets/info_card.dart';
 
 /// Demande de dépôt : entrepôt qui a la place, récolte (lot), mode de transport.
@@ -23,6 +26,9 @@ class _NouveauDepotScreenState extends State<NouveauDepotScreen> {
   int? _entrepotId;
   Production? _recolte;
   String? _mode;
+  /// Position du téléphone (prise d'elle-même) et lieu de prise en charge retenu.
+  LatLng? _positionTelephone;
+  LatLng? _collecte;
   bool _chargement = true;
   bool _envoi = false;
   String? _erreur;
@@ -37,11 +43,16 @@ class _NouveauDepotScreenState extends State<NouveauDepotScreen> {
   Future<void> _charger() async {
     setState(() { _chargement = true; _erreurChargement = null; });
     try {
-      final entrepots = await ApiService.getEntrepotsDisponibles();
-      final productions = await ApiService.getProductions();
+      final productions = ApiService.getProductions();
+      _positionTelephone ??= await PositionAppareil.lire();
+      final entrepots = await ApiService.getEntrepotsDisponibles(latitude: _positionTelephone?.latitude, longitude: _positionTelephone?.longitude);
+      final recoltes = await productions;
+      if (!mounted) return;
+      final habituel = PositionAppareil.lieuHabituelConnecte(context);
       setState(() {
+        _collecte ??= _positionTelephone ?? habituel;
         _entrepots = ((entrepots['entrepots'] as List?) ?? []).cast<Map<String, dynamic>>();
-        _recoltes = ((productions['productions'] as List?) ?? [])
+        _recoltes = ((recoltes['productions'] as List?) ?? [])
             .map((e) => Production.fromJson(e as Map<String, dynamic>))
             .where((p) => p.statut != 'annulee')
             .toList();
@@ -67,6 +78,10 @@ class _NouveauDepotScreenState extends State<NouveauDepotScreen> {
         'entrepot_id': _entrepotId,
         'production_id': _recolte!.id,
         'mode_transport': _mode,
+        if (_mode == 'transporteur' && _collecte != null) ...{
+          'collecte_latitude': _collecte!.latitude,
+          'collecte_longitude': _collecte!.longitude,
+        },
         'quantite_reservee': nombre(_quantiteCtl.text.trim().replaceAll(',', '.')),
         'date_debut': '${aujourdhui.year}-${aujourdhui.month.toString().padLeft(2, '0')}-${aujourdhui.day.toString().padLeft(2, '0')}',
       }, cleIdempotence: _cle);
@@ -116,7 +131,11 @@ class _NouveauDepotScreenState extends State<NouveauDepotScreen> {
                         for (final e in _entrepots)
                           DropdownMenuItem(
                             value: e['id'] as int,
-                            child: Text('${e['nom_entrepot'] ?? ''} — ${kg(nombre(e['capacite_disponible']) ?? 0)} libres', overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              '${e['nom_entrepot'] ?? ''} — ${kg(nombre(e['capacite_disponible']) ?? 0)} libres'
+                              '${e['distance_km'] != null ? ' · à ${nombreLisible(nombre(e['distance_km'])!)} km' : ''}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                       ],
                       onChanged: (v) => setState(() => _entrepotId = v),
@@ -161,6 +180,17 @@ class _NouveauDepotScreenState extends State<NouveauDepotScreen> {
                         if (champ.hasError) Text(champ.errorText!, style: const TextStyle(color: AppTheme.rouge, fontSize: 12)),
                       ]),
                     ),
+                    if (_mode == 'transporteur') ...[
+                      const SizedBox(height: 8),
+                      // Lot 8 : lieu pris automatiquement, le transporteur y sera guidé
+                      ChoixPosition(
+                        key: const Key('depot-lieu-collecte'),
+                        libelle: 'Où le transporteur vient-il chercher la marchandise ?',
+                        initiale: _collecte,
+                        auto: true,
+                        onChange: (p) => _collecte = p,
+                      ),
+                    ],
                     if (_erreur != null) ...[
                       const SizedBox(height: 8),
                       Text(_erreur!, style: const TextStyle(color: AppTheme.rouge)),

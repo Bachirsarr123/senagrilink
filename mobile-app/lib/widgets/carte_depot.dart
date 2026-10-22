@@ -104,7 +104,10 @@ class CarteDepot extends StatelessWidget {
             ligne(Icons.gps_fixed, 'Position partagée avec l\'entrepôt jusqu\'à l\'arrivée'),
           if (vueTransporteur && ['prise_en_charge', 'au_point_collecte'].contains(statut))
             Padding(padding: const EdgeInsets.only(top: 8), child: BoutonItineraire(
-                latitude: (r['producteur'] as Map?)?['latitude'], longitude: (r['producteur'] as Map?)?['longitude'], libelle: 'Itinéraire vers le producteur')),
+                // Lieu de prise en charge choisi au dépôt (lot 8), sinon lieu habituel du producteur
+                latitude: r['collecte_latitude'] ?? (r['producteur'] as Map?)?['latitude'],
+                longitude: r['collecte_longitude'] ?? (r['producteur'] as Map?)?['longitude'],
+                libelle: 'Itinéraire vers le producteur')),
           if (['chargee', 'en_route'].contains(statut) && (vueTransporteur || r['mode_transport'] == 'producteur') || (statut == 'confirmee' && r['mode_transport'] == 'producteur'))
             Padding(padding: const EdgeInsets.only(top: 8), child: BoutonItineraire(
                 latitude: (r['entrepot'] as Map?)?['latitude'], longitude: (r['entrepot'] as Map?)?['longitude'], libelle: 'Itinéraire vers l\'entrepôt')),

@@ -22,6 +22,8 @@ class StoreCommandeRequest extends FormRequest
             'lignes.*.quantite' => ['required', 'numeric', 'min:0.01'],
             // Le prix n'est jamais saisi par l'acheteur : il vient du lot (producteur).
             'prix'     => ['prohibited'],
+            // Lieu de livraison : position du téléphone, sinon lieu habituel du profil
+            ...\App\Support\Lieux::regles('livraison'),
         ];
     }
 

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
+import '../../services/position_appareil.dart';
 import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
+import '../../widgets/choix_position.dart';
 import '../../widgets/info_card.dart';
 import 'formulaire_commande.dart';
 import 'mes_commandes_screen.dart';
@@ -21,8 +24,57 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   bool _loading = true;
   String? _erreur;
 
+  /// Lot 8 : lieu de livraison pris automatiquement (adresse habituelle, puis position
+  /// du téléphone), modifiable sur la carte. Joint à chaque commande.
+  LatLng? _lieu;
+  String _origineLieu = 'aucun';
+
   @override
-  void initState() { super.initState(); _charger(); }
+  void initState() {
+    super.initState();
+    _charger();
+    _lieu = PositionAppareil.lieuHabituelConnecte(context);
+    if (_lieu != null) _origineLieu = 'habituel';
+    PositionAppareil.lire().then((p) {
+      if (p != null && mounted && _origineLieu != 'carte') setState(() { _lieu = p; _origineLieu = 'telephone'; });
+    });
+  }
+
+  Map<String, dynamic> get _champsLieu =>
+      _lieu == null ? {} : {'livraison_latitude': _lieu!.latitude, 'livraison_longitude': _lieu!.longitude};
+
+  Future<void> _modifierLieu() async {
+    LatLng? choisi = _lieu;
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          ChoixPosition(key: const Key('lieu-livraison-carte'), libelle: 'Où voulez-vous être livré ?', initiale: _lieu, auto: true, onChange: (p) => choisi = p),
+          const SizedBox(height: 12),
+          ElevatedButton(key: const Key('lieu-livraison-valider'), onPressed: () => Navigator.pop(c, true), child: const Text('Livrer ici')),
+        ]),
+      ),
+    );
+    if (ok == true && choisi != null && mounted) setState(() { _lieu = choisi; _origineLieu = 'carte'; });
+  }
+
+  Widget _bandeauLieu() => Material(
+        color: AppTheme.vertClair,
+        child: ListTile(
+          key: const Key('lieu-livraison'),
+          dense: true,
+          leading: const Icon(Icons.location_on, color: AppTheme.vertFonce),
+          title: Text(switch (_origineLieu) {
+            'telephone' => 'Livraison à votre position actuelle',
+            'habituel' => 'Livraison à votre adresse habituelle',
+            'carte' => 'Livraison au lieu choisi sur la carte',
+            _ => 'Lieu de livraison à placer sur la carte',
+          }),
+          trailing: TextButton(onPressed: _modifierLieu, child: const Text('Modifier')),
+        ),
+      );
 
   Future<void> _charger() async {
     setState(() { _loading = true; _erreur = null; });
@@ -78,6 +130,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     try {
       final res = await ApiService.passerCommande({
         'lignes': [for (final l in _panier) {'stock_id': l.stockId, 'quantite': l.quantite}],
+        ..._champsLieu,
       }, cleIdempotence: _clePanier);
       setState(() { _panier.clear(); _clePanier = ApiService.nouvelleCleIdempotence(); });
       messager.showSnackBar(SnackBar(content: Text('${res['message'] ?? 'Panier commandé.'} Suivez-le dans « Mes commandes ».'), backgroundColor: AppTheme.vert));
@@ -88,7 +141,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   }
 
   Future<void> _commander(Map<String, dynamic> produit) async {
-    final numero = await ouvrirFormulaireCommande(context, produit, surPanier: (q) => _ajouter(produit, q));
+    final numero = await ouvrirFormulaireCommande(context, produit, surPanier: (q) => _ajouter(produit, q), lieu: _champsLieu);
     if (numero == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('Commande $numero passée. Suivez-la dans « Mes commandes ».'), backgroundColor: AppTheme.vert));
@@ -131,7 +184,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
           ),
         ],
       ),
-      body: _loading
+      body: Column(children: [_bandeauLieu(), Expanded(child: _loading
           ? const Center(child: CircularProgressIndicator())
           : _erreur != null
               ? ErrorState(message: _erreur!, onRetry: _charger)
@@ -200,7 +253,8 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                           );
                         },
                       ),
-                    ),
+                    )),
+      ]),
     );
   }
 }

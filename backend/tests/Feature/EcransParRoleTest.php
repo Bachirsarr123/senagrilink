@@ -69,10 +69,15 @@ class EcransParRoleTest extends TestCase
         $incident = $g->firstWhere('categorie', 'incident');
         $this->assertSame('Incident à décider : panne', $incident['etape']);
         $this->assertSame('haute', $incident['urgence']);
+        // Entrepôt pas encore placé sur la carte : demandé en priorité, puis disparaît une fois placé
+        $this->assertSame('Placez votre entrepôt sur la carte', $g->firstWhere('categorie', 'lieu')['titre']);
+        $this->gestionnaire->entrepot->update(['latitude' => 14.7, 'longitude' => -17.4]);
+        $g = collect($this->aFaire($this->gestionnaire->fresh()));
+        $this->assertNull($g->firstWhere('categorie', 'lieu'));
         $this->assertSame('incident', $g->first()['categorie']);
         $this->assertNotNull($g->firstWhere('categorie', 'stock'));
         // Un autre entrepôt ne voit rien
-        $this->assertSame([], $this->aFaire(Utilisateur::factory()->gestionnaire()->create()));
+        $this->assertSame(['lieu'], array_column($this->aFaire(Utilisateur::factory()->gestionnaire()->create()), 'categorie'));
     }
 
     public function test_a_faire_depot_producteur_et_retard(): void

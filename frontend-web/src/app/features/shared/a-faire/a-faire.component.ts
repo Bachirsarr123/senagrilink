@@ -91,7 +91,7 @@ export class AFaireComponent implements OnInit {
   }
 
   icone(c: string): string {
-    return ({ depot: '🌾', commande: '🧾', livraison: '🚚', incident: '⚠️', stock: '📦' } as Record<string, string>)[c] ?? '•';
+    return ({ depot: '🌾', commande: '🧾', livraison: '🚚', incident: '⚠️', stock: '📦', lieu: '📍' } as Record<string, string>)[c] ?? '•';
   }
 
   /** Page où l'action se fait. */
@@ -101,6 +101,7 @@ export class AFaireComponent implements OnInit {
       case 'commande': return ['/commandes', e.sujet_id];
       case 'incident': return ['/entrepot/incidents'];
       case 'stock':    return ['/entrepot/alertes'];
+      case 'lieu':     return ['/profil'];
       case 'livraison': return ['/transporteur/missions'];
       default: return [role === 'producteur' ? '/producteur/reservations' : role === 'transporteur' ? '/transporteur/missions' : '/entrepot/reservations'];
     }

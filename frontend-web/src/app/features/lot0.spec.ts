@@ -126,6 +126,8 @@ describe('Lot 0 — site web', () => {
       configurer();
       const fixture = TestBed.createComponent(ProfilComponent);
       fixture.detectChanges();
+      // Fond de carte demandé par la carte de position (lot 8)
+      http.match(r => r.url.endsWith('/suivi/configuration')).forEach(r => r.flush({}));
       return fixture.componentInstance;
     }
 

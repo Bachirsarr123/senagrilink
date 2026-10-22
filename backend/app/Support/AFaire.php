@@ -32,6 +32,7 @@ final class AFaire
             ->merge(self::livraisons($u))
             ->merge(self::incidents($u))
             ->merge(self::stocks($u))
+            ->merge(self::lieuEntrepot($u))
             ->map(function (array $e) {
                 $e['en_retard'] = $e['depuis'] !== null && Carbon::parse($e['depuis'])->diffInHours(now(), true) >= self::RETARD_HEURES;
                 $e['urgence']   = $e['urgence'] ?? ($e['en_retard'] ? 'haute' : 'normale');
@@ -186,6 +187,26 @@ final class AFaire
                 'depuis'     => null,
                 'urgence'    => 'normale',
             ]);
+    }
+
+    /** Entrepôt sans emplacement sur la carte : les transporteurs ne sauraient pas où aller. */
+    private static function lieuEntrepot(Utilisateur $u): Collection
+    {
+        $e = $u->entrepot;
+        if (! $e || ($e->latitude !== null && $e->longitude !== null)) {
+            return collect();
+        }
+
+        return collect([[
+            'categorie'  => 'lieu',
+            'sujet_type' => 'entrepot',
+            'sujet_id'   => $e->id,
+            'numero'     => $e->nom_entrepot,
+            'titre'      => 'Placez votre entrepôt sur la carte',
+            'etape'      => 'Les transporteurs en ont besoin pour venir charger et livrer',
+            'depuis'     => null,
+            'urgence'    => 'haute',
+        ]]);
     }
 
     /** Date de la dernière étape historisée (ou de création). */

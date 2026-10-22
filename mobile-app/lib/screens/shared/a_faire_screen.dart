@@ -38,12 +38,15 @@ class _AFaireScreenState extends State<AFaireScreen> {
 
   IconData _icone(String c) => switch (c) {
     'depot' => Icons.agriculture, 'commande' => Icons.receipt_long, 'livraison' => Icons.local_shipping,
-    'incident' => Icons.warning_amber_rounded, 'stock' => Icons.inventory_2_outlined, _ => Icons.circle_outlined,
+    'incident' => Icons.warning_amber_rounded, 'stock' => Icons.inventory_2_outlined, 'lieu' => Icons.location_on, _ => Icons.circle_outlined,
   };
 
   Future<void> _ouvrir(Map<String, dynamic> e) async {
     if (e['categorie'] == 'commande') {
       await Navigator.push(context, MaterialPageRoute(builder: (_) => FicheCommandeScreen(commandeId: e['sujet_id'] as int)));
+    } else if (e['categorie'] == 'lieu') {
+      // Entrepôt à placer sur la carte : le profil propose la position actuelle
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilScreen()));
     } else {
       widget.ouvrirOnglet?.call(e['categorie'] as String);
     }

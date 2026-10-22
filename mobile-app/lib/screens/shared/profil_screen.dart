@@ -328,6 +328,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     libelle: _libellesPosition[u?.role]!,
                     initiale: _position,
                     afficherTuiles: widget.afficherTuiles,
+                    auto: true,
                     onChange: (p) => _position = p,
                   ),
                   const SizedBox(height: 16),

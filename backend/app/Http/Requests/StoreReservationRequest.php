@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Support\CircuitDepot;
+use App\Support\Lieux;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
@@ -27,6 +28,8 @@ class StoreReservationRequest extends FormRequest
             'quantite_reservee' => ['required', 'numeric', 'min:0.01'],
             'date_debut'        => ['required', 'date'],
             'date_fin'          => ['nullable', 'date', 'after_or_equal:date_debut'],
+            // Lieu de prise en charge : position du téléphone, sinon lieu habituel du profil
+            ...Lieux::regles('collecte'),
         ];
     }
 

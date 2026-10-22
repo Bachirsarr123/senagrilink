@@ -80,7 +80,9 @@ final class SuiviGps
             $e = $m->entrepot;
 
             return [
-                'origine'     => ['nom' => trim(($p?->utilisateur?->prenom ?? '').' '.($p?->utilisateur?->nom ?? '')) ?: 'Producteur', 'adresse' => $p?->utilisateur?->adresse, 'latitude' => $p?->latitude, 'longitude' => $p?->longitude],
+                'origine'     => ['nom' => trim(($p?->utilisateur?->prenom ?? '').' '.($p?->utilisateur?->nom ?? '')) ?: 'Producteur', 'adresse' => $m->collecte_adresse ?? $p?->utilisateur?->adresse,
+                    // Lieu de prise en charge choisi au dépôt, sinon lieu habituel du producteur
+                    'latitude' => $m->collecte_latitude ?? $p?->latitude, 'longitude' => $m->collecte_longitude ?? $p?->longitude],
                 'destination' => ['nom' => $e?->nom_entrepot, 'adresse' => $e?->localisation, 'latitude' => $e?->latitude, 'longitude' => $e?->longitude],
             ];
         }

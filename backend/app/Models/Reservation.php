@@ -25,6 +25,9 @@ class Reservation extends Model
         'mission_acceptee_le',
         'quantite_recue',
         'etat_marchandise',
+        'collecte_latitude',
+        'collecte_longitude',
+        'collecte_adresse',
         'parti_le',
         'arrive_le',
     ];
@@ -37,6 +40,8 @@ class Reservation extends Model
     protected $hidden = ['trajet'];
 
     protected $casts = [
+        'collecte_latitude'   => 'float',
+        'collecte_longitude'  => 'float',
         'parti_le'            => 'datetime',
         'arrive_le'           => 'datetime',
         'arrivee_estimee_le'   => 'datetime',

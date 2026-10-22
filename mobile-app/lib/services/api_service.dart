@@ -262,7 +262,9 @@ class ApiService {
 
   // ── Dépôts en entrepôt (réservations) ─────────────────────────────────────
   static Future<dynamic> getReservations() => get('/reservations');
-  static Future<dynamic> getEntrepotsDisponibles() => get('/entrepots/disponibles');
+  /// Avec la position du producteur : les entrepôts les plus proches d'abord (lot 8).
+  static Future<dynamic> getEntrepotsDisponibles({double? latitude, double? longitude}) =>
+      get('/entrepots/disponibles${latitude != null && longitude != null ? '?latitude=$latitude&longitude=$longitude' : ''}');
   static Future<dynamic> demanderDepot(Map<String, dynamic> data, {String? cleIdempotence}) =>
       post('/reservations', data, cleIdempotence: cleIdempotence);
   static Future<dynamic> annulerDepot(int id, {String? motif}) =>

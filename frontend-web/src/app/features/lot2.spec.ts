@@ -100,7 +100,7 @@ describe('Lot 2 — site web', () => {
     FausseCarte.derniere.surClic({ latitude: 14.123456789, longitude: -17.987654321 });
     fixture.detectChanges();
     expect(emis[0]).toEqual({ latitude: 14.1234568, longitude: -17.9876543 });
-    expect(fixture.nativeElement.textContent).toContain('Position enregistrée');
+    expect(fixture.nativeElement.textContent).toContain('cliquez sur la carte pour la corriger');
 
     fixture.componentInstance.effacer();
     expect(emis[1]).toBeNull();

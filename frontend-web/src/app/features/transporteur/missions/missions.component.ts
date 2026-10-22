@@ -279,7 +279,10 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
 
   /** Lien de navigation (Google Maps) vers la prochaine adresse, si sa position est connue. */
   itineraire(r: any): string | null {
-    const point = this.versLeProducteur(r) ? r.producteur : r.entrepot;
+    // Lieu de prise en charge choisi par le producteur au dépôt, sinon son lieu habituel
+    const point = this.versLeProducteur(r)
+      ? { latitude: r.collecte_latitude ?? r.producteur?.latitude, longitude: r.collecte_longitude ?? r.producteur?.longitude }
+      : r.entrepot;
     if (point?.latitude == null || point?.longitude == null) return null;
     return `https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}`;
   }
