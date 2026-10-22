@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show IOException;
+import 'dart:math';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -81,8 +84,20 @@ class ApiService {
 
   /// [jeton] : jeton envoyé avec la requête (null pour les routes publiques).
   static Future<dynamic> _parse(http.Response res, {required String? jeton}) async {
-    final body = jsonDecode(utf8.decode(res.bodyBytes));
-    if (res.statusCode >= 200 && res.statusCode < 300) return body;
+    // Réponse non JSON (page HTML d'un proxy 502/503, corps vide…) : jamais
+    // d'exception brute, qui laissait les écrans en chargement infini (P-20).
+    Object? body;
+    try {
+      body = res.bodyBytes.isEmpty ? null : jsonDecode(utf8.decode(res.bodyBytes));
+    } on FormatException {
+      body = null;
+    }
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      // Sans code HTTP : un 200 illisible vient presque toujours d'un intermédiaire
+      // (portail Wi-Fi captif, proxy), à traiter comme une coupure réseau.
+      if (body == null) throw ApiException('Réponse inattendue du serveur. Vérifiez votre connexion puis réessayez.');
+      return body;
+    }
 
     // Session refusée sur une requête authentifiée : on efface la session locale.
     // Un 401 sur /login (mauvais mot de passe) n'est pas concerné, et un 403
@@ -91,7 +106,9 @@ class ApiService {
     // requête émise avec un ancien jeton n'efface pas une session ouverte depuis.
     // Erreur réseau (levée avant _parse), 5xx ou réponse inattendue : session conservée.
     final code = body is Map ? body['code'] : null;
-    if (jeton != null &&
+    // Un 401 sans corps JSON vient d'un intermédiaire (proxy, pare-feu), pas de
+    // l'API : il ne doit pas déconnecter l'utilisateur.
+    if (jeton != null && body is Map &&
         (res.statusCode == 401 || (res.statusCode == 403 && code == 'compte_bloque')) &&
         jeton == await getToken()) {
       await removeToken();
@@ -104,27 +121,56 @@ class ApiService {
 
   static String? _jeton(Map<String, String> h) => h['Authorization']?.substring('Bearer '.length);
 
+  /// Délai maximal d'une requête : le backend Render peut mettre près d'une
+  /// minute à sortir de veille ; au-delà, l'écran affiche une erreur au lieu
+  /// d'attendre indéfiniment.
+  static Duration delaiMaximal = const Duration(seconds: 60);
+
+  /// Exécute la requête ; délai dépassé et absence de réseau deviennent une
+  /// ApiException (statusCode null), que tous les écrans savent afficher.
+  static Future<http.Response> _envoyer(Future<http.Response> Function() requete) async {
+    try {
+      return await requete().timeout(delaiMaximal);
+    } on TimeoutException {
+      throw ApiException('Le serveur ne répond pas. Vérifiez votre connexion puis réessayez.');
+    } on IOException {
+      // SocketException, HandshakeException (TLS), HttpException… : connexion impossible.
+      throw ApiException('Serveur injoignable. Vérifiez votre connexion puis réessayez.');
+    } on http.ClientException {
+      throw ApiException('Serveur injoignable. Vérifiez votre connexion puis réessayez.');
+    }
+  }
+
+  /// Clé d'idempotence d'une soumission de formulaire : à générer une fois par
+  /// soumission et à réutiliser si l'utilisateur réessaie, pour qu'une création
+  /// déjà enregistrée ne soit jamais dupliquée (P-25).
+  static String nouvelleCleIdempotence() {
+    final aleatoire = Random.secure();
+    return List.generate(32, (_) => aleatoire.nextInt(16).toRadixString(16)).join();
+  }
+
   static Future<dynamic> get(String path) async {
     final h = await _headers();
-    final res = await client.get(Uri.parse('$_baseUrl$path'), headers: h);
+    final res = await _envoyer(() => client.get(Uri.parse('$_baseUrl$path'), headers: h));
     return _parse(res, jeton: _jeton(h));
   }
 
-  static Future<dynamic> post(String path, Map<String, dynamic> data, {bool auth = true}) async {
+  static Future<dynamic> post(String path, Map<String, dynamic> data, {bool auth = true, String? cleIdempotence}) async {
     final h = await _headers(auth: auth);
-    final res = await client.post(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data));
+    if (cleIdempotence != null) h['Idempotency-Key'] = cleIdempotence;
+    final res = await _envoyer(() => client.post(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data)));
     return _parse(res, jeton: _jeton(h));
   }
 
   static Future<dynamic> put(String path, Map<String, dynamic> data) async {
     final h = await _headers();
-    final res = await client.put(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data));
+    final res = await _envoyer(() => client.put(Uri.parse('$_baseUrl$path'), headers: h, body: jsonEncode(data)));
     return _parse(res, jeton: _jeton(h));
   }
 
   static Future<dynamic> delete(String path) async {
     final h = await _headers();
-    final res = await client.delete(Uri.parse('$_baseUrl$path'), headers: h);
+    final res = await _envoyer(() => client.delete(Uri.parse('$_baseUrl$path'), headers: h));
     return _parse(res, jeton: _jeton(h));
   }
 
@@ -135,14 +181,28 @@ class ApiService {
   static Future<Map<String, dynamic>> register(Map<String, dynamic> data) async =>
       await post('/register', data, auth: false);
 
-  static Future<void> logout() async {
-    try { await post('/logout', {}); } catch (_) {}
+  /// Déconnexion volontaire : la session locale est effacée AVANT l'appel réseau
+  /// (qui peut durer jusqu'au délai maximal) ; une application fermée pendant cet
+  /// appel ne restaure donc pas la session au lancement suivant. Le jeton capturé
+  /// est ensuite révoqué côté serveur si le réseau le permet.
+  /// [jetonAppareil] : ce téléphone ne recevra plus les notifications de ce compte (lot 6).
+  static Future<void> logout({String? jetonAppareil}) async {
+    final jeton = await getToken();
     await removeToken();
+    if (jeton == null) return;
+    try {
+      await _envoyer(() => client.post(Uri.parse('$_baseUrl/logout'), headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $jeton',
+          }, body: jsonEncode({'jeton_appareil': ?jetonAppareil})));
+    } catch (_) {}
   }
 
   // ── Productions ──────────────────────────────────────────────────────────
   static Future<dynamic> getProductions() => get('/productions');
-  static Future<dynamic> storeProduction(Map<String, dynamic> data) => post('/productions', data);
+  static Future<dynamic> storeProduction(Map<String, dynamic> data, {String? cleIdempotence}) =>
+      post('/productions', data, cleIdempotence: cleIdempotence);
   static Future<dynamic> updateProduction(int id, Map<String, dynamic> data) => put('/productions/$id', data);
   static Future<dynamic> getCommandesDisponibles() => get('/commandes/disponibles');
 
@@ -152,10 +212,16 @@ class ApiService {
 
   // ── Commandes (Acheteur) ─────────────────────────────────────────────────
   static Future<dynamic> getCatalogue() => get('/catalogue');
-  static Future<dynamic> passerCommande(Map<String, dynamic> data) => post('/commandes', data);
+  static Future<dynamic> passerCommande(Map<String, dynamic> data, {String? cleIdempotence}) =>
+      post('/commandes', data, cleIdempotence: cleIdempotence);
   static Future<dynamic> updateCommande(int id, Map<String, dynamic> data) => put('/commandes/$id', data);
   static Future<dynamic> annulerCommande(int id) => delete('/commandes/$id');
   static Future<dynamic> getHistoriqueCommandes() => get('/commandes/historique');
+  static Future<dynamic> confirmerReception(int id) => put('/commandes/$id/reception', {});
+  static Future<dynamic> demanderAnnulation(int id, {String? motif}) =>
+      post('/commandes/$id/demande-annulation', {if (motif != null && motif.isNotEmpty) 'motif': motif});
+  static Future<dynamic> declarerAnomalie(int id, String type, String description) =>
+      post('/commandes/$id/anomalie', {'type': type, 'description': description});
 
   // ── Livraisons (Transporteur) ────────────────────────────────────────────
   static Future<dynamic> getLivraisons() => get('/livraisons');
@@ -163,6 +229,15 @@ class ApiService {
       put('/livraisons/$id/statut', {'statut': statut});
   static Future<dynamic> signalerProbleme(int id) =>
       post('/livraisons/$id/probleme', {});
+  static Future<dynamic> accepterLivraison(int id) => put('/livraisons/$id/accepter-mission', {});
+  static Future<dynamic> refuserLivraison(int id, String motif) => put('/livraisons/$id/refuser-mission', {'motif': motif});
+  /// Étape de livraison : chargee, en_cours, arrivee.
+  static Future<dynamic> etapeLivraison(int id, String etape) => put('/livraisons/$id/etape', {'etape': etape});
+  static Future<dynamic> remettreLivraison(int id, String code) => put('/livraisons/$id/remise', {'code': code});
+
+  // ── Incidents ─────────────────────────────────────────────────────────────
+  static Future<dynamic> declarerIncident(Map<String, dynamic> data, {String? cleIdempotence}) =>
+      post('/incidents', data, cleIdempotence: cleIdempotence);
 
   // ── Traçabilité ──────────────────────────────────────────────────────────
   static Future<dynamic> getTracabilite(String code) => get('/tracabilite/$code');
@@ -170,17 +245,85 @@ class ApiService {
   // ── Suivi GPS (Transporteur) ──────────────────────────────────────────────
   static Future<dynamic> envoyerPosition(double latitude, double longitude) =>
       post('/transporteur/position', {'latitude': latitude, 'longitude': longitude});
+  /// Lot 4 : positions d'une mission (livraison ou reservation), par paquets avec l'heure du téléphone.
+  static Future<dynamic> envoyerPositions(String type, int id, List<Map<String, dynamic>> positions) =>
+      post('/suivi/$type/$id/positions', {'positions': positions});
+  static Future<dynamic> getSuivi(String type, int id) => get('/suivi/$type/$id');
+  /// Lot 9 : guidage du conducteur depuis sa position (chemin, consignes, action en arrivant).
+  static Future<dynamic> getNavigation(String type, int id, double latitude, double longitude) =>
+      get('/navigation/$type/$id?latitude=$latitude&longitude=$longitude');
+  /// Transporteurs classés : libres d'abord, puis les plus proches du lieu de prise en charge.
+  static Future<dynamic> getTransporteursProches({double? latitude, double? longitude}) =>
+      get('/transporteurs${latitude != null && longitude != null ? '?latitude=$latitude&longitude=$longitude' : ''}');
+  static Future<dynamic> getSuivisActifs() => get('/suivi/actifs');
+  static Future<dynamic> getConfigurationCarte() => get('/suivi/configuration');
   static Future<dynamic> getPositionLivraison(int livraisonId) =>
       get('/livraisons/$livraisonId/position');
 
   // ── Profil ───────────────────────────────────────────────────────────────
   static Future<dynamic> updateProfile(Map<String, dynamic> data) => put('/profile', data);
+  /// Lot 11 : « Ma journée » du gestionnaire et fiche par agriculteur.
+  static Future<dynamic> getJournee() => get('/journee');
+  /// Lot 12 : paiements (simulés en attendant Wave Business) et « Mon argent ».
+  static Future<dynamic> getDevis(int stockId, double quantite, {double? latitude, double? longitude}) =>
+      get('/commandes/devis?stock_id=$stockId&quantite=$quantite${latitude != null && longitude != null ? '&livraison_latitude=$latitude&livraison_longitude=$longitude' : ''}');
+  static Future<dynamic> payer(List<int> commandes, String moyen, {String? cleIdempotence}) =>
+      post('/paiements', {'commandes': commandes, 'moyen': moyen}, cleIdempotence: cleIdempotence);
+  static Future<dynamic> getPaiement(String reference) => get('/paiements/$reference');
+  static Future<dynamic> simulerPaiement(String reference, String resultat) => post('/paiements/$reference/simulation', {'resultat': resultat});
+  static Future<dynamic> getArgent() => get('/argent');
+  static Future<dynamic> getAgriculteurs(String q) => get('/entrepot/producteurs${q.isEmpty ? '' : '?q=${Uri.encodeQueryComponent(q)}'}');
+  static Future<dynamic> getAgriculteur(int id) => get('/entrepot/producteurs/$id');
 
   // ── Notifications ────────────────────────────────────────────────────────
   static Future<dynamic> getNotifications() => get('/notifications');
 
-  // ── Réservations d'entrepôt (Transporteur) ──────────────────────────────
+  // ── Dépôts en entrepôt (réservations) ─────────────────────────────────────
   static Future<dynamic> getReservations() => get('/reservations');
-  static Future<dynamic> marquerArriveeReservation(int id) =>
-      put('/reservations/$id/arrivee', {});
+  /// Avec la position du producteur : les entrepôts les plus proches d'abord (lot 8).
+  static Future<dynamic> getEntrepotsDisponibles({double? latitude, double? longitude}) =>
+      get('/entrepots/disponibles${latitude != null && longitude != null ? '?latitude=$latitude&longitude=$longitude' : ''}');
+  static Future<dynamic> demanderDepot(Map<String, dynamic> data, {String? cleIdempotence}) =>
+      post('/reservations', data, cleIdempotence: cleIdempotence);
+  static Future<dynamic> annulerDepot(int id, {String? motif}) =>
+      put('/reservations/$id/annuler', {if (motif != null && motif.isNotEmpty) 'motif': motif});
+  static Future<dynamic> accepterMission(int id) => put('/reservations/$id/accepter-mission', {});
+  static Future<dynamic> refuserMission(int id, String motif) =>
+      put('/reservations/$id/refuser-mission', {'motif': motif});
+  /// Étape de transport : au_point_collecte, chargee, en_route, arrivee_entrepot
+  /// (transporteur de la mission, ou producteur qui livre lui-même).
+  static Future<dynamic> etapeDepot(int id, String etape) =>
+      put('/reservations/$id/etape', {'etape': etape});
+
+  // ── Écrans par rôle (lot 5) ───────────────────────────────────────────────
+  static Future<dynamic> getAFaire() => get('/a-faire');
+  static Future<dynamic> getFicheCommande(int id) => get('/fiches/commande/$id');
+
+  // ── Gestionnaire d'entrepôt ───────────────────────────────────────────────
+  static Future<dynamic> getCommandesEntrepot() => get('/commandes');
+  static Future<dynamic> confirmerCommande(int id) => put('/commandes/$id/confirmer', {});
+  static Future<dynamic> refuserCommande(int id, String motif) => put('/commandes/$id/refuser', {'motif': motif});
+  static Future<dynamic> preparerCommande(int id) => put('/commandes/$id/preparer', {});
+  static Future<dynamic> marquerCommandePrete(int id) => put('/commandes/$id/prete', {});
+  static Future<dynamic> annulerCommandeEntrepot(int id, String motif) => put('/commandes/$id/annuler-confirmation', {'motif': motif});
+  static Future<dynamic> organiserLivraison(int commandeId, int transporteurId, {String? cleIdempotence}) =>
+      post('/livraisons', {'commande_id': commandeId, 'transporteur_id': transporteurId}, cleIdempotence: cleIdempotence);
+  static Future<dynamic> changerTransporteurLivraison(int livraisonId, int transporteurId) =>
+      put('/livraisons/$livraisonId/transporteur', {'transporteur_id': transporteurId});
+  static Future<dynamic> getTransporteurs() => get('/transporteurs');
+  static Future<dynamic> confirmerDepot(int id) => put('/reservations/$id/confirmer', {});
+  static Future<dynamic> refuserDepot(int id, String motif) => put('/reservations/$id/refuser', {'motif': motif});
+  static Future<dynamic> remettreDepotEnAttente(int id) => put('/reservations/$id/remettre-en-attente', {});
+  static Future<dynamic> assignerTransporteurDepot(int id, int transporteurId) =>
+      put('/reservations/$id/assigner-transporteur', {'transporteur_id': transporteurId});
+  static Future<dynamic> retirerTransporteurDepot(int id) => delete('/reservations/$id/transporteur');
+  static Future<dynamic> receptionnerDepot(int id, Map<String, dynamic> data) => put('/reservations/$id/valider', data);
+  static Future<dynamic> refuserReceptionDepot(int id, String motif) => put('/reservations/$id/refuser-reception', {'motif': motif});
+  static Future<dynamic> getIncidents() => get('/incidents');
+  static Future<dynamic> resoudreIncident(int id, Map<String, dynamic> data) => put('/incidents/$id/resoudre', data);
+
+  // ── Notifications (lot 6) ─────────────────────────────────────────────────
+  static Future<dynamic> marquerNotificationLue(String id) => put('/notifications/$id/lue', {});
+  static Future<dynamic> toutMarquerLu() => put('/notifications/lues', {});
+  static Future<dynamic> enregistrerAppareil(String jeton) => post('/appareils', {'jeton': jeton, 'plateforme': 'android'});
 }

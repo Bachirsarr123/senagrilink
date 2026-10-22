@@ -50,13 +50,15 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
           <p style="color:#6b7280;font-size:.85rem">📍 {{ rapport().entrepot?.localisation }}</p>
           <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
-              <tr><th>Produit</th><th>Quantité</th><th>Seuil alerte</th><th>Date entrée</th><th>Statut</th></tr>
+              <tr><th>Produit</th><th>En entrepôt</th><th>Réservé</th><th>Disponible</th><th>Seuil alerte</th><th>Date entrée</th><th>Statut</th></tr>
             </thead>
             <tbody>
               @for (s of rapport().stocks; track s.id) {
-                <tr [class.row-alert]="s.seuil_alerte && s.quantite <= s.seuil_alerte">
+                <tr [class.row-alert]="s.seuil_alerte !== null && s.quantite_disponible <= s.seuil_alerte">
                   <td><strong>{{ s.produit }}</strong></td>
                   <td>{{ s.quantite | number }} kg</td>
+                  <td>{{ s.quantite_reservee | number }} kg</td>
+                  <td>{{ s.quantite_disponible | number }} kg</td>
                   <td>{{ s.seuil_alerte ? (s.seuil_alerte | number) + ' kg' : '—' }}</td>
                   <td>{{ s.date_entree }}</td>
                   <td><span class="badge badge-{{ s.statut }}">{{ s.statut | libelleStatut }}</span></td>

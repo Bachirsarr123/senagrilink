@@ -32,17 +32,55 @@ export const routes: Routes = [
         loadComponent: () => import('./features/shared/tracabilite/tracabilite.component').then(m => m.TracabiliteComponent),
       },
 
+      // Lot 5 : page « À faire » de chaque rôle, fiche commune d'une commande (accès vérifié par le serveur)
+      {
+        path: 'a-faire',
+        loadComponent: () => import('./features/shared/a-faire/a-faire.component').then(m => m.AFaireComponent),
+      },
+      {
+        path: 'commandes/:id',
+        loadComponent: () => import('./features/shared/fiche-commande/fiche-commande.component').then(m => m.FicheCommandeComponent),
+      },
+
+      // Conduite guidée (lot 9) : la personne qui conduit, vérifiée par le serveur
+      {
+        path: 'conduite/:type/:id',
+        canActivate: [roleGuard],
+        data: { roles: ['transporteur', 'producteur'] },
+        loadComponent: () => import('./features/shared/conduite/conduite.component').then(m => m.ConduiteComponent),
+      },
+
+      // Lot 12 : paiement (page simulée en attendant Wave Business) et « Mon argent »
+      {
+        path: 'paiement/:reference',
+        canActivate: [roleGuard],
+        data: { roles: ['acheteur_gros'] },
+        loadComponent: () => import('./features/acheteur/paiement/paiement.component').then(m => m.PaiementComponent),
+      },
+      {
+        path: 'argent',
+        canActivate: [roleGuard],
+        data: { roles: ['producteur', 'gestionnaire_entrepot', 'transporteur'] },
+        loadComponent: () => import('./features/shared/argent/argent.component').then(m => m.ArgentComponent),
+      },
+
       // Profil — accessible à tous les rôles authentifiés
       {
         path: 'profil',
         loadComponent: () => import('./features/shared/profil/profil.component').then(m => m.ProfilComponent),
       },
 
-      // Suivi GPS d'une livraison — producteur et acheteur concernés
+      // Suivi GPS d'une mission (lot 4) — acteurs concernés, vérifiés par le serveur
       {
         path: 'suivi-livraison/:id',
         canActivate: [roleGuard],
-        data: { roles: ['producteur', 'acheteur_gros'] },
+        data: { roles: ['producteur', 'acheteur_gros', 'gestionnaire_entrepot', 'transporteur'] },
+        loadComponent: () => import('./features/shared/suivi-livraison/suivi-livraison.component').then(m => m.SuiviLivraisonComponent),
+      },
+      {
+        path: 'suivi/:type/:id',
+        canActivate: [roleGuard],
+        data: { roles: ['producteur', 'acheteur_gros', 'gestionnaire_entrepot', 'transporteur'] },
         loadComponent: () => import('./features/shared/suivi-livraison/suivi-livraison.component').then(m => m.SuiviLivraisonComponent),
       },
 
@@ -78,7 +116,16 @@ export const routes: Routes = [
         canActivate: [roleGuard],
         data: { roles: ['gestionnaire_entrepot'] },
         children: [
-          { path: '', redirectTo: 'stocks', pathMatch: 'full' },
+          { path: '', redirectTo: 'journee', pathMatch: 'full' },
+          // Lot 11 : accueil du gestionnaire et fiche par agriculteur
+          {
+            path: 'journee',
+            loadComponent: () => import('./features/entrepot/journee/journee.component').then(m => m.JourneeComponent),
+          },
+          {
+            path: 'agriculteurs',
+            loadComponent: () => import('./features/entrepot/agriculteurs/agriculteurs.component').then(m => m.AgriculteursComponent),
+          },
           {
             path: 'stocks',
             loadComponent: () => import('./features/entrepot/stocks/stocks.component').then(m => m.StocksComponent),
@@ -98,6 +145,10 @@ export const routes: Routes = [
           {
             path: 'reservations',
             loadComponent: () => import('./features/entrepot/reservations/reservations.component').then(m => m.EntrepotReservationsComponent),
+          },
+          {
+            path: 'incidents',
+            loadComponent: () => import('./features/entrepot/incidents/incidents.component').then(m => m.IncidentsComponent),
           },
         ],
       },
@@ -142,12 +193,20 @@ export const routes: Routes = [
         children: [
           { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
           {
+            path: 'paiements',
+            loadComponent: () => import('./features/admin/paiements/paiements.component').then(m => m.AdminPaiementsComponent),
+          },
+          {
             path: 'dashboard',
             loadComponent: () => import('./features/admin/dashboard/dashboard.component').then(m => m.DashboardComponent),
           },
           {
             path: 'utilisateurs',
             loadComponent: () => import('./features/admin/utilisateurs/utilisateurs.component').then(m => m.UtilisateursComponent),
+          },
+          {
+            path: 'journal',
+            loadComponent: () => import('./features/admin/journal/journal.component').then(m => m.JournalComponent),
           },
         ],
       },

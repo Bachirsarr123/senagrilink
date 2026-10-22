@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show HandshakeException;
 
 import 'package:agri_platform_mobile/services/api_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -102,7 +104,8 @@ void main() {
 
     test('erreur réseau ou erreur serveur : session conservée', () async {
       ApiService.client = MockClient((req) async => throw http.ClientException('Connexion impossible'));
-      await expectLater(ApiService.getCatalogue(), throwsA(isA<http.ClientException>()));
+      // Erreur réseau convertie en ApiException (affichable par tous les écrans), sans code HTTP.
+      await expectLater(ApiService.getCatalogue(), throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', isNull)));
 
       for (final statut in [500, 502, 503]) {
         repondre(statut, {'message': 'Erreur serveur.'});
@@ -144,6 +147,92 @@ void main() {
       await ApiService.logout();
 
       expect(await ApiService.getToken(), isNull);
+    });
+  });
+
+  group('robustesse réseau (P-20)', () {
+    test('délai dépassé : ApiException explicite, session conservée', () async {
+      ApiService.delaiMaximal = const Duration(milliseconds: 50);
+      addTearDown(() => ApiService.delaiMaximal = const Duration(seconds: 60));
+      ApiService.client = MockClient((req) => Future.delayed(const Duration(seconds: 2), () => http.Response('{}', 200)));
+
+      await expectLater(ApiService.getCatalogue(),
+          throwsA(isA<ApiException>().having((e) => e.message, 'message', contains('ne répond pas'))));
+      expect(await ApiService.getToken(), 'jeton-fictif');
+    });
+
+    test('page HTML 502 d\'un proxy : ApiException avec le code, session conservée', () async {
+      ApiService.client = MockClient((req) async => http.Response('<html>Bad Gateway</html>', 502));
+
+      await expectLater(ApiService.getCatalogue(),
+          throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 502)));
+      expect(await ApiService.getToken(), 'jeton-fictif');
+      expect(finsSession, isEmpty);
+    });
+
+    test('échec TLS (certificat, proxy) : ApiException, session conservée', () async {
+      ApiService.client = MockClient((req) async => throw const HandshakeException('certificat refusé'));
+      await expectLater(ApiService.getCatalogue(), throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', isNull)));
+      expect(await ApiService.getToken(), 'jeton-fictif');
+    });
+
+    test('réponse 200 non JSON (portail captif) : ApiException sans code, traitée comme une coupure', () async {
+      ApiService.client = MockClient((req) async => http.Response('<html>maintenance</html>', 200));
+      await expectLater(ApiService.getCatalogue(), throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', isNull)));
+    });
+
+    test('401 au corps HTML (proxy, pare-feu) : la session n\'est pas effacée', () async {
+      ApiService.client = MockClient((req) async => http.Response('<html>401</html>', 401));
+      await expectLater(ApiService.getCatalogue(), throwsA(isA<ApiException>()));
+      expect(await ApiService.getToken(), 'jeton-fictif');
+      expect(finsSession, isEmpty);
+    });
+
+    test('déconnexion : session locale effacée avant la réponse du serveur', () async {
+      final reponse = Completer<http.Response>();
+      ApiService.client = MockClient((req) {
+        requetes.add(req);
+        return reponse.future;
+      });
+
+      final deconnexion = ApiService.logout();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(await ApiService.getToken(), isNull); // déjà effacée, appel encore en cours
+      reponse.complete(http.Response(jsonEncode({'message': 'ok'}), 200));
+      await deconnexion;
+      expect(requetes.single.headers['Authorization'], 'Bearer jeton-fictif');
+    });
+  });
+
+  group('idempotence (P-25)', () {
+    test('la clé de soumission est envoyée et reste identique lors d\'un nouvel essai', () async {
+      var essai = 0;
+      ApiService.client = MockClient((req) async {
+        requetes.add(req);
+        essai++;
+        return essai == 1
+            ? http.Response('<html>Bad Gateway</html>', 502)
+            : http.Response(jsonEncode({'commande': {'id': 1, 'numero_commande': 'CMD-1'}}), 201);
+      });
+      final cle = ApiService.nouvelleCleIdempotence();
+
+      await expectLater(ApiService.passerCommande({'stock_id': 1, 'quantite': 2}, cleIdempotence: cle), throwsA(isA<ApiException>()));
+      await ApiService.passerCommande({'stock_id': 1, 'quantite': 2}, cleIdempotence: cle);
+
+      expect(requetes.map((r) => r.headers['Idempotency-Key']), [cle, cle]);
+    });
+
+    test('format de clé accepté par le serveur ([A-Za-z0-9_-]{8,100}) et clés distinctes', () {
+      final a = ApiService.nouvelleCleIdempotence(), b = ApiService.nouvelleCleIdempotence();
+      expect(RegExp(r'^[A-Za-z0-9_-]{8,100}$').hasMatch(a), isTrue);
+      expect(a, isNot(b));
+    });
+
+    test('sans clé, aucun en-tête (compatibilité)', () async {
+      repondre(200, {'catalogue': []});
+      await ApiService.getCatalogue();
+      expect(requetes.single.headers.containsKey('Idempotency-Key'), isFalse);
     });
   });
 }

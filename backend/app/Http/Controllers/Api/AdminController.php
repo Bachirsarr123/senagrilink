@@ -7,12 +7,14 @@ use App\Http\Requests\AdminStoreUtilisateurRequest;
 use App\Models\AcheteurGros;
 use App\Models\Commande;
 use App\Models\Entrepot;
+use App\Models\HistoriqueOperation;
 use App\Models\Livraison;
 use App\Models\Producteur;
 use App\Models\Production;
 use App\Models\Stock;
 use App\Models\Transporteur;
 use App\Models\Utilisateur;
+use App\Notifications\OperationModifieeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,6 +62,7 @@ class AdminController extends Controller
         ]);
 
         $this->creerProfil($utilisateur, $request);
+        HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'creation_par_admin', $request->user(), null, 'actif', null, ['role' => $utilisateur->role]);
 
         return response()->json([
             'message'     => 'Utilisateur créé avec succès.',
@@ -85,7 +88,7 @@ class AdminController extends Controller
 
         // Bloquer le compte et révoquer tous ses jetons Sanctum (web, mobile...) :
         // sans cela, les sessions déjà ouvertes restaient utilisables.
-        $refus = DB::transaction(function () use ($utilisateur) {
+        $refus = DB::transaction(function () use ($utilisateur, $request) {
             // R8 — les administrateurs actifs sont verrouillés (ordre stable, sans
             // interblocage) puis recomptés : deux blocages croisés simultanés ne
             // peuvent pas laisser la plateforme sans administrateur actif.
@@ -110,6 +113,7 @@ class AdminController extends Controller
             $cible->save();
             $cible->tokens()->delete();
             $utilisateur->statut = 'bloque';
+            HistoriqueOperation::consigner('utilisateur', $cible->id, 'blocage', $request->user(), 'actif', 'bloque', $request->input('motif'));
 
             return null;
         });
@@ -137,6 +141,7 @@ class AdminController extends Controller
 
         $utilisateur->statut = 'actif';
         $utilisateur->save();
+        HistoriqueOperation::consigner('utilisateur', $utilisateur->id, 'deblocage', $request->user(), 'bloque', 'actif', $request->input('motif'));
 
         return response()->json([
             'message'     => 'Compte débloqué.',
@@ -147,6 +152,82 @@ class AdminController extends Controller
     /**
      * Tableau de bord global : statistiques agrégées de toute la plateforme.
      */
+    /** Valider un compte en attente (Q9) : il peut se connecter ; l'utilisateur est prévenu. */
+    public function valider(Request $request, int $id): JsonResponse
+    {
+        $u = Utilisateur::find($id);
+
+        if (! $u) {
+            return response()->json(['message' => 'Utilisateur introuvable.'], 404);
+        }
+        if ($u->statut !== Utilisateur::EN_ATTENTE) {
+            return response()->json(['message' => 'Ce compte n\'est pas en attente de validation.', 'statut_actuel' => $u->statut], 422);
+        }
+
+        $u->update(['statut' => Utilisateur::ACTIF, 'valide_par' => $request->user()->id, 'valide_le' => now(), 'motif_refus' => null]);
+        HistoriqueOperation::consigner('utilisateur', $u->id, 'validation_compte', $request->user(), Utilisateur::EN_ATTENTE, Utilisateur::ACTIF);
+        $u->notify(new OperationModifieeNotification('compte_valide', 'Votre compte SenAgriLink est activé : vous pouvez vous connecter.'));
+
+        return response()->json(['message' => 'Compte validé. L\'utilisateur peut se connecter.', 'utilisateur' => $u->only(['id', 'nom', 'prenom', 'email', 'role', 'statut'])]);
+    }
+
+    /** Refuser une demande de compte (motif obligatoire, visible par le demandeur à sa tentative de connexion). */
+    public function refuser(Request $request, int $id): JsonResponse
+    {
+        $request->validate(['motif' => ['required', 'string', 'max:500']], ['motif.required' => 'Indiquez le motif du refus.']);
+        $u = Utilisateur::find($id);
+
+        if (! $u) {
+            return response()->json(['message' => 'Utilisateur introuvable.'], 404);
+        }
+        if ($u->statut !== Utilisateur::EN_ATTENTE) {
+            return response()->json(['message' => 'Ce compte n\'est pas en attente de validation.', 'statut_actuel' => $u->statut], 422);
+        }
+
+        $u->update(['statut' => Utilisateur::REFUSE, 'valide_par' => $request->user()->id, 'valide_le' => now(), 'motif_refus' => $request->motif]);
+        HistoriqueOperation::consigner('utilisateur', $u->id, 'refus_compte', $request->user(), Utilisateur::EN_ATTENTE, Utilisateur::REFUSE, $request->motif);
+
+        return response()->json(['message' => 'Demande refusée.', 'utilisateur' => $u->only(['id', 'nom', 'prenom', 'email', 'role', 'statut'])]);
+    }
+
+    /**
+     * Journal d'audit (lot 6) : toutes les opérations historisées — étapes des
+     * circuits, corrections, connexions, actions de l'administrateur — avec
+     * auteur, adresse et date. Filtres : type, action, utilisateur, période.
+     */
+    public function journal(Request $request): JsonResponse
+    {
+        $f = $request->validate([
+            'sujet_type'     => ['nullable', 'string', 'max:30'],
+            'action'         => ['nullable', 'string', 'max:60'],
+            'utilisateur_id' => ['nullable', 'integer'],
+            'du'             => ['nullable', 'date'],
+            'au'             => ['nullable', 'date'],
+            'page'           => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $page = HistoriqueOperation::with('utilisateur:id,nom,prenom,role')
+            ->when($f['sujet_type'] ?? null, fn ($q, $v) => $q->where('sujet_type', $v))
+            ->when($f['action'] ?? null, fn ($q, $v) => $q->where('action', 'like', $v.'%'))
+            ->when($f['utilisateur_id'] ?? null, fn ($q, $v) => $q->where('utilisateur_id', $v))
+            ->when($f['du'] ?? null, fn ($q, $v) => $q->where('created_at', '>=', \Carbon\Carbon::parse($v)->startOfDay()))
+            ->when($f['au'] ?? null, fn ($q, $v) => $q->where('created_at', '<=', \Carbon\Carbon::parse($v)->endOfDay()))
+            ->orderByDesc('created_at')->orderByDesc('id')
+            ->paginate(50);
+
+        return response()->json([
+            'entrees' => collect($page->items())->map(fn (HistoriqueOperation $h) => [
+                'id' => $h->id, 'date' => $h->created_at?->toIso8601String(), 'sujet_type' => $h->sujet_type, 'sujet_id' => $h->sujet_id,
+                'action' => $h->action, 'ancien_statut' => $h->ancien_statut, 'nouveau_statut' => $h->nouveau_statut, 'motif' => $h->motif,
+                'details' => $h->details, 'adresse_ip' => $h->adresse_ip,
+                'auteur' => $h->utilisateur ? ['id' => $h->utilisateur->id, 'nom' => trim($h->utilisateur->prenom.' '.$h->utilisateur->nom), 'role' => $h->utilisateur->role] : null,
+            ]),
+            'page'    => $page->currentPage(),
+            'pages'   => $page->lastPage(),
+            'total'   => $page->total(),
+        ]);
+    }
+
     public function dashboard(Request $request): JsonResponse
     {
         return response()->json([

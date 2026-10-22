@@ -6,6 +6,7 @@ import 'package:agri_platform_mobile/screens/producteur/productions_screen.dart'
 import 'package:agri_platform_mobile/services/api_service.dart';
 import 'package:agri_platform_mobile/services/auth_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:agri_platform_mobile/screens/shared/a_faire_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -49,13 +50,16 @@ void main() {
     expect(find.text('Connexion'), findsOneWidget);
   });
 
-  testWidgets('avec une session enregistrée, le producteur arrive sur ses productions', (tester) async {
+  testWidgets('avec une session enregistrée, le producteur arrive sur « À faire », ses récoltes en onglet', (tester) async {
     SharedPreferences.setMockInitialValues({'agri_token': 'jeton-fictif', 'agri_user': jsonEncode(producteur)});
     api(200);
 
     await demarrer(tester);
     await tester.pump();
 
+    expect(find.byType(AFaireScreen), findsOneWidget);
+    await tester.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text('Récoltes')));
+    await tester.pumpAndSettle();
     expect(find.byType(ProductionsScreen), findsOneWidget);
     expect(find.text('Bonjour, Awa'), findsOneWidget);
     await arreter(tester);

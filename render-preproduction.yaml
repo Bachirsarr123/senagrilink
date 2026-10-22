@@ -1,0 +1,134 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SenAgriLink — PRÉPRODUCTION (Blueprint Render distinct de render.yaml)
+#
+# À créer comme un NOUVEAU Blueprint dans Render (New → Blueprint), en indiquant
+# ce fichier comme chemin de Blueprint (« render-preproduction.yaml »). Il ne
+# crée que des services suffixés « -preprod » et AUCUNE base de données :
+#   - Render n'autorise qu'une base PostgreSQL gratuite par espace de travail
+#     (déjà prise par la production) ;
+#   - la base de préproduction est fournie à part (base gratuite externe, ou
+#     base Render payante) et saisie à la main (sync: false), pour qu'aucun
+#     lien automatique vers la base de production ne soit possible.
+# Garde-fous :
+#   - autoDeployTrigger: off → déploiements manuels uniquement ;
+#   - SENAGRILINK_BASE_ATTENDUE + SENAGRILINK_HOTE_INTERDIT → le backend refuse
+#     de démarrer (et donc de migrer) si la base n'est pas la base de test
+#     (voir backend/garde-base.sh).
+# Voir docs/livraison/preproduction.md pour la procédure complète.
+# ─────────────────────────────────────────────────────────────────────────────
+
+previews:
+  generation: off
+
+services:
+  - type: web
+    name: senagrilink-backend-preprod
+    runtime: docker
+    repo: https://github.com/Bachirsarr123/senagrilink
+    branch: claude/lot13-commander-payer
+    autoDeployTrigger: off
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /up
+    envVars:
+      # Garde-fou : nom exact de la base de test et hôte de production interdit
+      - key: SENAGRILINK_BASE_ATTENDUE
+        value: senagrilink_preprod
+      - key: SENAGRILINK_HOTE_INTERDIT
+        sync: false            # à saisir : hôte de la base de PRODUCTION (non secret)
+
+      - key: APP_NAME
+        value: SenAgriLink (préproduction)
+      - key: APP_ENV
+        value: production      # même comportement que la production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true    # clé propre à la préproduction
+      - key: APP_URL
+        value: https://senagrilink-backend-preprod.onrender.com
+      - key: APP_LOCALE
+        value: fr
+      # Fond de carte du suivi GPS (lot 4) : MapTiler, offre gratuite. La clé
+      # est publique par nature (elle part avec chaque tuile affichée) ; on
+      # pourra la restreindre à l'adresse du site une fois celle-ci définitive.
+      - key: CARTE_TUILES_URL
+        value: https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=yudqv6lhTMnEvCpCwt7t
+      - key: CARTE_ATTRIBUTION
+        value: © MapTiler © les contributeurs d'OpenStreetMap
+      - key: APP_FALLBACK_LOCALE
+        value: en
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: warning         # les avertissements « Diffusion temps réel impossible » sont visibles
+
+      # Base de TEST isolée, saisie à la main (jamais fromDatabase de la production)
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_DATABASE
+        value: senagrilink_preprod
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+
+      # Lot 6 : notifications push. Clé privée du compte de service Firebase, encodée en base64.
+      # SECRÈTE : à coller par vous dans Render. Vide = pas de push (notifications visibles dans l'appli).
+      - key: FIREBASE_CREDENTIALS_BASE64
+        sync: false
+
+      # Lot 9 : itinéraire guidé dans l'application. Clé OpenRouteService (gratuite),
+      # SECRÈTE : à coller par vous dans Render. Vide = ligne droite et direction seulement.
+      - key: ROUTAGE_CLE
+        sync: false
+
+      - key: CACHE_STORE
+        value: file
+      - key: FILESYSTEM_DISK
+        value: local
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: SESSION_DRIVER
+        value: file
+      - key: SESSION_LIFETIME
+        value: "120"
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: FRONTEND_URL
+        value: https://senagrilink-frontend-preprod.onrender.com
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: senagrilink-frontend-preprod.onrender.com
+      - key: MAIL_MAILER
+        value: log             # aucun e-mail réel envoyé depuis la préproduction
+
+  - type: web
+    name: senagrilink-frontend-preprod
+    runtime: static
+    repo: https://github.com/Bachirsarr123/senagrilink
+    branch: claude/lot13-commander-payer
+    autoDeployTrigger: off
+    buildCommand: cd frontend-web && npm ci && npm run build -- --configuration production
+    staticPublishPath: ./frontend-web/dist/sen-agri-link/browser
+    envVars:
+      - key: API_URL
+        value: https://senagrilink-backend-preprod.onrender.com/api
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Robots-Tag
+        value: noindex          # la préproduction n'est pas indexée par les moteurs de recherche

@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../models/commande.dart';
 import '../../services/api_service.dart';
+import '../../utils/nombres.dart';
+import '../../utils/paiement.dart';
 import '../../widgets/app_theme.dart';
+import '../paiement/paiement_screen.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
 import 'suivi_livraison_screen.dart';
+import '../../utils/livraison.dart';
+import '../../widgets/carte_depot.dart' show confirmerAction, demanderMotifAction;
+import '../../widgets/declarer_incident.dart' show saisirIncident;
 
 class MesCommandesScreen extends StatefulWidget {
   const MesCommandesScreen({super.key});
@@ -66,7 +72,7 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
   }
 
   Future<void> _modifier(Commande c) async {
-    final ctl = TextEditingController(text: c.quantite.toStringAsFixed(0));
+    final ctl = TextEditingController(text: nombreLisible(c.quantite));
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -74,6 +80,9 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('Commande : ${c.numeroCommande}',
               style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          if (c.prixUnitaire != null)
+            Text('Prix figé à la commande : ${fcfa(c.prixUnitaire!)} / kg',
+                style: const TextStyle(fontSize: 13, color: Colors.grey)),
           const SizedBox(height: 12),
           TextField(
             controller: ctl,
@@ -94,7 +103,7 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
       ),
     );
     if (ok != true) return;
-    final qte = double.tryParse(ctl.text.trim());
+    final qte = nombre(ctl.text.trim().replaceAll(',', '.'));
     if (qte == null || qte <= 0) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Quantité invalide.'), backgroundColor: AppTheme.rouge));
@@ -111,6 +120,48 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));
     }
+  }
+
+  Future<void> _appeler(Future<dynamic> Function() appel, String succes) async {
+    final messager = ScaffoldMessenger.of(context);
+    try {
+      final res = await appel();
+      messager.showSnackBar(SnackBar(content: Text((res is Map ? res['message'] : null) ?? succes), backgroundColor: AppTheme.vert));
+    } on ApiException catch (e) {
+      messager.showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));
+    }
+    _charger();
+  }
+
+  Future<void> _payer(Commande c) async {
+    final messager = ScaffoldMessenger.of(context);
+    try {
+      final message = await payerCommandes(context, [c.id], c.totalAPayer ?? 0);
+      if (message != null) messager.showSnackBar(SnackBar(content: Text(message), backgroundColor: AppTheme.vert));
+    } on ApiException catch (e) {
+      messager.showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));
+    }
+    _charger();
+  }
+
+  Future<void> _confirmerReception(Commande c) async {
+    if (!await confirmerAction(context, 'Confirmer que vous avez bien reçu la commande ${c.numeroCommande} (${kg(c.quantite)} de ${c.produit}) ?\n'
+        'En cas de problème, utilisez plutôt « Signaler un problème ».')) { return; }
+    await _appeler(() => ApiService.confirmerReception(c.id), 'Réception confirmée.');
+  }
+
+  Future<void> _demanderAnnulation(Commande c) async {
+    final motif = await demanderMotifAction(context, 'Demander l\'annulation de ${c.numeroCommande} ?',
+        'L\'entrepôt décide. L\'annulation n\'est plus possible une fois la marchandise chargée.', obligatoire: false);
+    if (motif == null) return;
+    await _appeler(() => ApiService.demanderAnnulation(c.id, motif: motif), 'Demande envoyée.');
+  }
+
+  Future<void> _anomalie(Commande c) async {
+    final saisie = await saisirIncident(context, titre: 'Problème à la réception — ${c.numeroCommande}',
+        consequence: 'La livraison est enregistrée et la commande passe en litige : l\'entrepôt vous propose une solution.', types: anomalies);
+    if (saisie == null) return;
+    await _appeler(() => ApiService.declarerAnomalie(c.id, saisie.type, saisie.description), 'Problème signalé.');
   }
 
   @override
@@ -142,9 +193,25 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
                               ]),
                               const SizedBox(height: 6),
                               Text(c.produit, style: const TextStyle(fontSize: 15)),
-                              Text('${c.quantite.toStringAsFixed(0)} kg'
-                                  '${c.prix != null ? ' — ${c.prix!.toStringAsFixed(0)} FCFA' : ''}',
+                              Text('${kg(c.quantite)}'
+                                  '${c.prixUnitaire != null ? ' × ${fcfa(c.prixUnitaire!)}/kg' : ''}'
+                                  '${c.prix != null ? ' = ${fcfa(c.prix!)}' : ''}',
                                   style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                              // Lot 12 : total avec la livraison, état du paiement, bouton « Payer »
+                              if ((c.totalAPayer ?? 0) > 0) ...[
+                                const SizedBox(height: 4),
+                                Text('À payer : ${fcfa(c.totalAPayer!)} (dont livraison ${fcfa(c.fraisLivraison ?? 0)})',
+                                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                                Text(etatsPaiement[c.statutPaiement] ?? c.statutPaiement,
+                                    style: TextStyle(fontSize: 12, color: c.statutPaiement == 'litige' ? AppTheme.rouge : AppTheme.vertFonce)),
+                                if (c.aPayer) Padding(padding: const EdgeInsets.only(top: 6), child: SizedBox(width: double.infinity, height: 48,
+                                  child: ElevatedButton.icon(
+                                    key: Key('payer-${c.id}'),
+                                    icon: const Icon(Icons.payments_outlined),
+                                    label: const Text('Payer', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                    onPressed: () => _payer(c),
+                                  ))),
+                              ],
 
                               if (c.alerteLivraison)
                                 Container(
@@ -154,7 +221,7 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
                                   child: const Row(children: [
                                     Icon(Icons.warning_amber_outlined, color: AppTheme.rouge, size: 15),
                                     SizedBox(width: 6),
-                                    Expanded(child: Text('Problème signalé sur la livraison',
+                                    Expanded(child: Text('Incident sur la livraison : l\'entrepôt vous tient informé',
                                         style: TextStyle(color: AppTheme.rouge, fontSize: 12, fontWeight: FontWeight.w600))),
                                   ]),
                                 ),
@@ -180,25 +247,61 @@ class _MesCommandesScreenState extends State<MesCommandesScreen> {
                                 ]),
                               ],
 
-                              // Actions pour commandes en_attente
-                              if (c.statut == 'en_attente') ...[
+                              if (c.codeReception != null)
+                                Container(
+                                  key: Key('code-${c.id}'),
+                                  margin: const EdgeInsets.only(top: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(6)),
+                                  child: Text('Code de réception à donner au transporteur : ${c.codeReception}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                                ),
+                              if (c.prochaineEtape != null)
+                                Padding(padding: const EdgeInsets.only(top: 6),
+                                    child: Text('Étape suivante : ${c.prochaineEtape}', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+                              for (final i in c.incidents)
+                                Padding(padding: const EdgeInsets.only(top: 4), child: Text(
+                                  '${libelleIncident(i['type'] ?? '')} : ${i['statut'] == 'ouvert' ? 'en attente de l\'entrepôt' : (libelleDecision[i['decision']] ?? 'traité')}'
+                                  '${i['motif_decision'] != null ? ' (${i['motif_decision']})' : ''}',
+                                  style: const TextStyle(fontSize: 12))),
+
+                              // Boutons donnés par le serveur
+                              if (c.actions.isNotEmpty) ...[
                                 const SizedBox(height: 10),
-                                Row(children: [
-                                  Expanded(child: OutlinedButton.icon(
-                                    icon: const Icon(Icons.edit_outlined, size: 16),
-                                    label: const Text('Modifier'),
-                                    onPressed: () => _modifier(c),
-                                  )),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: AppTheme.rouge,
-                                      side: const BorderSide(color: AppTheme.rouge),
+                                Wrap(spacing: 8, runSpacing: 8, children: [
+                                  if (c.peut('confirmer_reception'))
+                                    ElevatedButton.icon(
+                                      key: Key('reception-${c.id}'),
+                                      icon: const Icon(Icons.check_circle_outline, size: 16),
+                                      label: Text(libelleActionCommande['confirmer_reception']!),
+                                      onPressed: () => _confirmerReception(c),
                                     ),
-                                    icon: const Icon(Icons.cancel_outlined, size: 16),
-                                    label: const Text('Annuler'),
-                                    onPressed: () => _annuler(c),
-                                  )),
+                                  if (c.peut('declarer_anomalie'))
+                                    OutlinedButton.icon(
+                                      key: Key('anomalie-${c.id}'),
+                                      icon: const Icon(Icons.report_problem_outlined, size: 16),
+                                      label: Text(libelleActionCommande['declarer_anomalie']!),
+                                      onPressed: () => _anomalie(c),
+                                    ),
+                                  if (c.peut('modifier'))
+                                    OutlinedButton.icon(
+                                      icon: const Icon(Icons.edit_outlined, size: 16),
+                                      label: const Text('Modifier'),
+                                      onPressed: () => _modifier(c),
+                                    ),
+                                  if (c.peut('annuler'))
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(foregroundColor: AppTheme.rouge, side: const BorderSide(color: AppTheme.rouge)),
+                                      icon: const Icon(Icons.cancel_outlined, size: 16),
+                                      label: const Text('Annuler'),
+                                      onPressed: () => _annuler(c),
+                                    ),
+                                  if (c.peut('demander_annulation'))
+                                    OutlinedButton(
+                                      key: Key('demande-annulation-${c.id}'),
+                                      onPressed: () => _demanderAnnulation(c),
+                                      child: Text(libelleActionCommande['demander_annulation']!),
+                                    ),
                                 ]),
                               ],
                             ]),

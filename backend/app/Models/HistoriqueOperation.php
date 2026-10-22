@@ -5,8 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Entrée d'historique d'une opération métier corrigée ou annulée.
- * sujet_type : reservation | commande | livraison | production.
+ * Entrée d'historique d'une opération métier : chaque étape franchie, chaque
+ * correction ou annulation (qui, quand, quelle transition, pourquoi).
+ * sujet_type : reservation | commande | livraison | production | utilisateur.
  */
 class HistoriqueOperation extends Model
 {
@@ -16,7 +17,7 @@ class HistoriqueOperation extends Model
 
     protected $fillable = [
         'sujet_type', 'sujet_id', 'action', 'ancien_statut', 'nouveau_statut',
-        'details', 'motif', 'utilisateur_id',
+        'details', 'motif', 'utilisateur_id', 'adresse_ip',
     ];
 
     protected $casts = ['details' => 'array'];
@@ -43,8 +44,11 @@ class HistoriqueOperation extends Model
             'ancien_statut'  => $ancienStatut,
             'nouveau_statut' => $nouveauStatut,
             'motif'          => $motif,
-            'details'        => $details ?: null,
+            // Lot 11 : action faite par le pilote automatique, au nom du gestionnaire
+            'details'        => (\App\Services\PiloteAutomatique::$enCours ? [...$details, 'automatique' => true] : $details) ?: null,
             'utilisateur_id' => $auteur?->id,
+            // Journal d'audit (lot 6) : adresse de la requête, hors console et tests unitaires.
+            'adresse_ip'     => app()->runningInConsole() && ! app()->runningUnitTests() ? null : request()?->ip(),
         ]);
     }
 }

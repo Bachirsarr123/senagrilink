@@ -18,8 +18,29 @@ class Production extends Model
         'date_recolte',
         'quantite_estimee',
         'quantite_reelle',
+        'prix_unitaire',
         'statut',
     ];
+
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    protected $casts = [
+        'superficie'       => 'float',
+        'quantite_estimee' => 'float',
+        'quantite_reelle'  => 'float',
+        'prix_unitaire'    => 'float',
+    ];
+
+    /** Champs figés dès que le lot est entré en entrepôt : seul le prix reste modifiable. */
+    public const CHAMPS_VERROUILLES = ['type_culture', 'superficie', 'date_recolte', 'quantite_estimee', 'quantite_reelle'];
+
+    /** Le lot est en entrepôt (réceptionné au moins une fois). */
+    public function estVerrouille(): bool
+    {
+        return $this->statut === 'disponible' || $this->stocks()->exists();
+    }
 
     protected static function booted(): void
     {

@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/api_service.dart';
 import '../../utils/geo.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../shared/tracabilite_screen.dart';
@@ -20,9 +21,16 @@ enum EtatSuivi { chargement, direct, sansPosition, pasPartie, terminee, probleme
 /// arrivée) et panneau d'informations. Aucune position n'est inventée : une
 /// position ancienne est signalée comme telle, et hors livraison en cours le
 /// serveur ne la transmet plus.
+///
+/// Lot 4 : sert aux deux circuits (livraison vers l'acheteur, acheminement vers
+/// l'entrepôt), avec la trace parcourue, le trajet routier et l'heure d'arrivée
+/// estimée calculés par le serveur.
 class SuiviLivraisonScreen extends StatefulWidget {
-  final int livraisonId;
-  const SuiviLivraisonScreen({super.key, required this.livraisonId});
+  /// « livraison » ou « reservation ».
+  final String type;
+  final int id;
+  const SuiviLivraisonScreen({super.key, required int livraisonId}) : type = 'livraison', id = livraisonId;
+  const SuiviLivraisonScreen.mission({super.key, required this.type, required this.id});
 
   @override
   State<SuiviLivraisonScreen> createState() => _SuiviLivraisonScreenState();
@@ -48,11 +56,23 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
   // Le MapController n'est utilisable qu'une fois la carte dessinée : avant,
   // move() lève une exception (affichée à tort comme « position indisponible »).
   bool _cartePrete = false;
+  List<LatLng> _trace = const [];
+  List<LatLng> _trajet = const [];
+  DateTime? _arriveeEstimee;
+  double? _distanceRestante;
+  bool _routier = false;
+  Map<String, dynamic>? _conducteur;
+
+  /// Fond de carte configuré par le serveur (une fois par lancement).
+  static Future<Map<String, dynamic>>? _configuration;
+  Map<String, dynamic> _carteConfig = const {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _configuration ??= ApiService.getConfigurationCarte().then((r) => (r as Map).cast<String, dynamic>()).catchError((_) => <String, dynamic>{});
+    _configuration!.then((c) { if (mounted) setState(() => _carteConfig = c); });
     _rafraichir();
     _horloge = Timer.periodic(const Duration(seconds: 15), (_) { if (mounted) setState(() {}); });
   }
@@ -81,28 +101,57 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
     if (mounted) _minuteur = Timer(delai, _rafraichir);
   }
 
+  static List<LatLng> _points(Object? liste) => [
+        for (final p in (liste as List?) ?? const [])
+          if (p is List && p.length >= 2 && nombre(p[0]) != null && nombre(p[1]) != null) LatLng(nombre(p[0])!, nombre(p[1])!),
+      ];
+
   Future<void> _rafraichir() async {
     _minuteur?.cancel();
     try {
-      final res = await ApiService.getPositionLivraison(widget.livraisonId) as Map<String, dynamic>;
+      final res = await ApiService.getSuivi(widget.type, widget.id) as Map<String, dynamic>;
       if (!mounted) return;
       final serveur = lireDate(res['genere_le']);
-      final vehicule = coordonnees(res['position']);
+      final details = (res['details'] as Map?)?.cast<String, dynamic>() ?? const {};
+      final enRoute = res['en_route'] == true;
+      final vehicule = enRoute ? coordonnees(res['position']) : null;
+      final statut = res['statut'] as String?;
       setState(() {
         _decalageHorloge = serveur == null ? Duration.zero : DateTime.now().difference(serveur);
         _erreurReseau = false;
-        _statut = res['statut_livraison'] as String?;
-        _infos = (res['livraison'] as Map?)?.cast<String, dynamic>();
+        _statut = statut;
+        _infos = {
+          'numero_livraison': res['numero'], 'produit': details['produit'], 'quantite': details['quantite'],
+          'code_tracabilite': details['code_tracabilite'], 'date_depart': details['parti_le'], 'date_livraison': details['arrive_le'],
+        };
         _origine = (res['origine'] as Map?)?.cast<String, dynamic>();
         _destination = (res['destination'] as Map?)?.cast<String, dynamic>();
+        _conducteur = (res['conducteur'] as Map?)?.cast<String, dynamic>();
+        if (vehicule == null && _vehicule != null) {
+          // La carte disparaît : un nouveau contrôleur servira si elle réapparaît.
+          _mapController = MapController();
+          _cartePrete = false;
+        }
         _vehicule = vehicule;
-        _horodatage = lireDate((res['position'] as Map?)?['timestamp']);
-        _etat = vehicule != null ? EtatSuivi.direct : EtatSuivi.sansPosition;
+        _horodatage = vehicule == null ? null : lireDate((res['position'] as Map?)?['timestamp']);
+        _trace = _points(res['trace']);
+        _trajet = _points(res['trajet']);
+        _arriveeEstimee = lireDate(res['arrivee_estimee_le']);
+        _distanceRestante = nombre(res['distance_restante_km']);
+        _routier = res['estimation_routiere'] == true;
+        _etat = enRoute
+            ? (vehicule != null ? EtatSuivi.direct : EtatSuivi.sansPosition)
+            : switch (statut) {
+                'arrivee' || 'livree' || 'arrivee_entrepot' || 'enregistree' => EtatSuivi.terminee,
+                'annulee' || 'retournee' || 'refusee' || 'reception_refusee' => EtatSuivi.introuvable,
+                _ => EtatSuivi.pasPartie,
+              };
       });
       if (vehicule != null && _cartePrete && _suiviAuto) {
         _mapController.move(LatLng(vehicule.lat, vehicule.lng), _mapController.camera.zoom);
       }
-      _planifier(delaiSuivi);
+      if (_etat == EtatSuivi.direct || _etat == EtatSuivi.sansPosition) _planifier(delaiSuivi);
+      if (_etat == EtatSuivi.pasPartie) _planifier(delaiAttente);
     } on ApiException catch (e) {
       if (!mounted) return;
       _surErreur(e);
@@ -119,7 +168,9 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
 
   void _surErreur(ApiException e) {
     final statut = e.donnees?['statut_livraison'] as String?;
-    if ((e.statusCode ?? 0) >= 500) {
+    // Réseau coupé ou délai dépassé (ApiException sans code) et erreurs 5xx : la
+    // dernière position reste visible, signalée comme ancienne.
+    if (e.statusCode == null || e.statusCode! >= 500) {
       setState(() { _erreurReseau = true; if (_etat == EtatSuivi.chargement) _etat = EtatSuivi.sansPosition; });
       return _planifier(delaiAttente);
     }
@@ -281,18 +332,21 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
       ),
       children: [
         TileLayer(
-          urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          urlTemplate: _carteConfig['tuiles_url'] as String? ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.senagrilink.agri_platform_mobile',
           errorTileCallback: (_, _, _) {
             if (mounted) _tuilesIndisponibles.value = true;
           },
         ),
-        // Tracé indicatif à vol d'oiseau (aucun calcul d'itinéraire routier n'est disponible)
+        // Trace réellement parcourue (positions reçues), puis trajet restant : par la
+        // route si le serveur l'a calculé, sinon indicatif à vol d'oiseau (pointillés).
         PolylineLayer(polylines: [
-          if (origine != null)
-            Polyline(points: [origine, vehicule], color: const Color(0xFF40916C), strokeWidth: 6,
+          if (_trace.length >= 2)
+            Polyline(points: [..._trace, vehicule], color: const Color(0xFF40916C), strokeWidth: 6,
                 borderStrokeWidth: 2, borderColor: AppTheme.vertFonce.withAlpha(90)),
-          if (destination != null)
+          if (_trajet.length >= 2)
+            Polyline(points: [vehicule, ..._trajet], color: AppTheme.vert, strokeWidth: 5, pattern: StrokePattern.dashed(segments: const [12, 8]))
+          else if (destination != null)
             Polyline(points: [vehicule, destination], color: AppTheme.vert, strokeWidth: 4,
                 pattern: const StrokePattern.dotted(spacingFactor: 2)),
         ]),
@@ -339,7 +393,7 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
   (IconData, String) get _messageEtat => switch (_etat) {
         EtatSuivi.sansPosition => (Icons.satellite_alt_outlined, 'Le transporteur n’a pas encore transmis sa position. La carte s’affichera dès sa réception.'),
         EtatSuivi.pasPartie => (Icons.schedule, 'Le suivi en direct démarrera au départ du transporteur. Cet écran se met à jour automatiquement.'),
-        EtatSuivi.terminee => (Icons.check_circle_outline, 'La livraison est terminée : la position du transporteur n’est plus partagée.'),
+        EtatSuivi.terminee => (Icons.check_circle_outline, 'Le trajet est terminé : la position n’est plus partagée.'),
         EtatSuivi.probleme => (Icons.warning_amber_rounded, 'Le transporteur a signalé un problème : le suivi en direct est suspendu.'),
         EtatSuivi.refuse => (Icons.lock_outline, 'Vous n’avez pas accès au suivi de cette livraison.'),
         EtatSuivi.introuvable => (Icons.search_off, 'Cette livraison n’existe pas ou n’est plus disponible.'),
@@ -348,8 +402,8 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
 
   String get _titreEtat => switch (_etat) {
         EtatSuivi.sansPosition => 'En attente de position',
-        EtatSuivi.pasPartie => 'Livraison pas encore partie',
-        EtatSuivi.terminee => 'Livraison effectuée',
+        EtatSuivi.pasPartie => 'Pas encore parti',
+        EtatSuivi.terminee => 'Trajet terminé',
         EtatSuivi.probleme => 'Problème signalé',
         EtatSuivi.refuse => 'Accès refusé',
         EtatSuivi.introuvable => 'Livraison introuvable',
@@ -421,7 +475,22 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
                       style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey))),
               ]),
             const SizedBox(height: 10),
-            if (v != null) ...[
+            if (v != null && _arriveeEstimee != null) ...[
+              Text('Arrivée vers ${_heure(_arriveeEstimee!.toLocal())}', key: const Key('arrivee-estimee'),
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.vertFonce, height: 1.1)),
+              Text('${_dans(_arriveeEstimee!)}${_distanceRestante != null ? ' · ${formaterDistance(_distanceRestante!)}' : ''}',
+                  style: const TextStyle(fontSize: 15)),
+              const SizedBox(height: 2),
+              Text(_routier ? 'Estimation par la route, depuis la dernière position reçue.' : 'Estimation approximative (distance et vitesse moyenne).',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              if (progression != null) ...[
+                const SizedBox(height: 10),
+                ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(
+                  value: progression, minHeight: 6, color: AppTheme.vert, backgroundColor: Colors.grey.shade200,
+                  semanticsLabel: 'Progression estimée',
+                )),
+              ],
+            ] else if (v != null) ...[
               Text(reste != null ? formaterDistance(reste) : 'En route',
                   style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: AppTheme.vertFonce, height: 1.1)),
               Text(reste != null ? 'jusqu’à la destination' : 'Coordonnées de destination non renseignées',
@@ -454,13 +523,15 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
             ],
             if (v != null) ...[
               const SizedBox(height: 10),
-              const Text('Tracé indicatif · Fond de carte © OpenStreetMap',
-                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+              Text('${_routier ? 'Trajet par la route' : 'Tracé indicatif'} · Fond de carte ${_carteConfig['attribution'] ?? '© OpenStreetMap'}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
             ],
             if (infos != null) ...[
               const SizedBox(height: 8),
               if (infos['produit'] != null)
                 _ligne('Marchandise', '${infos['produit']}${infos['quantite'] != null ? ' · ${infos['quantite']} kg' : ''}'),
+              if (_conducteur?['nom'] != null)
+                _ligne('Conduit par', '${_conducteur!['nom']}${_conducteur!['telephone'] != null ? ' · ${_conducteur!['telephone']}' : ''}'),
               if (_origine?['nom'] != null) _ligne('Départ', _origine!['nom']),
               if (_destination?['adresse'] != null) _ligne('Destination', _destination!['adresse']),
               if (lireDate(infos['date_depart']) case final dep?) _ligne('Parti le', _formaterDate(dep)),
@@ -491,6 +562,14 @@ class _SuiviLivraisonScreenState extends State<SuiviLivraisonScreen> with Widget
           Expanded(child: Text(valeur, textAlign: TextAlign.right, style: const TextStyle(fontSize: 14))),
         ]),
       );
+
+  String _heure(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  String _dans(DateTime arrivee) {
+    final m = arrivee.difference(DateTime.now().subtract(_decalageHorloge)).inMinutes;
+    if (m <= 1) return 'imminente';
+    return m < 60 ? 'dans $m min' : 'dans ${m ~/ 60} h ${(m % 60).toString().padLeft(2, '0')}';
+  }
 
   String _formaterDate(DateTime d) {
     String p(int n) => n.toString().padLeft(2, '0');

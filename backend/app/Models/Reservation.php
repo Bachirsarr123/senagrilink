@@ -21,6 +21,36 @@ class Reservation extends Model
         'date_fin',
         'date_reservation',
         'statut',
+        'mode_transport',
+        'mission_acceptee_le',
+        'quantite_recue',
+        'etat_marchandise',
+        'collecte_latitude',
+        'collecte_longitude',
+        'collecte_adresse',
+        'parti_le',
+        'arrive_le',
+    ];
+
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    /** Trajet routier : renvoyé seulement par le suivi GPS (volumineux). */
+    protected $hidden = ['trajet'];
+
+    protected $casts = [
+        'collecte_latitude'   => 'float',
+        'collecte_longitude'  => 'float',
+        'parti_le'            => 'datetime',
+        'arrive_le'           => 'datetime',
+        'arrivee_estimee_le'   => 'datetime',
+        'estimation_le'        => 'datetime',
+        'distance_restante_km' => 'float',
+        'trajet'               => 'array',
+        'quantite_reservee'   => 'float',
+        'quantite_recue'      => 'float',
+        'mission_acceptee_le' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -52,7 +82,12 @@ class Reservation extends Model
         return $this->belongsTo(Transporteur::class, 'transporteur_id');
     }
 
-    /** Corrections et annulations successives (plus ancienne d'abord). */
+    public function incidents()
+    {
+        return $this->hasMany(Incident::class, 'sujet_id')->where('sujet_type', 'reservation')->orderBy('id');
+    }
+
+    /** Étapes, corrections et annulations successives (plus ancienne d'abord). */
     public function historique()
     {
         return $this->hasMany(HistoriqueOperation::class, 'sujet_id')

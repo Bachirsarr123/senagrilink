@@ -21,17 +21,27 @@ import { EchoService } from '../../../core/services/echo.service';
       </div>
       <div class="navbar-collapsible" id="navbar-menu" [class.open]="menuMobileOuvert()">
         <ul class="navbar-links" (click)="fermerMenuMobile()">
+          @if (role() !== 'administrateur') {
+            <!-- Le gestionnaire a « Ma journée » à la place (lot 11) -->
+            @if (role() !== 'gestionnaire_entrepot') {
+            <li><a routerLink="/a-faire" routerLinkActive="active">À faire</a></li>
+            }
+          }
           @if (role() === 'producteur') {
             <li><a routerLink="/producteur/productions" routerLinkActive="active">Mes productions</a></li>
-            <li><a routerLink="/producteur/reservations" routerLinkActive="active">Réserver un entrepôt</a></li>
+            <li><a routerLink="/argent" routerLinkActive="active">Mon argent</a></li>
+            <li><a routerLink="/producteur/reservations" routerLinkActive="active">Déposer ma récolte</a></li>
             <li><a routerLink="/producteur/planifier-ventes" routerLinkActive="active">Planifier ventes</a></li>
             <li><a routerLink="/producteur/commandes-disponibles" routerLinkActive="active">Demandes</a></li>
           }
           @if (role() === 'gestionnaire_entrepot') {
+            <li><a routerLink="/entrepot/journee" routerLinkActive="active">Ma journée</a></li>
+            <li><a routerLink="/entrepot/agriculteurs" routerLinkActive="active">Agriculteurs</a></li>
             <li><a routerLink="/entrepot/stocks" routerLinkActive="active">Stocks</a></li>
-            <li><a routerLink="/entrepot/reservations" routerLinkActive="active">Réservations</a></li>
+            <li><a routerLink="/entrepot/reservations" routerLinkActive="active">Dépôts</a></li>
             <li><a routerLink="/entrepot/commandes" routerLinkActive="active">Commandes</a></li>
-            <li><a routerLink="/entrepot/alertes" routerLinkActive="active">Alertes</a></li>
+            <li><a routerLink="/entrepot/incidents" routerLinkActive="active">Incidents</a></li>
+            <li><a routerLink="/argent" routerLinkActive="active">Mon argent</a></li>
             <li><a routerLink="/entrepot/rapport" routerLinkActive="active">Rapport</a></li>
           }
           @if (role() === 'acheteur_gros') {
@@ -40,10 +50,13 @@ import { EchoService } from '../../../core/services/echo.service';
           }
           @if (role() === 'transporteur') {
             <li><a routerLink="/transporteur/missions" routerLinkActive="active">Mes missions</a></li>
+            <li><a routerLink="/argent" routerLinkActive="active">Mon argent</a></li>
           }
           @if (role() === 'administrateur') {
             <li><a routerLink="/admin/dashboard" routerLinkActive="active">Tableau de bord</a></li>
             <li><a routerLink="/admin/utilisateurs" routerLinkActive="active">Utilisateurs</a></li>
+            <li><a routerLink="/admin/journal" routerLinkActive="active">Journal</a></li>
+            <li><a routerLink="/admin/paiements" routerLinkActive="active">Paiements</a></li>
           }
           <!-- Traçabilité : tous les rôles -->
           <li><a routerLink="/tracabilite" routerLinkActive="active">Traçabilité</a></li>
@@ -59,7 +72,9 @@ import { EchoService } from '../../../core/services/echo.service';
             </button>
             @if (menuOuvert()) {
               <div class="notif-panel">
-                <div class="notif-panel-header">Notifications</div>
+                <div class="notif-panel-header">Notifications
+                  @if (nonLues() > 0) { <button type="button" class="notif-tout-lire" (click)="toutMarquerLu(); $event.stopPropagation()">Tout marquer comme lu</button> }
+                </div>
                 @if (notifications().length === 0) {
                   <p class="notif-empty">Aucune notification.</p>
                 } @else {
@@ -153,6 +168,7 @@ import { EchoService } from '../../../core/services/echo.service';
     }
     .notif-item:hover { background: #f9fafb; }
     .notif-item.non-lue { background: #f0fdf4; font-weight: 600; }
+    .notif-tout-lire { float:right; background:none; border:none; color:#2d6a4f; font-size:.75rem; cursor:pointer; text-decoration:underline; }
     .notif-item small { color: #9ca3af; font-weight: 400; }
 
     /* Menu hamburger sous 1200 px : au-delà, liens et infos utilisateur tiennent
@@ -262,6 +278,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   fermerMenuMobile(): void {
     this.menuMobileOuvert.set(false);
+  }
+
+  toutMarquerLu(): void {
+    this.api.toutMarquerLu().subscribe({
+      next: () => this.notifications.update(list => list.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() }))),
+      error: () => {},
+    });
   }
 
   marquerLue(notification: any): void {

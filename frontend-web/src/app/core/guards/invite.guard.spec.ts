@@ -17,9 +17,9 @@ describe('inviteGuard — page de connexion avec une session enregistrée', () =
   });
 
   it.each([
-    ['transporteur', '/transporteur/missions'],
-    ['producteur', '/producteur/productions'],
-    ['gestionnaire_entrepot', '/entrepot/stocks'],
+    ['transporteur', '/a-faire'],
+    ['producteur', '/a-faire'],
+    ['administrateur', '/admin/dashboard'],
   ])('session %s encore enregistrée (réouverture de la PWA sur /login) : renvoi vers %s', (role, attendu) => {
     localStorage.setItem('agri_token', 'jeton');
     localStorage.setItem('agri_user', JSON.stringify({ id: 1, nom: 'T', prenom: 'A', role }));

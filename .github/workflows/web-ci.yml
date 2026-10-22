@@ -1,0 +1,42 @@
+name: Web — tests et compilation de production
+
+# Tests automatiques du site Angular à chaque push et pull request. Ne déploie
+# rien : le site Render se construit de son côté (render.yaml).
+
+on:
+  push:
+    paths:
+      - 'frontend-web/**'
+      - '.github/workflows/web-ci.yml'
+  pull_request:
+    paths:
+      - 'frontend-web/**'
+      - '.github/workflows/web-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm test -- --watch=false
+      - name: Compilation de production (même commande que Render)
+        env:
+          API_URL: https://api.invalid/api
+        run: npm run build -- --configuration production

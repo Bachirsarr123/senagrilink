@@ -44,7 +44,12 @@ trait ConstruitParcours
             'statut'        => 'disponible',
         ]);
 
-        $p->commande = $this->commande($p->acheteur, $p->stock, 'confirmee');
+        // Statut de commande cohérent avec l'avancement de la livraison (circuit lot 3)
+        $p->commande = $this->commande($p->acheteur, $p->stock, match ($statutLivraison) {
+            'en_attente', 'prise_en_charge' => 'prete',
+            'livree'                        => 'receptionnee',
+            default                         => 'en_livraison',
+        });
 
         $p->livraison = Livraison::create([
             'commande_id'     => $p->commande->id,
@@ -52,7 +57,14 @@ trait ConstruitParcours
             'origine'         => 'Entrepôt test',
             'destination'     => 'Dakar Plateau, rue 10',
             'statut'          => $statutLivraison,
+            'mission_acceptee_le' => $statutLivraison === 'en_attente' ? null : now(),
         ]);
+
+        // Livraison partie : la quantité réservée est déjà sortie du stock.
+        if (! in_array($statutLivraison, ['en_attente', 'prise_en_charge'], true)) {
+            $p->commande->update(['etat_stock' => 'sorti']);
+            $p->stock->update(['quantite_reservee' => 0]);
+        }
 
         return $p;
     }
@@ -64,6 +76,7 @@ trait ConstruitParcours
             'type_culture'     => 'riz',
             'date_recolte'     => '2026-06-01',
             'quantite_estimee' => 100,
+            'prix_unitaire'    => 150,
         ]);
     }
 
@@ -81,16 +94,49 @@ trait ConstruitParcours
         ]);
     }
 
+    /** Le transporteur accepte la mission puis l'achemine jusqu'à l'entrepôt (étapes 5 à 8). */
+    protected function acheminer(Utilisateur $transporteur, int $reservationId): void
+    {
+        $this->en($transporteur)->putJson("/api/reservations/{$reservationId}/accepter-mission")->assertOk();
+
+        foreach (['au_point_collecte', 'chargee', 'en_route', 'arrivee_entrepot'] as $etape) {
+            $this->en($transporteur)->putJson("/api/reservations/{$reservationId}/etape", ['etape' => $etape])->assertOk();
+        }
+    }
+
+    /** Réception par le gestionnaire : code du lot attendu, état « bon », motif si la quantité diffère. */
+    protected function receptionner(Utilisateur $gestionnaire, int $reservationId, float $quantite, array $extra = [])
+    {
+        $reservation = Reservation::with('production')->findOrFail($reservationId);
+        $corps = array_merge([
+            'quantite_reelle'  => $quantite,
+            'code_lot'         => $reservation->production?->code_tracabilite,
+            'etat_marchandise' => 'bon',
+        ], abs($quantite - $reservation->quantite_reservee) > 1e-9 ? ['motif' => 'Écart constaté à la pesée'] : [], $extra);
+
+        return $this->en($gestionnaire)->putJson("/api/reservations/{$reservationId}/valider", $corps);
+    }
+
+    /** Commande de 10 kg à 150 FCFA/kg ; confirmée, sa quantité est réservée sur le stock. */
     protected function commande(Utilisateur $acheteur, Stock $stock, string $statut = 'en_attente'): Commande
     {
+        $confirmee = in_array($statut, ['confirmee', 'en_preparation', 'prete', 'en_livraison', 'receptionnee', 'litige'], true);
+
+        if ($confirmee) {
+            $stock->increment('quantite_reservee', 10);
+        }
+
         return Commande::create([
             'acheteur_id'   => $acheteur->acheteurGros->id,
             'stock_id'      => $stock->id,
             'produit'       => 'riz',
             'quantite'      => 10,
+            'prix_unitaire' => 150,
             'prix'          => 1500,
             'date_commande' => now(),
             'statut'        => $statut,
+            'etat_stock'    => $confirmee ? 'reserve' : null,
+            'statut_paiement' => 'a_la_livraison', // lot 13 : l'entrepôt ne traite qu'une commande réglée
         ]);
     }
 }

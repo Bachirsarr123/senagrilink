@@ -16,8 +16,37 @@ class Commande extends Model
         'produit',
         'quantite',
         'prix',
+        'prix_unitaire',
+        'etat_stock',
+        'panier',
+        'livraison_latitude',
+        'livraison_longitude',
+        'livraison_adresse',
+        // Lot 12 : montants figés à la commande, et paiement
+        'frais_livraison', 'frais_stockage', 'commission', 'montant_producteur', 'total_a_payer', 'statut_paiement', 'paiement_id',
+        'code_reception',
         'date_commande',
         'statut',
+    ];
+
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    /** Le code de réception n'est donné qu'à l'acheteur (ajouté explicitement à son historique). */
+    protected $hidden = ['code_reception'];
+
+    protected $casts = [
+        'livraison_latitude'  => 'float',
+        'frais_livraison'     => 'float',
+        'frais_stockage'      => 'float',
+        'commission'          => 'float',
+        'montant_producteur'  => 'float',
+        'total_a_payer'       => 'float',
+        'livraison_longitude' => 'float',
+        'quantite' => 'float',
+        'prix'          => 'float',
+        'prix_unitaire' => 'float',
     ];
 
     protected static function booted(): void
@@ -27,6 +56,12 @@ class Commande extends Model
                 $commande->numero_commande = 'CMD-' . now()->format('Ymd') . '-' . strtoupper(Str::random(4));
             }
         });
+    }
+
+    /** Lot 12 : paiement de l'acheteur (éventuellement partagé par un panier). */
+    public function paiement()
+    {
+        return $this->belongsTo(Paiement::class, 'paiement_id');
     }
 
     public function acheteur()
@@ -39,9 +74,15 @@ class Commande extends Model
         return $this->belongsTo(Stock::class, 'stock_id');
     }
 
+    /** Livraison active (la plus récente : une livraison annulée peut être remplacée). */
     public function livraison()
     {
-        return $this->hasOne(Livraison::class, 'commande_id');
+        return $this->hasOne(Livraison::class, 'commande_id')->orderByDesc('id');
+    }
+
+    public function incidents()
+    {
+        return $this->hasMany(Incident::class, 'sujet_id')->where('sujet_type', 'commande')->orderBy('id');
     }
 
     /**
@@ -50,6 +91,12 @@ class Commande extends Model
      * qui portent sur un stock de son entrepôt. Sans stock, le périmètre ne peut
      * pas être établi : refus pour un gestionnaire.
      */
+    /** Lot 13 : commande en ligne pas encore payée ; l'entrepôt ne la traite pas encore. */
+    public function attendPaiement(): bool
+    {
+        return $this->statut === 'en_attente' && $this->statut_paiement === 'a_payer';
+    }
+
     public function estGereePar(Utilisateur $utilisateur): bool
     {
         if ($utilisateur->role === 'administrateur') {

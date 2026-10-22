@@ -58,7 +58,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   }
                 </div>
                 <a class="btn-primary btn-full" routerLink="/producteur/reservations">
-                  Réserver un entrepôt
+                  Déposer en entrepôt
                 </a>
               </div>
             }
@@ -109,7 +109,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
         } @else {
           <div class="table-scroll"><table class="table" appTableauResponsive>
             <thead>
-              <tr><th>Numéro</th><th>Produit</th><th>Quantité</th><th>Prix</th><th>Date</th><th>Statut</th></tr>
+              <tr><th>Numéro</th><th>Produit</th><th>Quantité</th><th>Montant</th><th>Date</th><th>Statut</th></tr>
             </thead>
             <tbody>
               @for (d of demandes(); track d.id) {

@@ -162,26 +162,7 @@ $gris-bord:      #e5e7eb;
 .btn-success  { background: #059669; color: white; &:hover:not(:disabled) { background: #047857; } }
 .btn-ghost    { background: transparent; color: #6b7280; border: 1px solid $gris-bord; &:hover { background: $gris-clair; } }
 
-// ── Badges ────────────────────────────────────────────────────────────────────
-.badge {
-  display: inline-flex; align-items: center; padding: .2rem .6rem;
-  border-radius: 12px; font-size: .75rem; font-weight: 600; line-height: 1.4; white-space: nowrap;
-
-  &-en_attente   { background: #fef9c3; color: #854d0e; }
-  &-confirmee    { background: #d1fae5; color: #065f46; }
-  &-annulee      { background: #fee2e2; color: #991b1b; }
-  &-livree       { background: #dbeafe; color: #1e40af; }
-  &-en_cours     { background: #e0e7ff; color: #3730a3; }
-  &-probleme     { background: #fee2e2; color: #dc2626; }
-  &-disponible   { background: #d1fae5; color: #065f46; }
-  &-epuise       { background: #f3f4f6; color: #6b7280; }
-  &-actif        { background: #d1fae5; color: #065f46; }
-  &-bloque       { background: #fee2e2; color: #991b1b; }
-  &-role         { background: #f0fdf4; color: $vert-fonce; border: 1px solid $vert-clair; }
-  &-arrivee_entrepot { background: #dbeafe; color: #1e40af; }
-  &-enregistree      { background: #d1fae5; color: #065f46; }
-  &-refusee          { background: #fee2e2; color: #991b1b; }
-}
+// ── Badges : styles globaux (styles.scss), communs à tous les écrans ────────────
 
 // ── Misc ──────────────────────────────────────────────────────────────────────
 // .loading et .empty : styles globaux (styles.scss)

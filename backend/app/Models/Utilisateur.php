@@ -27,7 +27,21 @@ class Utilisateur extends Authenticatable
         'photo',
         'role',
         'statut',
+        'valide_par',
+        'valide_le',
+        'motif_refus',
+        'moyen_paiement',
+        'numero_paiement',
     ];
+
+    /** Statuts du compte (lot 6). Seul « actif » peut se connecter. */
+    public const ACTIF = 'actif';
+    public const BLOQUE = 'bloque';
+    public const EN_ATTENTE = 'en_attente_validation';
+    public const REFUSE = 'refuse';
+
+    /** Rôles dont le compte est validé par l'administrateur avant activation (Q9). */
+    public const ROLES_A_VALIDER = ['gestionnaire_entrepot', 'transporteur'];
 
     protected $hidden = [
         'mot_de_passe',
@@ -36,6 +50,7 @@ class Utilisateur extends Authenticatable
     protected function casts(): array
     {
         return [
+            'valide_le' => 'datetime',
             'mot_de_passe' => 'hashed',
         ];
     }
@@ -47,6 +62,22 @@ class Utilisateur extends Authenticatable
     }
 
     // Relations vers les profils spécifiques
+    public function appareils()
+    {
+        return $this->hasMany(Appareil::class, 'utilisateur_id');
+    }
+
+    /** Message et code renvoyés quand le compte ne peut pas se connecter, ou null s'il est actif. */
+    public function refusConnexion(): ?array
+    {
+        return match ($this->statut) {
+            self::BLOQUE     => ['message' => 'Votre compte a été bloqué. Contactez l\'administrateur.', 'code' => 'compte_bloque'],
+            self::EN_ATTENTE => ['message' => 'Votre compte est en attente de validation par l\'administrateur. Vous serez prévenu dès son activation.', 'code' => 'compte_en_attente'],
+            self::REFUSE     => ['message' => 'Votre demande de compte a été refusée.'.($this->motif_refus ? ' Motif : '.$this->motif_refus : ''), 'code' => 'compte_refuse'],
+            default          => null,
+        };
+    }
+
     public function producteur()
     {
         return $this->hasOne(Producteur::class, 'utilisateur_id');

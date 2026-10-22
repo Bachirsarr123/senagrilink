@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Commande;
 use App\Models\Production;
+use App\Models\Reservation;
 use App\Models\Stock;
 use App\Models\Utilisateur;
 use Illuminate\Http\JsonResponse;
@@ -30,8 +31,15 @@ class TracabiliteController extends Controller
                 'producteur:id,utilisateur_id,region,types_cultures',
                 'producteur.utilisateur:id,nom,prenom',
 
+                // Acheminement vers l'entrepôt (circuit A) et ses étapes datées
+                'reservations' => fn ($q) => $q->whereNotIn('statut', ['annulee', 'refusee'])->orderBy('id'),
+                'reservations.entrepot:id,nom_entrepot,localisation',
+                'reservations.transporteur:id,utilisateur_id,type_vehicule',
+                'reservations.transporteur.utilisateur:id,nom,prenom',
+                'reservations.historique:id,sujet_type,sujet_id,action,created_at',
+
                 // Passage en entrepôt
-                'stocks:id,production_id,entrepot_id,produit,quantite,date_entree,date_sortie,statut',
+                'stocks:id,production_id,entrepot_id,produit,quantite,quantite_reservee,date_entree,date_sortie,statut',
                 'stocks.entrepot:id,nom_entrepot,localisation',
 
                 // Commandes passées sur ces stocks
@@ -76,6 +84,9 @@ class TracabiliteController extends Controller
                     'types_cultures' => $production->producteur->types_cultures,
                 ] : null,
             ],
+            'etapes_acheminement' => $production->reservations->map(
+                fn (Reservation $r) => $this->etapeAcheminement($r, $lecteur, $producteurDuLot)
+            )->values(),
             'etapes_stockage'  => $production->stocks->map(fn (Stock $stock) => [
                 'entrepot'    => [
                     'nom'         => $stock->entrepot?->nom_entrepot,
@@ -93,6 +104,46 @@ class TracabiliteController extends Controller
         ];
 
         return response()->json(['tracabilite' => $parcours]);
+    }
+
+    /** Étapes de transport et de réception, datées ; le transporteur n'est nommé qu'aux acteurs concernés. */
+    private const ETAPES_DATEES = [
+        'creation'            => 'Dépôt demandé',
+        'confirmation'        => 'Dépôt accepté par l\'entrepôt',
+        'acceptation_mission' => 'Mission acceptée par le transporteur',
+        'au_point_collecte'   => 'Transporteur arrivé chez le producteur',
+        'chargee'             => 'Marchandise chargée',
+        'en_route'            => 'En route vers l\'entrepôt',
+        'arrivee_entrepot'    => 'Arrivée à l\'entrepôt',
+        'reception'           => 'Réception validée',
+        'reception_partielle' => 'Réception validée avec un écart',
+        'refus_reception'     => 'Réception refusée',
+    ];
+
+    private function etapeAcheminement(Reservation $r, Utilisateur $lecteur, bool $producteurDuLot): array
+    {
+        $concerne = $producteurDuLot
+            || ($lecteur->entrepot !== null && (int) $lecteur->entrepot->id === (int) $r->entrepot_id)
+            || ($lecteur->transporteur !== null && (int) $lecteur->transporteur->id === (int) $r->transporteur_id);
+
+        return [
+            'numero_reservation' => $r->numero_reservation,
+            'entrepot'           => ['nom' => $r->entrepot?->nom_entrepot, 'localisation' => $r->entrepot?->localisation],
+            'mode_transport'     => $r->mode_transport,
+            'quantite_prevue'    => $r->quantite_reservee,
+            'quantite_recue'     => $r->quantite_recue,
+            'etat_marchandise'   => $r->etat_marchandise,
+            'statut'             => $r->statut,
+            'transporteur'       => $concerne && $r->transporteur?->utilisateur ? [
+                'nom'           => $r->transporteur->utilisateur->nom,
+                'prenom'        => $r->transporteur->utilisateur->prenom,
+                'type_vehicule' => $r->transporteur->type_vehicule,
+            ] : null,
+            'etapes'             => $r->historique
+                ->filter(fn ($h) => isset(self::ETAPES_DATEES[$h->action]))
+                ->map(fn ($h) => ['action' => $h->action, 'libelle' => self::ETAPES_DATEES[$h->action], 'date' => $h->created_at?->toIso8601String()])
+                ->values(),
+        ];
     }
 
     /**

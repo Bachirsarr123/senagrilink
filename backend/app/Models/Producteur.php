@@ -8,7 +8,17 @@ class Producteur extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['utilisateur_id', 'superficie', 'types_cultures', 'region'];
+    protected $fillable = ['utilisateur_id', 'superficie', 'types_cultures', 'region', 'latitude', 'longitude'];
+
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    protected $casts = [
+        'superficie' => 'float',
+        'latitude'   => 'float',
+        'longitude'  => 'float',
+    ];
 
     public function utilisateur()
     {

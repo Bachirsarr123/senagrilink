@@ -1,208 +1,144 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { of } from 'rxjs';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/confirmation';
+import { ActionCommande, LIBELLE_ACTION_COMMANDE, libelleIncident, peutFaire } from '../../../shared/livraison/livraison';
+
+/** Sections de la page, dans l'ordre du circuit. */
+const SECTIONS: { titre: string; statuts: string[]; vide: string }[] = [
+  { titre: 'À confirmer',                  statuts: ['en_attente'],                          vide: 'Aucune commande en attente.' },
+  { titre: 'À préparer et à livrer',       statuts: ['confirmee', 'en_preparation', 'prete'], vide: 'Aucune commande à préparer.' },
+  { titre: 'En livraison',                 statuts: ['en_livraison', 'litige'],              vide: 'Aucune livraison en cours.' },
+  { titre: 'Terminées',                    statuts: ['receptionnee', 'annulee'],             vide: 'Aucune commande terminée.' },
+];
 
 @Component({
   selector: 'app-commandes-entrepot',
   standalone: true,
-  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe],
+  imports: [LibelleStatutPipe, TableauResponsiveDirective, ReactiveFormsModule, DatePipe, DecimalPipe, RouterLink],
   template: `
     <div class="page">
       <div class="page-header">
         <h1>Commandes</h1>
-        <span class="subtitle">{{ commandesEnAttente().length }} en attente</span>
+        <span class="subtitle">{{ aTraiter() }} à traiter
+          @if (incidentsOuverts() > 0) { · <a routerLink="/entrepot/incidents">{{ incidentsOuverts() }} incident(s) à décider</a> }</span>
       </div>
 
-      @if (message()) {
-        <div class="alert alert-success">{{ message() }}</div>
-      }
-      @if (erreur()) {
-        <div class="alert alert-error">{{ erreur() }}</div>
-      }
+      @if (message()) { <div class="alert alert-success" role="status">{{ message() }}</div> }
+      @if (erreur()) { <div class="alert alert-error" role="alert">{{ erreur() }}</div> }
 
-      <!-- Commandes en attente de confirmation -->
-      <div class="card">
-        <h2>En attente de confirmation</h2>
-        @if (chargement()) {
-          <p class="loading">Chargement...</p>
-        } @else if (commandesEnAttente().length === 0) {
-          <p class="empty">Aucune commande en attente.</p>
-        } @else {
-          <div class="table-scroll"><table class="table" appTableauResponsive>
-            <thead>
-              <tr>
-                <th>Numéro</th><th>Produit</th><th>Quantité</th>
-                <th>Prix</th><th>Date</th><th>Acheteur</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (c of commandesEnAttente(); track c.id) {
-                <tr>
-                  <td><code class="code-lot">{{ c.numero_commande }}</code></td>
-                  <td><strong>{{ c.produit }}</strong></td>
-                  <td>{{ c.quantite | number }} kg</td>
-                  <td>{{ c.prix ? (c.prix | number) + ' FCFA' : '—' }}</td>
-                  <td>{{ c.date_commande | date:'dd/MM/yyyy' }}</td>
-                  <td>{{ c.acheteur?.utilisateur?.prenom }} {{ c.acheteur?.utilisateur?.nom }}</td>
-                  <td>
-                    <div class="btn-group">
-                      <button class="btn-success btn-sm"
-                              [disabled]="actionEnCours() === c.id"
-                              (click)="ouvrirLivraison(c)">
-                        Confirmer + Livraison
-                      </button>
-                      <button class="btn-secondary btn-sm"
-                              [disabled]="actionEnCours() === c.id"
-                              (click)="confirmerSeul(c.id)">
-                        Confirmer seul
-                      </button>
-                      <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === c.id" (click)="refuser(c)">Refuser</button>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table></div>
+      @if (chargement()) {
+        <p class="loading">Chargement...</p>
+      } @else {
+        @for (section of sections; track section.titre) {
+          <div class="card">
+            <h2>{{ section.titre }} <span class="compteur">{{ parSection(section.statuts).length }}</span></h2>
+            @if (parSection(section.statuts).length === 0) {
+              <p class="empty">{{ section.vide }}</p>
+            } @else {
+              <div class="table-scroll"><table class="table" appTableauResponsive>
+                <thead>
+                  <tr><th>Numéro</th><th>Produit</th><th>Quantité</th><th>Montant</th><th>Acheteur</th><th>Statut</th><th>Livraison</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  @for (c of parSection(section.statuts); track c.id) {
+                    <tr>
+                      <td><a [routerLink]="['/commandes', c.id]" title="Ouvrir la fiche"><code class="code-lot">{{ c.numero_commande }}</code></a>
+                        <br><small class="text-muted">{{ c.date_commande | date:'dd/MM/yyyy' }}</small>
+                        @if (c.panier) { <br><small class="text-muted">Panier {{ c.panier }}</small> }</td>
+                      <td><strong>{{ c.produit }}</strong></td>
+                      <td>{{ c.quantite | number }} kg</td>
+                      <td>{{ c.prix ? (c.prix | number:'1.0-2') + ' FCFA' : '—' }}
+                        @if (c.prix_unitaire) { <br><small class="text-muted">{{ c.prix_unitaire | number }} FCFA / kg</small> }</td>
+                      <td>{{ c.acheteur?.utilisateur?.prenom }} {{ c.acheteur?.utilisateur?.nom }}
+                        @if (c.acheteur?.utilisateur?.telephone; as tel) { <br><a [href]="'tel:' + tel">{{ tel }}</a> }</td>
+                      <td><span class="badge badge-{{ c.statut }}">{{ c.statut | libelleStatut }}</span>
+                        @if (c.prochaine_etape) { <div class="text-muted">{{ c.prochaine_etape.libelle }}</div> }
+                        @for (i of incidentsOuvertsDe(c); track i.id) {
+                          <div class="incident">⚠️ {{ libelleIncident(i.type) }} — <a routerLink="/entrepot/incidents">décider</a></div>
+                        }</td>
+                      <td>
+                        @if (c.livraison) {
+                          <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut | libelleStatut }}</span>
+                          <div class="text-muted">{{ c.livraison.transporteur?.utilisateur?.prenom }} {{ c.livraison.transporteur?.utilisateur?.nom }}</div>
+                          @if (c.livraison.statut === 'en_cours') {
+                            <a class="btn-secondary btn-sm" [routerLink]="['/suivi', 'livraison', c.livraison.id]">📍 Suivre</a>
+                          }
+                        } @else { <span class="text-muted">—</span> }
+                      </td>
+                      <td>
+                        <div class="btn-group">
+                          @for (a of actions(c); track a) {
+                            <button [class]="classe(a)" [disabled]="actionEnCours() === c.id" (click)="agir(c, a)">{{ libelle(a) }}</button>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table></div>
+            }
+          </div>
         }
-      </div>
+      }
 
-      <!-- Modal création livraison -->
-      @if (commandeSelectionnee()) {
+      <!-- Organisation de la livraison (commande prête) ou changement de transporteur -->
+      @if (cible(); as c) {
         <div class="modal-overlay" (click)="demanderFermeture()">
           <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-            <h2>{{ commandeSelectionnee()!.statut === 'confirmee' ? 'Créer la livraison' : 'Confirmer & créer la livraison' }}</h2>
-            <p style="color:#6b7280;font-size:.9rem;margin-bottom:1rem">
-              Commande : <code class="code-lot">{{ commandeSelectionnee()!.numero_commande }}</code>
-              — {{ commandeSelectionnee()!.produit }} / {{ commandeSelectionnee()!.quantite }} kg
-            </p>
-
-            @if (erreurModal()) {
-              <div class="alert alert-error">{{ erreurModal() }}</div>
-            }
-
-            <form [formGroup]="formLivraison" (ngSubmit)="confirmerAvecLivraison()">
+            <h2>{{ modeModal() === 'organiser' ? 'Organiser la livraison' : 'Changer de transporteur' }}</h2>
+            <p class="note">Commande <code class="code-lot">{{ c.numero_commande }}</code> — {{ c.produit }} / {{ c.quantite }} kg.
+              Le transporteur choisi doit accepter la mission ; il est prévenu tout de suite.</p>
+            @if (erreurModal()) { <div class="alert alert-error" role="alert">{{ erreurModal() }}</div> }
+            <form [formGroup]="form" (ngSubmit)="valider()">
               <div class="form-group">
-                <label>Transporteur *</label>
-                <select formControlName="transporteur_id">
+                <label for="transporteur">Transporteur * <small class="text-muted">(les moins occupés d'abord)</small></label>
+                <select id="transporteur" formControlName="transporteur_id">
                   <option [ngValue]="null">— Choisir —</option>
                   @for (t of transporteurs(); track t.id) {
-                    <option [ngValue]="t.id">{{ t.utilisateur?.prenom }} {{ t.utilisateur?.nom }} {{ t.type_vehicule ? '(' + t.type_vehicule + ')' : '' }}</option>
+                    <option [ngValue]="t.id" [disabled]="t.id === c.livraison?.transporteur_id && modeModal() === 'changer'">
+                      {{ t.utilisateur?.prenom }} {{ t.utilisateur?.nom }}{{ t.type_vehicule ? ' (' + t.type_vehicule + ')' : '' }} — {{ t.missions_actives ?? 0 }} mission(s) en cours
+                    </option>
                   }
                 </select>
-                @if (formLivraison.get('transporteur_id')?.invalid && formLivraison.get('transporteur_id')?.touched) {
-                  <span class="field-error">Choisis le transporteur qui recevra la mission.</span>
+                @if (form.get('transporteur_id')?.invalid && form.get('transporteur_id')?.touched) {
+                  <span class="field-error">Choisissez le transporteur qui recevra la mission.</span>
                 }
               </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Origine *</label>
-                  <input type="text" formControlName="origine" placeholder="Entrepôt, ville..." />
+              @if (modeModal() === 'organiser') {
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="origine">Départ</label>
+                    <input id="origine" type="text" formControlName="origine" placeholder="Par défaut : l'entrepôt" />
+                  </div>
+                  <div class="form-group">
+                    <label for="destination">Destination</label>
+                    <input id="destination" type="text" formControlName="destination" placeholder="Par défaut : l'adresse de l'acheteur" />
+                  </div>
                 </div>
                 <div class="form-group">
-                  <label>Destination *</label>
-                  <input type="text" formControlName="destination" placeholder="Adresse livraison..." />
+                  <label for="date_depart">Départ prévu</label>
+                  <input id="date_depart" type="datetime-local" formControlName="date_depart" />
                 </div>
-              </div>
-              <div class="form-row">
+              } @else {
                 <div class="form-group">
-                  <label>Date de départ *</label>
-                  <input type="datetime-local" formControlName="date_depart" />
+                  <label for="motif">Motif (facultatif)</label>
+                  <textarea id="motif" formControlName="motif" rows="2" maxlength="500"></textarea>
                 </div>
-                <div class="form-group">
-                  <label>Date livraison prévue</label>
-                  <input type="datetime-local" formControlName="date_livraison" />
-                </div>
-              </div>
-              <div class="btn-group">
-                <button type="submit" class="btn-success" [disabled]="loadingModal()">
-                  {{ loadingModal() ? 'Traitement...' : (commandeSelectionnee()!.statut === 'confirmee' ? 'Créer la livraison' : 'Confirmer et créer la livraison') }}
-                </button>
-                <button type="button" class="btn-ghost" (click)="demanderFermeture()">Annuler</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      }
-
-      <!-- Changement du transporteur d'une livraison non démarrée -->
-      @if (commandeAReassigner(); as c) {
-        <div class="modal-overlay" (click)="demanderFermeture()">
-          <div class="modal-box" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
-            <h2>Changer de transporteur</h2>
-            <p class="note">Livraison <code class="code-lot">{{ c.livraison.numero_livraison }}</code> — elle sera retirée à
-              {{ c.livraison.transporteur?.utilisateur?.prenom }} {{ c.livraison.transporteur?.utilisateur?.nom }}, qui en sera informé(e).</p>
-            @if (erreurModal()) { <div class="alert alert-error">{{ erreurModal() }}</div> }
-            <form [formGroup]="formReassignation" (ngSubmit)="changerTransporteur()">
-              <div class="form-group">
-                <label>Nouveau transporteur *</label>
-                <select formControlName="transporteur_id">
-                  <option [ngValue]="null">— Choisir —</option>
-                  @for (t of transporteurs(); track t.id) {
-                    <option [ngValue]="t.id" [disabled]="t.id === c.livraison.transporteur_id">{{ t.utilisateur?.prenom }} {{ t.utilisateur?.nom }} {{ t.type_vehicule ? '(' + t.type_vehicule + ')' : '' }}</option>
-                  }
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Motif (facultatif)</label>
-                <textarea formControlName="motif" rows="2" maxlength="500"></textarea>
-              </div>
-              <div class="btn-group">
-                <button type="submit" class="btn-primary" [disabled]="loadingModal() || formReassignation.invalid">{{ loadingModal() ? 'Envoi...' : 'Réassigner' }}</button>
-                <button type="button" class="btn-ghost" (click)="demanderFermeture()">Annuler</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      }
-
-      <!-- Commandes déjà confirmées (historique) -->
-      <div class="card">
-        <h2>Commandes confirmées</h2>
-        @if (commandesConfirmees().length === 0) {
-          <p class="empty">Aucune commande confirmée.</p>
-        } @else {
-          <div class="table-scroll"><table class="table" appTableauResponsive>
-            <thead>
-              <tr><th>Numéro</th><th>Produit</th><th>Quantité</th><th>Date</th><th>Livraison</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              @for (c of commandesConfirmees(); track c.id) {
-                <tr>
-                  <td><code class="code-lot">{{ c.numero_commande }}</code></td>
-                  <td>{{ c.produit }}</td>
-                  <td>{{ c.quantite | number }} kg</td>
-                  <td>{{ c.date_commande | date:'dd/MM/yyyy' }}</td>
-                  <td>
-                    @if (c.livraison) {
-                      <span class="badge badge-{{ c.livraison.statut }}">{{ c.livraison.statut | libelleStatut }}</span>
-                      <div class="text-muted">{{ c.livraison.transporteur?.utilisateur?.prenom }} {{ c.livraison.transporteur?.utilisateur?.nom }}</div>
-                    } @else {
-                      <span class="text-muted">—</span>
-                    }
-                  </td>
-                  <td>
-                    <div class="btn-group">
-                      @if (!c.livraison) {
-                        <button class="btn-success btn-sm" [disabled]="actionEnCours() === c.id" (click)="ouvrirLivraison(c)">Créer la livraison</button>
-                        <button class="btn-ghost btn-sm" [disabled]="actionEnCours() === c.id" (click)="annulerConfirmation(c)">Annuler la commande</button>
-                      } @else if (c.livraison.statut === 'en_attente') {
-                        <button class="btn-secondary btn-sm" [disabled]="actionEnCours() === c.id" (click)="ouvrirChangementTransporteur(c)">Changer de transporteur</button>
-                      } @else {
-                        <span class="text-muted">Livraison démarrée : plus de correction possible</span>
-                      }
-                    </div>
-                  </td>
-                </tr>
               }
-            </tbody>
-          </table></div>
-        }
-      </div>
+              <div class="btn-group">
+                <button type="submit" class="btn-success" [disabled]="loadingModal()">{{ loadingModal() ? 'Envoi...' : (modeModal() === 'organiser' ? 'Envoyer la mission' : 'Réassigner') }}</button>
+                <button type="button" class="btn-ghost" (click)="demanderFermeture()">Annuler</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -210,53 +146,42 @@ import { abandonConfirme, demanderMotif } from '../../../shared/confirmation/con
     select, textarea { padding:.55rem .8rem; border:1px solid #e5e7eb; border-radius:6px; font-size:.9rem; width:100%; font-family:inherit; }
     .field-error { display:block; color:#dc2626; font-size:.8rem; margin-top:.3rem; }
     .note { font-size:.85rem; color:#6b7280; margin:0 0 1rem; }
-    .text-muted { color:#6b7280; font-size:.85rem; }
+    .text-muted { color:#6b7280; font-size:.8rem; }
+    .incident { color:#b45309; font-size:.8rem; margin-top:.25rem; }
+    .compteur { display:inline-block; min-width:1.6rem; padding:0 .45rem; border-radius:999px; background:#d8f3dc; color:#1b4332; font-size:.85rem; text-align:center; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })
 export class CommandesEntrepotComponent implements OnInit {
-  toutes              = signal<any[]>([]);
-  commandesEnAttente  = signal<any[]>([]);
-  commandesConfirmees = signal<any[]>([]);
-  chargement          = signal(true);
-  actionEnCours       = signal<number | null>(null);
-  commandeSelectionnee = signal<any | null>(null);
-  message             = signal<string | null>(null);
-  erreur              = signal<string | null>(null);
-  erreurModal         = signal<string | null>(null);
-  loadingModal        = signal(false);
-  formLivraison!: FormGroup;
-  formReassignation!: FormGroup;
-  transporteurs        = signal<any[]>([]);
-  commandeAReassigner  = signal<any | null>(null);
+  readonly sections = SECTIONS;
+  commandes     = signal<any[]>([]);
+  transporteurs = signal<any[]>([]);
+  chargement    = signal(true);
+  actionEnCours = signal<number | null>(null);
+  message       = signal<string | null>(null);
+  erreur        = signal<string | null>(null);
+  erreurModal   = signal<string | null>(null);
+  loadingModal  = signal(false);
+  cible         = signal<any | null>(null);
+  modeModal     = signal<'organiser' | 'changer'>('organiser');
+  form!: FormGroup;
+
+  aTraiter         = computed(() => this.commandes().filter(c => (c.actions ?? []).some((a: string) => ['confirmer', 'preparer', 'marquer_prete', 'organiser_livraison'].includes(a))).length);
+  incidentsOuverts = computed(() => this.commandes().reduce((n, c) => n + this.incidentsOuvertsDe(c).length, 0));
+
+  readonly libelleIncident = libelleIncident;
+  private cleLivraison = new CleSoumission();
 
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void {
-    this.formLivraison = this.fb.group({
-      transporteur_id: [null, Validators.required],
-      origine:        ['', Validators.required],
-      destination:    ['', Validators.required],
-      date_depart:    ['', Validators.required],
-      date_livraison: [''],
-    });
-    this.formReassignation = this.fb.group({ transporteur_id: [null, Validators.required], motif: [''] });
+    this.form = this.fb.group({ transporteur_id: [null, Validators.required], origine: [''], destination: [''], date_depart: [''], motif: [''] });
     this.charger();
-    this.api.getTransporteurs().subscribe({
-      next: res => this.transporteurs.set(res.transporteurs ?? []),
-      error: () => {},
-    });
   }
 
   charger(): void {
-    this.chargement.set(true);
     this.api.getCommandesEntrepot().subscribe({
-      next: res => {
-        const all: any[] = res.commandes ?? [];
-        this.commandesEnAttente.set(all.filter(c => c.statut === 'en_attente'));
-        this.commandesConfirmees.set(all.filter(c => c.statut === 'confirmee'));
-        this.chargement.set(false);
-      },
+      next: res => { this.commandes.set(res.commandes ?? []); this.chargement.set(false); },
       error: err => {
         this.chargement.set(false);
         this.erreur.set(err.status === 0 ? 'Serveur injoignable. Vérifiez votre connexion.' : err.error?.message ?? 'Impossible de charger les commandes.');
@@ -264,59 +189,94 @@ export class CommandesEntrepotComponent implements OnInit {
     });
   }
 
-  refuser(c: any): void {
-    const motif = demanderMotif(`Refuser la commande ${c.numero_commande} ?\nElle sera annulée et l'acheteur notifié avec le motif. Le stock n'est pas modifié.`, true);
-    if (motif === null) return;
-    this.executer(c.id, this.api.refuserCommande(c.id, motif), 'Commande refusée. L\'acheteur a été notifié.');
+  parSection(statuts: string[]): any[] { return this.commandes().filter(c => statuts.includes(c.statut)); }
+
+  incidentsOuvertsDe(c: any): any[] {
+    return [...(c.incidents ?? []), ...(c.livraison?.incidents ?? [])].filter(i => i.statut === 'ouvert');
   }
 
-  annulerConfirmation(c: any): void {
-    const motif = demanderMotif(`Annuler la commande confirmée ${c.numero_commande} ?\n${c.quantite} kg seront remis en stock et l'acheteur sera notifié. Cette annulation est définitive. Aucun remboursement n'est effectué automatiquement.`, true);
-    if (motif === null) return;
-    this.executer(c.id, this.api.annulerConfirmationCommande(c.id, motif), 'Commande annulée, quantité remise en stock.');
+  actions(c: any): ActionCommande[] {
+    const ordre: ActionCommande[] = ['confirmer', 'preparer', 'marquer_prete', 'organiser_livraison', 'changer_transporteur', 'refuser', 'annuler_commande'];
+    return ordre.filter(a => peutFaire(c, a));
   }
 
-  ouvrirChangementTransporteur(c: any): void {
-    this.commandeAReassigner.set(c);
-    this.formReassignation.reset({ transporteur_id: null, motif: '' });
+  libelle(a: ActionCommande): string { return LIBELLE_ACTION_COMMANDE[a]; }
+
+  classe(a: ActionCommande): string {
+    return ['refuser', 'annuler_commande'].includes(a) ? 'btn-ghost btn-sm' : a === 'changer_transporteur' ? 'btn-secondary btn-sm' : 'btn-success btn-sm';
+  }
+
+  agir(c: any, a: ActionCommande): void {
+    switch (a) {
+      case 'confirmer':
+        if (!confirm(`Confirmer la commande ${c.numero_commande} ? ${c.quantite} kg seront réservés dans le stock.`)) return;
+        return this.executer(c.id, this.api.confirmerCommande(c.id), 'Commande confirmée. La quantité est réservée.');
+      case 'preparer':
+        return this.executer(c.id, this.api.preparerCommande(c.id), 'Préparation lancée. L\'acheteur a été prévenu.');
+      case 'marquer_prete':
+        return this.executer(c.id, this.api.marquerCommandePrete(c.id), 'Commande prête. Organisez maintenant sa livraison.');
+      case 'organiser_livraison':
+      case 'changer_transporteur':
+        return this.ouvrir(c, a === 'organiser_livraison' ? 'organiser' : 'changer');
+      case 'refuser': {
+        const motif = demanderMotif(`Refuser la commande ${c.numero_commande} ?\nElle sera annulée et l'acheteur notifié avec le motif.`, true);
+        if (motif === null) return;
+        return this.executer(c.id, this.api.refuserCommande(c.id, motif), 'Commande refusée. L\'acheteur a été notifié.');
+      }
+      case 'annuler_commande': {
+        const motif = demanderMotif(`Annuler la commande ${c.numero_commande} ?\nLa réservation de ${c.quantite} kg sera libérée, la livraison éventuelle annulée (transporteur prévenu) et l'acheteur notifié. Aucun remboursement n'est effectué automatiquement.`, true);
+        if (motif === null) return;
+        return this.executer(c.id, this.api.annulerConfirmationCommande(c.id, motif), 'Commande annulée, réservation libérée.');
+      }
+    }
+  }
+
+  private ouvrir(c: any, mode: 'organiser' | 'changer'): void {
+    this.modeModal.set(mode);
+    this.cible.set(c);
+    this.form.reset({ transporteur_id: null, origine: '', destination: '', date_depart: '', motif: '' });
+    this.cleLivraison.renouveler();
     this.erreurModal.set(null);
+    // Charge actualisée à chaque ouverture : le choix se fait sur l'occupation réelle.
+    this.api.getTransporteurs().subscribe({ next: res => this.transporteurs.set(res.transporteurs ?? []), error: () => {} });
   }
 
-  changerTransporteur(): void {
-    const c = this.commandeAReassigner()!;
-    const { transporteur_id, motif } = this.formReassignation.value;
+  valider(): void {
+    if (this.form.invalid) { this.form.markAllAsTouched(); return; }
+    const c = this.cible()!;
+    const v = this.form.value;
     this.loadingModal.set(true);
     this.erreurModal.set(null);
-    this.api.changerTransporteurLivraison(c.livraison.id, transporteur_id, motif || undefined).subscribe({
+    const requete = this.modeModal() === 'organiser'
+      ? this.api.createLivraison({
+          commande_id: c.id, transporteur_id: v.transporteur_id,
+          ...(v.origine ? { origine: v.origine } : {}), ...(v.destination ? { destination: v.destination } : {}), ...(v.date_depart ? { date_depart: v.date_depart } : {}),
+        }, this.cleLivraison.valeur)
+      : this.api.changerTransporteurLivraison(c.livraison.id, v.transporteur_id, v.motif || undefined);
+    requete.subscribe({
       next: () => {
+        this.cleLivraison.renouveler();
         this.loadingModal.set(false);
-        this.fermerModal();
-        this.message.set('Transporteur de la livraison modifié. Les deux transporteurs ont été notifiés.');
+        this.cible.set(null);
+        this.afficher(this.modeModal() === 'organiser' ? 'Mission envoyée au transporteur : il doit l\'accepter.' : 'Transporteur changé. Les deux transporteurs ont été prévenus.');
         this.charger();
-        setTimeout(() => this.message.set(null), 4000);
       },
       error: err => {
         this.loadingModal.set(false);
-        this.erreurModal.set(err.error?.message ?? 'Erreur lors du changement de transporteur.');
+        this.erreurModal.set(err.status === 0 ? 'Réponse du serveur perdue : réessayez, la livraison ne sera pas créée deux fois.' : err.error?.message ?? 'Action impossible.');
       },
     });
   }
 
   demanderFermeture(): void {
-    const form = this.commandeAReassigner() ? this.formReassignation : this.formLivraison;
-    if (abandonConfirme(form)) this.fermerModal();
+    if (abandonConfirme(this.form)) this.cible.set(null);
   }
 
   private executer(id: number, requete: ReturnType<ApiService['getCommandesEntrepot']>, succes: string): void {
     this.actionEnCours.set(id);
     this.erreur.set(null);
     requete.subscribe({
-      next: () => {
-        this.actionEnCours.set(null);
-        this.message.set(succes);
-        this.charger();
-        setTimeout(() => this.message.set(null), 4000);
-      },
+      next: () => { this.actionEnCours.set(null); this.afficher(succes); this.charger(); },
       error: err => {
         this.actionEnCours.set(null);
         this.erreur.set(err.status === 0 ? 'Serveur injoignable : action non enregistrée.' : err.error?.message ?? 'Action impossible.');
@@ -325,60 +285,8 @@ export class CommandesEntrepotComponent implements OnInit {
     });
   }
 
-  confirmerSeul(id: number): void {
-    if (!confirm('Confirmer cette commande sans créer de livraison ?')) return;
-    this.actionEnCours.set(id);
-    this.erreur.set(null);
-    this.api.confirmerCommande(id).subscribe({
-      next: () => {
-        this.message.set('Commande confirmée. Le stock a été mis à jour.');
-        this.actionEnCours.set(null);
-        this.charger();
-        setTimeout(() => this.message.set(null), 4000);
-      },
-      error: err => {
-        this.erreur.set(err.error?.message ?? 'Erreur lors de la confirmation.');
-        this.actionEnCours.set(null);
-      },
-    });
-  }
-
-  ouvrirLivraison(c: any): void {
-    this.commandeSelectionnee.set(c);
-    this.formLivraison.reset();
-    this.erreurModal.set(null);
-  }
-
-  fermerModal(): void { this.commandeSelectionnee.set(null); this.commandeAReassigner.set(null); }
-
-  confirmerAvecLivraison(): void {
-    if (this.formLivraison.invalid) { this.formLivraison.markAllAsTouched(); return; }
-    const c = this.commandeSelectionnee()!;
-    this.loadingModal.set(true);
-    this.erreurModal.set(null);
-
-    const confirmation = c.statut === 'confirmee' ? of(null) : this.api.confirmerCommande(c.id);
-    confirmation.subscribe({
-      next: () => {
-        const livData = { ...this.formLivraison.value, commande_id: c.id };
-        this.api.createLivraison(livData).subscribe({
-          next: () => {
-            this.loadingModal.set(false);
-            this.fermerModal();
-            this.message.set('Commande confirmée et livraison créée avec succès.');
-            this.charger();
-            setTimeout(() => this.message.set(null), 4000);
-          },
-          error: err => {
-            this.erreurModal.set(err.error?.message ?? 'Commande confirmée mais erreur à la création de la livraison.');
-            this.loadingModal.set(false);
-          },
-        });
-      },
-      error: err => {
-        this.erreurModal.set(err.error?.message ?? 'Erreur lors de la confirmation.');
-        this.loadingModal.set(false);
-      },
-    });
+  private afficher(texte: string): void {
+    this.message.set(texte);
+    setTimeout(() => this.message.set(null), 4000);
   }
 }

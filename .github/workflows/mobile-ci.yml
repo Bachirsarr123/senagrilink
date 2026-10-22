@@ -1,0 +1,116 @@
+name: Mobile — CI (tests et APK de test, sans publication)
+
+# Intégration continue de l'application Flutter. NE PUBLIE JAMAIS RIEN :
+# l'APK produit est un APK de TEST (signé avec une clé de debug éphémère),
+# conservé 7 jours comme artefact privé du dépôt. La distribution aux
+# utilisateurs passe exclusivement par mobile-release.yml (manuel, protégé).
+
+on:
+  push:
+    paths:
+      - 'mobile-app/**'
+      - '.github/workflows/mobile-ci.yml'
+      - '.github/scripts/verifier-apk.sh'
+  pull_request:
+    paths:
+      - 'mobile-app/**'
+      - '.github/workflows/mobile-ci.yml'
+      - '.github/scripts/verifier-apk.sh'
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "API visée par l'APK de test (ex. préproduction : https://senagrilink-backend-preprod.onrender.com/api). Vide = valeur par défaut du code."
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+
+  apk-test:
+    needs: tests
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+      - run: flutter pub get --enforce-lockfile
+
+      # La garde de signature doit refuser une build de distribution sans clé :
+      # aucune build « de distribution » ne peut retomber sur la clé de debug.
+      - name: Garde de signature (doit échouer sans clé de distribution)
+        run: |
+          if SENAGRILINK_EXIGER_SIGNATURE=true flutter build apk --release > garde.log 2>&1; then
+            echo "::error::la build a réussi alors que la signature de distribution était exigée et absente"; exit 1
+          fi
+          grep -q "Signature de distribution exigée mais incomplète" garde.log \
+            || { cat garde.log; echo "::error::échec inattendu (autre cause que la garde)"; exit 1; }
+          echo "OK : build refusée sans clé de distribution."
+
+      - name: Construire l'APK de test
+        env:
+          API_URL: ${{ inputs.api_url }}
+          # Lot 6 : configuration Firebase (variables du dépôt, non secrètes) ; vides = notifications push désactivées
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          # Variables collées dans GitHub : on retire espaces et retours à la ligne parasites
+          for v in FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_SENDER_ID FIREBASE_PROJECT_ID; do export "$v=$(printf '%s' "${!v}" | tr -d '[:space:]')"; done
+          if [ -n "$API_URL" ]; then
+            flutter build apk --release --dart-define=API_URL="$API_URL" --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
+          else
+            flutter build apk --release --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
+          fi
+
+      - name: Vérifier l'APK (permissions, certificat)
+        run: ../.github/scripts/verifier-apk.sh build/app/outputs/flutter-apk/app-release.apk
+
+      # Le contrôle de distribution doit refuser cet APK (clé de debug), et une
+      # empreinte attendue erronée doit être détectée : preuve que le script de
+      # mobile-release.yml bloque bien une signature non conforme.
+      - name: Contrôles négatifs du script de vérification
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          if ../.github/scripts/verifier-apk.sh "$APK" --distribution > /dev/null 2>&1; then
+            echo "::error::APK de debug accepté pour la distribution"; exit 1; fi
+          if ../.github/scripts/verifier-apk.sh "$APK" --empreinte-attendue 0000000000000000000000000000000000000000000000000000000000000000 > /dev/null 2>&1; then
+            echo "::error::empreinte erronée acceptée"; exit 1; fi
+          if ../.github/scripts/verifier-apk.sh "$APK" --reference "$APK" > /dev/null 2>&1; then
+            echo "::error::même versionCode accepté comme mise à jour"; exit 1; fi
+          echo "OK : clé de debug, empreinte erronée et versionCode non supérieur refusés."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-test-${{ github.sha }}
+          path: mobile-app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7

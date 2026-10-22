@@ -34,12 +34,12 @@ class MissionTransportTest extends TestCase
     private function reservationConfirmee(): int
     {
         $productionId = $this->en($this->producteur)->postJson('/api/productions', [
-            'type_culture' => 'oignon', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 50,
+            'type_culture' => 'oignon', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 50, 'prix_unitaire' => 250,
         ])->assertStatus(201)->json('production.id');
 
         $rid = $this->en($this->producteur)->postJson('/api/reservations', [
             'entrepot_id' => $this->gestionnaire->entrepot->id, 'production_id' => $productionId,
-            'produit' => 'oignon', 'quantite_reservee' => 50, 'date_debut' => '2026-06-02',
+            'produit' => 'oignon', 'quantite_reservee' => 50, 'date_debut' => '2026-06-02', 'mode_transport' => 'transporteur',
         ])->assertStatus(201)->assertJsonPath('reservation.statut', 'en_attente')->json('reservation.id');
 
         $this->en($this->gestionnaire)->putJson("/api/reservations/{$rid}/confirmer")
@@ -87,10 +87,10 @@ class MissionTransportTest extends TestCase
                  ->assertJsonPath('reservations.0.transporteur_id', $this->idTransporteur($this->transporteurA));
         }
 
-        // Le transporteur peut signaler l'arrivée ; l'autre non
-        $this->en($this->transporteurB)->putJson("/api/reservations/{$rid}/arrivee")->assertStatus(403);
-        $this->en($this->transporteurA)->putJson("/api/reservations/{$rid}/arrivee")->assertOk()
-             ->assertJsonPath('reservation.statut', 'arrivee_entrepot');
+        // Seul le transporteur affecté peut accepter puis acheminer ; l'autre non
+        $this->en($this->transporteurB)->putJson("/api/reservations/{$rid}/accepter-mission")->assertStatus(403);
+        $this->en($this->transporteurB)->putJson("/api/reservations/{$rid}/etape", ['etape' => 'en_route'])->assertStatus(403);
+        $this->acheminer($this->transporteurA, $rid);
         $this->en($this->producteur)->getJson('/api/reservations')->assertJsonPath('reservations.0.statut', 'arrivee_entrepot');
     }
 
@@ -113,8 +113,9 @@ class MissionTransportTest extends TestCase
             'motif' => 'Mauvais transporteur choisi', 'utilisateur_id' => $this->gestionnaire->id,
         ]);
         $this->en($this->gestionnaire)->getJson('/api/reservations')
-             ->assertJsonPath('reservations.0.historique.1.action', 'reassignation_transporteur')
-             ->assertJsonPath('reservations.0.historique.1.utilisateur.id', $this->gestionnaire->id);
+             // Chaque étape est historisée : création, confirmation, assignation, réassignation
+             ->assertJsonPath('reservations.0.historique.*.action', ['creation', 'confirmation', 'assignation_transporteur', 'reassignation_transporteur'])
+             ->assertJsonPath('reservations.0.historique.3.utilisateur.id', $this->gestionnaire->id);
         // Le transporteur ne reçoit pas l'historique (qui cite d'autres transporteurs)
         $this->en($this->transporteurB)->getJson('/api/reservations')->assertJsonMissingPath('reservations.0.historique');
 
@@ -132,7 +133,7 @@ class MissionTransportTest extends TestCase
         $this->en($this->gestionnaire)->deleteJson("/api/reservations/{$rid}/transporteur")->assertStatus(422); // double retrait
 
         $this->en($this->gestionnaire)->putJson("/api/reservations/{$rid}/assigner-transporteur", ['transporteur_id' => $this->idTransporteur($this->transporteurB)])->assertOk();
-        $this->en($this->transporteurB)->putJson("/api/reservations/{$rid}/arrivee")->assertOk();
+        $this->acheminer($this->transporteurB, $rid);
 
         // Trajet terminé : ni réassignation ni retrait
         $this->en($this->gestionnaire)->putJson("/api/reservations/{$rid}/assigner-transporteur", ['transporteur_id' => $this->idTransporteur($this->transporteurA)])->assertStatus(422);
@@ -192,16 +193,15 @@ class MissionTransportTest extends TestCase
         $rid = $this->reservationConfirmee();
         $this->en($this->gestionnaire)->putJson("/api/reservations/{$rid}/assigner-transporteur", ['transporteur_id' => $this->idTransporteur($this->transporteurA)])->assertOk();
 
-        $this->en($this->producteur)->putJson("/api/reservations/{$rid}/annuler")->assertStatus(422)
-             ->assertJsonPath('statut_actuel', 'confirmee');
         $this->en(Utilisateur::factory()->create())->putJson("/api/reservations/{$rid}/annuler")->assertStatus(403);
 
-        $this->en($this->gestionnaire)->deleteJson("/api/reservations/{$rid}/transporteur")->assertOk();
+        // Lot 2 : annulation possible jusqu'au départ, même avec un transporteur affecté ; il est prévenu
         $this->en($this->producteur)->putJson("/api/reservations/{$rid}/annuler", ['motif' => 'Erreur de quantité'])->assertOk()
              ->assertJsonPath('reservation.statut', 'annulee');
         $this->en($this->producteur)->putJson("/api/reservations/{$rid}/annuler")->assertStatus(422); // double annulation
 
         $this->assertContains('reservation_annulee', $this->notifications($this->gestionnaire));
+        $this->assertContains('mission_annulee', $this->notifications($this->transporteurA));
         $this->en($this->gestionnaire)->putJson("/api/reservations/{$rid}/assigner-transporteur", ['transporteur_id' => $this->idTransporteur($this->transporteurA)])->assertStatus(422);
     }
 }

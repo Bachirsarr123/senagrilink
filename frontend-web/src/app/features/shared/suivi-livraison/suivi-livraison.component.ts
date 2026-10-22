@@ -72,7 +72,17 @@ export type EtatSuivi = 'chargement' | 'direct' | 'sans-position' | 'pas-partie'
           </div>
         }
 
-        @if (aUnePosition()) {
+        @if (aUnePosition() && arriveeEstimee()) {
+          <p class="suivi-panneau__distance" data-test="arrivee"><strong>Arrivée vers {{ arriveeEstimee() | date:'HH:mm' }}</strong></p>
+          <p class="suivi-panneau__note">{{ dans() }}@if (distanceKmServeur() != null) { · {{ formaterKm(distanceKmServeur()!) }} }
+            — {{ routier() ? 'estimation par la route' : 'estimation approximative (distance et vitesse moyenne)' }}, depuis la dernière position reçue.</p>
+          @if (progression() !== null) {
+            <div class="progression" role="progressbar" aria-label="Progression estimée"
+                 [attr.aria-valuenow]="progression()" aria-valuemin="0" aria-valuemax="100">
+              <span class="progression__barre" [style.width.%]="progression()"></span>
+            </div>
+          }
+        } @else if (aUnePosition()) {
           @if (distanceRestante(); as d) {
             <p class="suivi-panneau__distance"><strong>{{ d }}</strong> jusqu'à la destination</p>
             <p class="suivi-panneau__note">Distance à vol d'oiseau, estimée depuis la dernière position reçue.</p>
@@ -100,11 +110,12 @@ export type EtatSuivi = 'chargement' | 'direct' | 'sans-position' | 'pas-partie'
 
         @if (infos(); as i) {
           <dl class="suivi-details">
+            @if (conducteur(); as c) { <div><dt>Conduit par</dt><dd>{{ c.nom }}@if (c.telephone) { · <a [href]="'tel:' + c.telephone">{{ c.telephone }}</a> }</dd></div> }
             @if (i.produit) { <div><dt>Marchandise</dt><dd>{{ i.produit }}@if (i.quantite) { · {{ i.quantite }} kg }</dd></div> }
             @if (origineNom()) { <div><dt>Départ</dt><dd>{{ origineNom() }}</dd></div> }
             @if (destinationAdresse()) { <div><dt>Destination</dt><dd>{{ destinationAdresse() }}</dd></div> }
             @if (i.date_depart) { <div><dt>Parti le</dt><dd>{{ i.date_depart | date:'dd/MM/yyyy à HH:mm' }}</dd></div> }
-            @if (i.date_livraison) { <div><dt>Livré le</dt><dd>{{ i.date_livraison | date:'dd/MM/yyyy à HH:mm' }}</dd></div> }
+            @if (i.date_livraison) { <div><dt>Arrivé le</dt><dd>{{ i.date_livraison | date:'dd/MM/yyyy à HH:mm' }}</dd></div> }
             @if (aUnePosition() && horodatagePosition()) {
               <div><dt>Position GPS reçue</dt><dd>{{ horodatagePosition() | date:'dd/MM/yyyy à HH:mm:ss' }}</dd></div>
             }
@@ -121,7 +132,7 @@ export type EtatSuivi = 'chargement' | 'direct' | 'sans-position' | 'pas-partie'
             <span><i class="legende-depart"></i>Départ</span>
             <span><i class="legende-vehicule"></i>Transporteur</span>
             <span><i class="legende-arrivee"></i>Arrivée</span>
-            <span><i class="legende-trace"></i>Tracé indicatif</span>
+            <span><i class="legende-trace"></i>{{ routier() ? 'Trajet par la route' : 'Tracé indicatif' }}</span>
           </p>
         }
       </aside>
@@ -147,6 +158,14 @@ export class SuiviLivraisonComponent implements OnInit, AfterViewInit, OnDestroy
   erreurReseau = signal(false);
   tuilesIndisponibles = signal(false);
   suiviAuto = signal(true);
+  conducteur = signal<{ nom: string; telephone?: string } | null>(null);
+  arriveeEstimee = signal<string | null>(null);
+  distanceKmServeur = signal<number | null>(null);
+  routier = signal(false);
+  private trace: [number, number][] = [];
+  private trajet: [number, number][] | null = null;
+  private type = 'livraison';
+  private fond: any = undefined;
 
   /** Écart horloge appareil − horloge serveur, pour dater la position sans erreur de fuseau ou d'heure. */
   private decalageHorlogeMs = 0;
@@ -178,13 +197,20 @@ export class SuiviLivraisonComponent implements OnInit, AfterViewInit, OnDestroy
     if (total == null || reste == null || total < 0.05) return null;
     return Math.round(Math.min(100, Math.max(0, (1 - reste / total) * 100)));
   });
+  dans = computed(() => {
+    const t = versMs(this.arriveeEstimee());
+    if (t == null) return '';
+    const m = Math.round((t - (this.maintenant() - this.decalageHorlogeMs)) / 60_000);
+    return m <= 1 ? 'arrivée imminente' : m < 60 ? `dans ${m} min` : `dans ${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+  });
+  readonly formaterKm = (km: number) => formaterDistance(km) ?? '';
   origineNom = computed(() => this.origine()?.nom ?? null);
   destinationAdresse = computed(() => this.destination()?.adresse ?? null);
 
   titreEtat = computed(() => ({
     'sans-position': 'En attente de position',
-    'pas-partie': 'Livraison pas encore partie',
-    terminee: 'Livraison effectuée',
+    'pas-partie': 'Pas encore parti',
+    terminee: 'Trajet terminé',
     probleme: 'Problème signalé',
     refuse: 'Accès refusé',
     introuvable: 'Livraison introuvable',
@@ -194,8 +220,8 @@ export class SuiviLivraisonComponent implements OnInit, AfterViewInit, OnDestroy
   } as Record<string, string>)[this.etat()] ?? '📍');
   messageCarte = computed(() => ({
     'sans-position': 'Le transporteur n’a pas encore transmis sa position. La carte s’affichera dès sa réception.',
-    'pas-partie': 'Le suivi en direct démarrera au départ du transporteur. Cette page se met à jour automatiquement.',
-    terminee: 'La livraison est terminée : la position du transporteur n’est plus partagée.',
+    'pas-partie': 'Le suivi en direct démarrera au départ. Cette page se met à jour automatiquement.',
+    terminee: 'Le trajet est terminé : la position n’est plus partagée.',
     probleme: 'Le transporteur a signalé un problème : le suivi en direct est suspendu.',
     refuse: 'Vous n’avez pas accès au suivi de cette livraison.',
     introuvable: 'Cette livraison n’existe pas ou n’est plus disponible.',
@@ -203,12 +229,17 @@ export class SuiviLivraisonComponent implements OnInit, AfterViewInit, OnDestroy
 
   ngOnInit(): void {
     this.livraisonId = Number(this.route.snapshot.paramMap.get('id'));
+    this.type = this.route.snapshot.paramMap.get('type') ?? 'livraison';
     this.horloge = setInterval(() => this.maintenant.set(Date.now()), 15_000);
     document.addEventListener('visibilitychange', this.surVisibilite);
   }
 
   ngAfterViewInit(): void {
-    this.rafraichir();
+    // Fond de carte configuré d'abord (fournisseur autorisé), puis premier chargement du suivi.
+    this.api.getConfigurationCarte().subscribe({
+      next: c => { this.fond = c; this.rafraichir(); },
+      error: () => { this.fond = null; this.rafraichir(); },
+    });
   }
 
   ngOnDestroy(): void {
@@ -234,7 +265,7 @@ export class SuiviLivraisonComponent implements OnInit, AfterViewInit, OnDestroy
   rafraichir(): void {
     this.annulerMinuteur();
     if (this.detruit) return;
-    this.api.getPositionLivraison(this.livraisonId).subscribe({
+    this.api.getSuivi(this.type, this.livraisonId).subscribe({
       next: res => this.surPosition(res),
       error: err => this.surErreur(err),
     });
@@ -245,21 +276,42 @@ export class SuiviLivraisonComponent implements OnInit, AfterViewInit, OnDestroy
     this.decalageHorlogeMs = serveur == null ? 0 : Date.now() - serveur;
     this.maintenant.set(Date.now());
     this.erreurReseau.set(false);
-    this.statut.set(res.statut_livraison ?? null);
-    this.infos.set(res.livraison ?? null);
+    this.statut.set(res.statut ?? null);
+    const d = res.details ?? {};
+    this.infos.set({ numero_livraison: res.numero, produit: d.produit, quantite: d.quantite, code_tracabilite: d.code_tracabilite,
+      date_depart: d.parti_le, date_livraison: d.arrive_le });
     this.origine.set(res.origine ?? null);
     this.destination.set(res.destination ?? null);
+    this.conducteur.set(res.conducteur ?? null);
+
+    // Q11 : hors trajet, le serveur ne transmet aucune position.
+    if (!res.en_route) {
+      const fin = ['arrivee', 'livree', 'arrivee_entrepot', 'enregistree'].includes(res.statut);
+      const abandon = ['annulee', 'retournee', 'refusee', 'reception_refusee'].includes(res.statut);
+      if (fin) return this.arreter('terminee');
+      if (abandon) return this.arreter('introuvable');
+      this.vider();
+      this.etat.set('pas-partie');
+      return this.planifier(DELAI_ATTENTE_MS);
+    }
+
     this.horodatagePosition.set(res.position?.timestamp ?? null);
+    this.arriveeEstimee.set(res.arrivee_estimee_le ?? null);
+    this.distanceKmServeur.set(res.distance_restante_km ?? null);
+    this.routier.set(!!res.estimation_routiere);
+    this.trace = res.trace ?? [];
+    this.trajet = res.trajet ?? null;
     const vehicule = { latitude: res.position?.latitude, longitude: res.position?.longitude };
     this.vehicule.set(aDesCoordonnees(vehicule) ? vehicule : null);
     this.etat.set(this.vehicule() ? 'direct' : 'sans-position');
 
     if (this.vehicule()) {
       if (!this.carteMontee) {
-        this.carte.monter(this.conteneurCarte.nativeElement, ko => this.tuilesIndisponibles.set(ko), () => this.suiviAuto.set(false));
+        this.carte.monter(this.conteneurCarte.nativeElement, ko => this.tuilesIndisponibles.set(ko), () => this.suiviAuto.set(false), this.fond ?? undefined);
         this.carteMontee = true;
       }
-      this.carte.afficher({ vehicule: this.vehicule()!, origine: this.origine() ?? {}, destination: this.destination() ?? {} }, this.suiviAuto());
+      this.carte.afficher({ vehicule: this.vehicule()!, origine: this.origine() ?? {}, destination: this.destination() ?? {},
+        trace: this.trace, trajet: this.trajet }, this.suiviAuto());
     }
     this.planifier(DELAI_SUIVI_MS);
   }
@@ -295,6 +347,7 @@ export class SuiviLivraisonComponent implements OnInit, AfterViewInit, OnDestroy
   private vider(): void {
     this.vehicule.set(null);
     this.horodatagePosition.set(null);
+    this.arriveeEstimee.set(null);
   }
 
   private planifier(delai: number): void {

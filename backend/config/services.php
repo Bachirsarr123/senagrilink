@@ -35,4 +35,47 @@ return [
         ],
     ],
 
+
+    /*
+     * Suivi GPS (lot 4). Fond de carte : un fournisseur autorisé pour la
+     * production (ex. MapTiler, Stadia, Thunderforest) se règle par variables
+     * d'environnement ; à défaut, les tuiles publiques d'OpenStreetMap
+     * (usage limité, à remplacer avant l'ouverture au public).
+     * Trajet routier : service compatible OSRM (/route/v1/driving/...) ; à
+     * défaut, distance estimée (vol d'oiseau × 1,3) et vitesse moyenne.
+     */
+    'carte' => [
+        'tuiles_url'  => env('CARTE_TUILES_URL', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        'attribution' => env('CARTE_ATTRIBUTION', '© les contributeurs d\'OpenStreetMap'),
+    ],
+
+    // Lot 9 : itinéraire guidé. OpenRouteService (clé ROUTAGE_CLE, secrète,
+    // saisie dans Render) ou service compatible OSRM (ROUTAGE_URL).
+    'routage' => [
+        'fournisseur'  => env('ROUTAGE_FOURNISSEUR'),
+        'cle'          => env('ROUTAGE_CLE'),
+        'url'          => env('ROUTAGE_URL'),
+        'delai_s'      => (int) env('ROUTAGE_DELAI_S', 4),
+    ],
+
+    // Lot 12 : paiements. Fournisseur « simulation » (comme un vrai paiement, sans
+    // argent réel) en attendant Wave Business ; tarifs de la plateforme.
+    'paiement' => [
+        'fournisseur'           => env('PAIEMENT_FOURNISSEUR', 'simulation'),
+        'commission_pourcent'   => (float) env('PAIEMENT_COMMISSION_POURCENT', 2),
+        'livraison_forfait'     => (float) env('LIVRAISON_FORFAIT_FCFA', 500),
+        'livraison_par_km'      => (float) env('LIVRAISON_PAR_KM_FCFA', 100),
+    ],
+
+    // Lot 6 (Q15) : notifications sur téléphone. Fichier JSON du compte de
+    // service Firebase encodé en base64 ; absent = pas d'envoi (secret Render).
+    'firebase' => [
+        'credentials_base64' => env('FIREBASE_CREDENTIALS_BASE64'),
+    ],
+
+    'suivi' => [
+        'conservation_jours' => (int) env('SUIVI_CONSERVATION_JOURS', 30),
+        'vitesse_defaut_kmh' => (float) env('SUIVI_VITESSE_DEFAUT_KMH', 40),
+    ],
+
 ];

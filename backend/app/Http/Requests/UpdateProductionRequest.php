@@ -21,6 +21,7 @@ class UpdateProductionRequest extends FormRequest
             'date_recolte'     => ['sometimes', 'date'],
             'quantite_estimee' => ['sometimes', 'numeric', 'min:0'],
             'quantite_reelle'  => ['nullable', 'numeric', 'min:0'],
+            'prix_unitaire'    => ['sometimes', 'numeric', 'min:1', 'max:10000000'],
             // R2 — le producteur ne fixe pas le statut (réception par l'entrepôt) ;
             // l'administrateur peut corriger, uniquement vers un statut connu.
             'statut'           => $this->user()?->role === 'administrateur'
@@ -33,6 +34,7 @@ class UpdateProductionRequest extends FormRequest
     {
         return [
             'statut.prohibited' => 'Le statut est fixé par la plateforme : la récolte devient disponible après réception validée par l\'entrepôt.',
+            'prix_unitaire.min' => 'Le prix au kilo doit être d\'au moins 1 FCFA.',
         ];
     }
 }

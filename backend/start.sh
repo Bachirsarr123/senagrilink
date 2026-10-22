@@ -5,6 +5,11 @@ echo "================================================="
 echo " SenAgriLink — Démarrage du backend Laravel (Render)"
 echo "================================================="
 
+# ── 0. Garde-fou d'environnement (préproduction) ───────────────────────────────
+# Inactif sans SENAGRILINK_BASE_ATTENDUE / SENAGRILINK_HOTE_INTERDIT.
+. "$(dirname "$0")/garde-base.sh"
+garde_base || { echo "Démarrage interrompu : aucune migration exécutée."; exit 1; }
+
 # ── 1. Fichier .env ───────────────────────────────────────────────────────────
 if [ ! -f /var/www/.env ]; then
     echo "[1/5] .env absent — copie depuis .env.example..."

@@ -25,6 +25,8 @@ class PositionGpsConfidentialiteTest extends TestCase
         $this->p = $this->parcours('en_cours');
         PositionGps::create([
             'transporteur_id' => $this->p->transporteur->transporteur->id,
+            'sujet_type'      => 'livraison',
+            'sujet_id'        => $this->p->livraison->id,
             'latitude'        => 14.7,
             'longitude'       => -17.4,
             'timestamp'       => now(),
@@ -79,7 +81,11 @@ class PositionGpsConfidentialiteTest extends TestCase
         ]);
 
         $this->position($this->p->acheteur)->assertStatus(404);
-        $this->position($autreAcheteur, $nouvelle)->assertOk();
+        // Sans position propre à la nouvelle mission, rien n'est montré (jamais celle de l'ancienne)
+        $this->position($autreAcheteur, $nouvelle)->assertStatus(404)->assertJsonMissingPath('position');
+        PositionGps::create(['transporteur_id' => $this->p->transporteur->transporteur->id, 'sujet_type' => 'livraison', 'sujet_id' => $nouvelle->id,
+            'latitude' => 14.8, 'longitude' => -16.9, 'timestamp' => now()]);
+        $this->position($autreAcheteur, $nouvelle)->assertOk()->assertJsonPath('position.latitude', 14.8);
     }
 
     public function test_le_suivi_renvoie_les_reperes_de_la_livraison_et_lheure_du_serveur(): void

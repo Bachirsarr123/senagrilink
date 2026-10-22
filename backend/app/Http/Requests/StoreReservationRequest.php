@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Support\CircuitDepot;
+use App\Support\Lieux;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
@@ -17,11 +19,17 @@ class StoreReservationRequest extends FormRequest
     {
         return [
             'entrepot_id'       => ['required', 'integer', 'exists:entrepots,id'],
-            'production_id'     => ['nullable', 'integer', $this->regleProductionDuProducteur()],
-            'produit'           => ['required', 'string', 'max:150'],
+            // Toute marchandise déposée est un lot enregistré : le stock reste relié à
+            // sa récolte, à son prix et à sa traçabilité.
+            'production_id'     => ['required', 'integer', $this->regleProductionDuProducteur()],
+            // Repris du lot s'il n'est pas précisé (pas de ressaisie).
+            'produit'           => ['nullable', 'string', 'max:150'],
+            'mode_transport'    => ['required', Rule::in(CircuitDepot::MODES)],
             'quantite_reservee' => ['required', 'numeric', 'min:0.01'],
             'date_debut'        => ['required', 'date'],
             'date_fin'          => ['nullable', 'date', 'after_or_equal:date_debut'],
+            // Lieu de prise en charge : position du téléphone, sinon lieu habituel du profil
+            ...Lieux::regles('collecte'),
         ];
     }
 
@@ -47,8 +55,10 @@ class StoreReservationRequest extends FormRequest
         return [
             'entrepot_id.required'       => 'L\'entrepôt à réserver est obligatoire.',
             'entrepot_id.exists'         => 'L\'entrepôt sélectionné est introuvable.',
+            'production_id.required'     => 'Choisissez la récolte (lot) à déposer.',
             'production_id.exists'       => 'La production référencée est introuvable (ou annulée) parmi vos productions.',
-            'produit.required'           => 'Le type de produit est obligatoire.',
+            'mode_transport.required'    => 'Choisissez qui transporte la marchandise : un transporteur, ou vous-même.',
+            'mode_transport.in'          => 'Mode de transport inconnu.',
             'quantite_reservee.required' => 'La quantité à réserver est obligatoire.',
             'quantite_reservee.min'      => 'La quantité doit être supérieure à zéro.',
             'date_debut.required'        => 'La date de début de réservation est obligatoire.',

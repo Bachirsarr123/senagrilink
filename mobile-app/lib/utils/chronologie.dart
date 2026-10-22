@@ -1,11 +1,12 @@
 import 'geo.dart';
+import 'nombres.dart';
 
 enum EtatEtape { termine, actuel, prevu, alerte }
 
 /// Une étape réellement enregistrée dans le parcours d'un lot (aucune n'est inventée).
 /// Même construction que le site web (shared/suivi/chronologie.ts).
 class EtapeChronologie {
-  final String type; // recolte, entree, sortie, commande, depart, livree, planifiee, probleme
+  final String type; // recolte, acheminement, entree, sortie, commande, depart, livree, planifiee, probleme
   final String titre;
   final String? date;
   /// Lieu déclaré lors de l'opération (jamais une position GPS).
@@ -26,7 +27,10 @@ String? _joindre(List<String?> parts) {
   return p.isEmpty ? null : p.join(' — ');
 }
 
-String? _kg(Object? q) => q is num ? '${q % 1 == 0 ? q.toInt() : q} kg' : null;
+String? _kg(Object? valeur) {
+  final q = nombre(valeur);
+  return q == null ? null : '${q % 1 == 0 ? q.toInt() : q} kg';
+}
 
 String? _nom(Object? p) {
   if (p is! Map) return null;
@@ -51,6 +55,32 @@ List<EtapeChronologie> construireChronologie(Map<String, dynamic>? t) {
         producteur != null ? 'par $producteur' : null,
       ]),
     ));
+  }
+
+  // Acheminement vers l'entrepôt : étapes datées par le serveur. La réception
+  // elle-même apparaît comme « Entrée en entrepôt » (stock) ; un refus est une alerte.
+  const depotActif = ['en_attente', 'confirmee', 'prise_en_charge', 'au_point_collecte', 'chargee', 'en_route', 'arrivee_entrepot'];
+  for (final a in (t['etapes_acheminement'] as List? ?? []).cast<Map>()) {
+    final entrepot = _joindre([(a['entrepot'] as Map?)?['nom'] as String?, (a['entrepot'] as Map?)?['localisation'] as String?]);
+    final transporteur = _nom(a['transporteur']);
+    final visibles = (a['etapes'] as List? ?? []).cast<Map>()
+        .where((e) => e['action'] != 'reception' && e['action'] != 'reception_partielle').toList();
+    for (var j = 0; j < visibles.length; j++) {
+      final e = visibles[j];
+      final refus = e['action'] == 'refus_reception';
+      etapes.add(EtapeChronologie(
+        type: refus ? 'probleme' : 'acheminement',
+        titre: (e['libelle'] ?? e['action']) as String,
+        date: e['date'] as String?,
+        lieu: entrepot,
+        detail: e['action'] == 'creation'
+            ? _kg(a['quantite_prevue'])
+            : (e['action'] == 'acceptation_mission' || e['action'] == 'en_route') && transporteur != null ? 'Transporteur : $transporteur' : null,
+        etat: refus
+            ? EtatEtape.alerte
+            : j == visibles.length - 1 && depotActif.contains(a['statut']) ? EtatEtape.actuel : EtatEtape.termine,
+      ));
+    }
   }
 
   for (final s in (t['etapes_stockage'] as List? ?? []).cast<Map>()) {

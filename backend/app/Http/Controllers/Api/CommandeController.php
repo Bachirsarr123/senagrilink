@@ -2,53 +2,79 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Support\Lieux;
+use App\Support\Tarifs;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCommandeRequest;
 use App\Http\Requests\UpdateCommandeRequest;
+use App\Exceptions\StockInsuffisantException;
 use App\Models\Commande;
+use App\Models\Incident;
+use App\Models\Livraison;
+use App\Models\Transporteur;
 use App\Models\HistoriqueOperation;
 use App\Models\Stock;
 use App\Notifications\CommandeConfirmeeNotification;
 use App\Notifications\NouvelleCommandeNotification;
 use App\Notifications\OperationModifieeNotification;
+use App\Services\AnnulationCommande;
+use App\Services\GestionStock;
+use App\Services\Paiements;
+use App\Services\ReceptionCommande;
+use App\Support\CircuitLivraison;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class CommandeController extends Controller
 {
+    public function __construct(
+        private readonly GestionStock $gestionStock,
+        private readonly AnnulationCommande $annulation,
+    ) {
+    }
+
     // ── Acheteur en gros ─────────────────────────────────────────────────────
 
     /**
-     * Catalogue : tous les stocks disponibles (quantite > 0) de tous les entrepôts.
+     * Catalogue : stocks ayant une quantité disponible (physique - réservé) et
+     * un prix fixé par le producteur du lot. « quantite » est le disponible.
      */
     public function catalogue(Request $request): JsonResponse
     {
         $stocks = Stock::where('statut', 'disponible')
-            ->where('quantite', '>', 0)
+            ->whereColumn('quantite', '>', 'quantite_reservee')
+            ->whereHas('production', fn ($q) => $q->whereNotNull('prix_unitaire'))
             ->with([
                 'entrepot:id,nom_entrepot,localisation',
-                'production:id,code_tracabilite,type_culture,date_recolte',
+                'production:id,code_tracabilite,type_culture,date_recolte,prix_unitaire',
             ])
             ->orderBy('produit')
             ->get()
             ->map(fn ($stock) => [
-                'stock_id'     => $stock->id,
-                'produit'      => $stock->produit,
-                'quantite'     => $stock->quantite,
-                'date_entree'  => $stock->date_entree,
-                'entrepot'     => $stock->entrepot,
-                'production'   => $stock->production,
+                'stock_id'            => $stock->id,
+                'produit'             => $stock->produit,
+                'quantite'            => $stock->quantite_disponible,
+                'quantite_disponible' => $stock->quantite_disponible,
+                'prix_unitaire'       => $stock->production->prix_unitaire,
+                'date_entree'         => $stock->date_entree,
+                'entrepot'            => $stock->entrepot,
+                'production'          => $stock->production,
             ]);
 
         return response()->json(['catalogue' => $stocks]);
     }
 
     /**
-     * Passer une commande.
+     * Passer une commande, ou un panier de plusieurs produits (lignes[]).
      *
-     * Règle métier 1 : quantite demandée <= quantite disponible en stock.
-     * Retourne 422 explicite si insuffisant — jamais de commande partielle silencieuse.
+     * Règle métier 1 : chaque quantité demandée <= disponible (physique - réservé).
+     * Tout ou rien : si une ligne est impossible, aucune commande n'est créée.
+     * Le prix au kilo du lot (fixé par le producteur) est figé sur chaque commande ;
+     * les commandes d'un même panier partagent sa référence.
      */
     public function store(StoreCommandeRequest $request): JsonResponse
     {
@@ -58,56 +84,106 @@ class CommandeController extends Controller
             return response()->json(['message' => 'Profil acheteur introuvable.'], 404);
         }
 
-        $stock = Stock::findOrFail($request->stock_id);
+        $lignes = $request->has('lignes')
+            ? $request->input('lignes')
+            : [['stock_id' => $request->stock_id, 'quantite' => $request->quantite]];
+        [$livLat, $livLng, $livAdresse] = Lieux::retenir($request, 'livraison', $acheteur, $request->user()->adresse);
+        $panier = count($lignes) > 1 ? 'PAN-'.now()->format('Ymd').'-'.strtoupper(Str::random(5)) : null;
+        $moyen  = $request->input('moyen');
 
-        // Règle métier 1 — vérification avant création
-        if ($request->quantite > $stock->quantite) {
-            return response()->json([
-                'message'             => 'Quantité insuffisante en stock. Commande non créée.',
-                'quantite_disponible' => $stock->quantite,
-                'quantite_demandee'   => $request->quantite,
-            ], 422);
+        // Une ligne impossible lève une exception : la transaction annule tout le panier.
+        $resultat = DB::transaction(function () use ($lignes, $acheteur, $panier, $request, $livLat, $livLng, $livAdresse, $moyen) {
+            $commandes = [];
+
+            foreach ($lignes as $index => $ligne) {
+                $stock    = Stock::with('production:id,producteur_id,prix_unitaire', 'entrepot')->whereKey($ligne['stock_id'])->lockForUpdate()->first();
+                $quantite = (float) $ligne['quantite'];
+                $contexte = count($lignes) > 1 ? ['ligne' => $index, 'produit' => $stock?->produit] : [];
+
+                if ($stock->statut !== 'disponible') {
+                    throw new HttpResponseException(response()->json(['message' => 'Ce produit n\'est plus disponible en stock.', 'statut' => $stock->statut, ...$contexte], 422));
+                }
+
+                if ($quantite > $stock->quantite_disponible) {
+                    throw new HttpResponseException(response()->json([
+                        'message'             => 'Quantité insuffisante en stock. Commande non créée.',
+                        'quantite_disponible' => $stock->quantite_disponible,
+                        'quantite_demandee'   => $quantite,
+                        ...$contexte,
+                    ], 422));
+                }
+
+                $prixUnitaire = $stock->production?->prix_unitaire;
+
+                if ($prixUnitaire === null) {
+                    throw new HttpResponseException(response()->json(['message' => 'Le producteur n\'a pas encore fixé le prix de ce lot : il ne peut pas être commandé.', ...$contexte], 422));
+                }
+
+                $commande = Commande::create([
+                    'acheteur_id'   => $acheteur->id,
+                    'stock_id'      => $stock->id,
+                    'produit'       => $stock->produit,
+                    'quantite'      => $quantite,
+                    'prix_unitaire' => $prixUnitaire,
+                    'prix'          => round($prixUnitaire * $quantite, 2),
+                    'panier'        => $panier,
+                    'livraison_latitude'  => $livLat,
+                    'livraison_longitude' => $livLng,
+                    'livraison_adresse'   => $livAdresse,
+                    // Lot 12 : montants figés (livraison selon la distance, frais d'entrepôt, commission)
+                    ...array_diff_key(Tarifs::calculer(round($prixUnitaire * $quantite, 2), $quantite, $stock->entrepot, $livLat, $livLng), ['prix' => 0, 'distance_km' => 0]),
+                    'date_commande' => now(),
+                    'statut'        => 'en_attente',
+                ]);
+
+                // Lot 13 : payée en ligne, la quantité est gardée pour l'acheteur le temps du paiement
+                if (in_array($moyen, Paiements::MOYENS_EN_LIGNE, true)) {
+                    $this->gestionStock->reserver($stock->id, $quantite, $request->user(), 'commande', $commande->id);
+                    $commande->update(['etat_stock' => 'reserve']);
+                }
+
+                HistoriqueOperation::consigner('commande', $commande->id, 'creation', $request->user(), null, 'en_attente', null, [
+                    'quantite' => $quantite, 'prix_unitaire' => (float) $prixUnitaire, 'montant' => (float) $commande->prix, 'panier' => $panier,
+                ]);
+
+                $commandes[] = [$commande, $stock];
+            }
+
+            return $commandes;
+        });
+
+        // Notifie le producteur du lot et le gestionnaire de l'entrepôt de chaque ligne
+        foreach ($resultat as [$commande, $stock]) {
+            $stock->loadMissing(['production.producteur.utilisateur', 'entrepot.utilisateur']);
+            $stock->production?->producteur?->utilisateur?->notify(new NouvelleCommandeNotification($commande));
+            $stock->entrepot?->utilisateur?->notify(new NouvelleCommandeNotification($commande));
         }
 
-        if ($stock->statut !== 'disponible') {
-            return response()->json([
-                'message' => 'Ce produit n\'est plus disponible en stock.',
-                'statut'  => $stock->statut,
-            ], 422);
-        }
-
-        $commande = Commande::create([
-            'acheteur_id'    => $acheteur->id,
-            'stock_id'       => $stock->id,
-            'produit'        => $stock->produit,
-            'quantite'       => $request->quantite,
-            'prix'           => $request->prix,
-            'date_commande'  => now(),
-            'statut'         => 'en_attente',
-        ]);
-
-        // Notifie le producteur du lot (s'il existe) et le gestionnaire de l'entrepôt
-        $stock->loadMissing(['production.producteur.utilisateur', 'entrepot.utilisateur']);
-
-        $producteurUtilisateur = $stock->production?->producteur?->utilisateur;
-        if ($producteurUtilisateur) {
-            $producteurUtilisateur->notify(new NouvelleCommandeNotification($commande));
-        }
-
-        $gestionnaireUtilisateur = $stock->entrepot?->utilisateur;
-        if ($gestionnaireUtilisateur) {
-            $gestionnaireUtilisateur->notify(new NouvelleCommandeNotification($commande));
-        }
+        // Lot 13 : commande et paiement d'un seul geste. L'entrepôt (ou son pilote
+        // automatique) ne la traite qu'une fois payée, ou les espèces choisies.
+        $paiement = $moyen
+            ? app(Paiements::class)->initier($acheteur, collect($resultat)->map(fn ($r) => $r[0]->id)->all(), $moyen, $request->input('telephone'))
+            : null;
+        $commandes = collect($resultat)->map(fn ($r) => $r[0]->fresh()->load('stock.entrepot'));
+        $total     = Paiements::fcfa($commandes->sum('total_a_payer'));
 
         return response()->json([
-            'message'  => 'Commande passée avec succès.',
-            'commande' => $commande->load('stock.entrepot'),
+            'message'   => match (true) {
+                $moyen === 'especes' => sprintf('Commande passée. Vous paierez %s FCFA en espèces au transporteur, à la livraison.', $total),
+                $moyen !== null      => sprintf('Confirmez le paiement de %s FCFA avec %s pour valider la commande.', $total, Paiements::moyen($moyen)),
+                default              => sprintf('Commande enregistrée. Payez-la (%s FCFA) pour que l\'entrepôt la prépare.', $total),
+            },
+            'commande'  => $commandes->first(),
+            'commandes' => $commandes,
+            'panier'    => $panier,
+            'paiement'  => $paiement?->only(['reference', 'montant', 'moyen', 'fournisseur', 'statut']),
+            'delai_paiement_min' => Paiements::DELAI_MIN,
         ], 201);
     }
 
     /**
-     * Modifier une commande (quantite ou prix).
-     * Uniquement possible si statut = en_attente.
+     * Modifier la quantité d'une commande (le prix au kilo reste celui figé à
+     * la commande ; le montant est recalculé). Uniquement si statut = en_attente.
      */
     public function update(UpdateCommandeRequest $request, int $id): JsonResponse
     {
@@ -117,27 +193,56 @@ class CommandeController extends Controller
             return $commande;
         }
 
-        if ($commande->statut !== 'en_attente') {
-            return response()->json([
-                'message'       => 'Seules les commandes en attente peuvent être modifiées.',
-                'statut_actuel' => $commande->statut,
-            ], 422);
-        }
+        // Verrou + revérification : une modification envoyée pendant la
+        // confirmation ne peut plus s'appliquer à une commande déjà confirmée
+        // (stock déduit de l'ancienne quantité, commande affichant la nouvelle).
+        $refus = DB::transaction(function () use ($commande, $request) {
+            $c = Commande::whereKey($commande->id)->lockForUpdate()->first();
 
-        // Si la quantité change, re-vérifier la disponibilité (règle métier 1)
-        if ($request->has('quantite') && $request->quantite !== $commande->quantite) {
-            $stock = $commande->stock;
-
-            if ($request->quantite > $stock->quantite) {
+            if ($c->statut !== 'en_attente') {
                 return response()->json([
-                    'message'             => 'Quantité insuffisante en stock.',
-                    'quantite_disponible' => $stock->quantite,
-                    'quantite_demandee'   => $request->quantite,
+                    'message'       => 'Seules les commandes en attente peuvent être modifiées.',
+                    'statut_actuel' => $c->statut,
                 ], 422);
             }
-        }
 
-        $commande->update($request->validated());
+            // Si la quantité change, re-vérifier la disponibilité (règle métier 1)
+            if ($request->has('quantite')) {
+                $stock = Stock::whereKey($c->stock_id)->lockForUpdate()->first();
+
+                if (! $stock || $request->quantite > $stock->quantite_disponible) {
+                    return response()->json([
+                        'message'             => 'Quantité insuffisante en stock.',
+                        'quantite_disponible' => $stock?->quantite_disponible ?? 0,
+                        'quantite_demandee'   => $request->quantite,
+                    ], 422);
+                }
+
+                if ($c->statut_paiement !== 'a_payer') {
+                    return response()->json(['message' => 'Cette commande est déjà payée : elle ne peut plus être modifiée. Annulez-la pour être remboursé.'], 422);
+                }
+                if ($c->etat_stock === 'reserve') {
+                    return response()->json(['message' => 'Cette commande attend votre paiement : payez-la, ou annulez-la et commandez la nouvelle quantité.'], 422);
+                }
+
+                $ancienne     = (float) $c->quantite;
+                $c->quantite  = $request->quantite;
+                $c->prix      = $c->prix_unitaire !== null ? round($c->prix_unitaire * $request->quantite, 2) : $c->prix;
+                // Lot 12 : montants recalculés pour la nouvelle quantité
+                $c->fill(array_diff_key(Tarifs::calculer((float) $c->prix, (float) $c->quantite, $stock->entrepot, $c->livraison_latitude, $c->livraison_longitude), ['prix' => 0, 'distance_km' => 0]));
+                $c->save();
+
+                HistoriqueOperation::consigner('commande', $c->id, 'modification', $request->user(), 'en_attente', 'en_attente', null, [
+                    'quantite_avant' => $ancienne, 'quantite_apres' => (float) $c->quantite,
+                ]);
+            }
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
+        }
 
         return response()->json([
             'message'  => 'Commande mise à jour.',
@@ -167,6 +272,11 @@ class CommandeController extends Controller
                 ], 422);
             }
 
+            // Lot 13 : quantité gardée pendant le paiement, rendue au stock
+            if ($c->etat_stock === 'reserve' && $c->stock_id) {
+                $this->gestionStock->liberer($c->stock_id, (float) $c->quantite, $request->user(), 'commande', $c->id, $request->input('motif'));
+                $c->etat_stock = 'libere';
+            }
             $c->statut = 'annulee';
             $c->save();
             HistoriqueOperation::consigner('commande', $c->id, 'annulation', $request->user(), 'en_attente', 'annulee', $request->input('motif'));
@@ -178,18 +288,21 @@ class CommandeController extends Controller
             return $refus;
         }
 
+        // Lot 12 : déjà payée en ligne, elle est remboursée
+        app(\App\Services\Paiements::class)->rembourser($commande);
+        $c = $commande->fresh();
+
         return response()->json([
-            'message'  => 'Commande annulée.',
-            'commande' => $commande->fresh(),
+            'message'  => $c->statut_paiement === 'rembourse' ? 'Commande annulée. Vous êtes remboursé.' : 'Commande annulée.',
+            'commande' => $c,
         ]);
     }
 
     /**
-     * Historique des commandes de l'acheteur connecté.
-     *
-     * Règle métier 4 : si la livraison associée est en statut probleme,
-     * un flag alerte_livraison = true est ajouté (alerte visuelle, pas de changement
-     * automatique du statut commande).
+     * Historique des commandes de l'acheteur connecté, avec pour chacune ses
+     * actions possibles, l'étape attendue, ses incidents ouverts et le code de
+     * réception (donné au transporteur à la remise).
+     * alerte_livraison signale un incident ouvert sur la livraison.
      */
     public function historique(Request $request): JsonResponse
     {
@@ -203,17 +316,101 @@ class CommandeController extends Controller
             ->with([
                 'stock:id,produit,entrepot_id',
                 'stock.entrepot:id,nom_entrepot,localisation',
-                'livraison:id,commande_id,statut,date_depart,date_livraison,numero_livraison',
+                'livraison:id,commande_id,statut,transporteur_id,date_depart,date_livraison,numero_livraison,parti_le,arrive_le',
+                'livraison.transporteur:id,utilisateur_id,type_vehicule',
+                'livraison.transporteur.utilisateur:id,nom,prenom,telephone',
+                'livraison.incidents' => fn ($q) => $q->ouverts(),
+                'incidents',
             ])
             ->orderBy('date_commande', 'desc')
             ->get()
-            ->map(fn ($commande) => array_merge(
-                $commande->toArray(),
-                // Règle métier 4 — alerte visuelle si livraison en problème
-                ['alerte_livraison' => $commande->livraison?->statut === 'probleme']
-            ));
+            ->map(fn (Commande $c) => $this->presenter($c, $request->user(), true));
 
         return response()->json(['commandes' => $commandes]);
+    }
+
+    /** Commande + actions, étape attendue et incidents (même forme pour l'acheteur et l'entrepôt). */
+    private function presenter(Commande $c, $utilisateur, bool $pourAcheteur): array
+    {
+        $demandeOuverte = $c->incidents->contains(fn ($i) => $i->statut === 'ouvert' && $i->type === 'demande_annulation');
+        $alerte         = (bool) $c->livraison?->incidents?->isNotEmpty();
+
+        return array_merge($c->toArray(), [
+            'actions'          => CircuitLivraison::actionsCommande($c, $utilisateur, $demandeOuverte),
+            'prochaine_etape'  => CircuitLivraison::prochaineEtape($c),
+            'alerte_livraison' => $alerte,
+            'code_reception'   => $pourAcheteur && $c->statut === 'en_livraison' ? $c->code_reception : null,
+        ]);
+    }
+
+    /** L'acheteur confirme lui-même la réception de la livraison arrivée. */
+    public function confirmerReception(Request $request, int $id): JsonResponse
+    {
+        $commande = $this->commandeDeLAcheteur($request, $id);
+
+        if ($commande instanceof JsonResponse) {
+            return $commande;
+        }
+
+        $refus = DB::transaction(function () use ($commande, $request) {
+            $c = Commande::whereKey($commande->id)->lockForUpdate()->first();
+            $l = Livraison::where('commande_id', $c->id)->where('statut', 'arrivee')->lockForUpdate()->first();
+
+            if ($c->statut !== 'en_livraison' || ! $l) {
+                return response()->json([
+                    'message'       => 'La réception se confirme quand le transporteur est arrivé.',
+                    'statut_actuel' => $c->statut,
+                ], 422);
+            }
+
+            app(ReceptionCommande::class)->receptionner($c, $l, $request->user(), 'acheteur');
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
+        }
+
+        $livraison = $commande->fresh()->livraison;
+        app(LivraisonController::class)->notifierFin($livraison);
+        Transporteur::with('utilisateur')->find($livraison->transporteur_id)?->utilisateur?->notify(new OperationModifieeNotification(
+            'reception_confirmee', sprintf('L\'acheteur a confirmé la réception de la livraison %s. Mission terminée.', $livraison->numero_livraison),
+            ['livraison_id' => $livraison->id, 'numero_livraison' => $livraison->numero_livraison],
+        ));
+
+        return response()->json(['message' => 'Réception confirmée. Merci !', 'commande' => $commande->fresh()]);
+    }
+
+    /** Demande d'annulation (après confirmation, avant chargement) : l'entrepôt décide. */
+    public function demanderAnnulation(Request $request, int $id): JsonResponse
+    {
+        return $this->declarer($request, $id, 'demande_annulation', $request->input('motif') ?: 'Demande d\'annulation de l\'acheteur.');
+    }
+
+    /** Anomalie à la réception (quantité manquante, produit abîmé, livraison incorrecte) : la commande passe en litige. */
+    public function declarerAnomalie(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'type'        => ['required', Rule::in(Incident::ANOMALIES)],
+            'description' => ['required', 'string', 'max:1000'],
+        ], ['type.required' => 'Choisissez le type d\'anomalie.', 'description.required' => 'Décrivez l\'anomalie constatée.']);
+
+        $reponse = $this->declarer($request, $id, $request->type, $request->description);
+
+        // Lot 12 : l'argent mis de côté reste bloqué jusqu'à la décision (litige)
+        if ($reponse->isSuccessful()) {
+            Commande::whereKey($id)->where('statut_paiement', 'paye')->update(['statut_paiement' => 'litige']);
+        }
+
+        return $reponse;
+    }
+
+    private function declarer(Request $request, int $id, string $type, string $description): JsonResponse
+    {
+        $request->merge(['sujet_type' => 'commande', 'sujet_id' => $id, 'type' => $type, 'description' => $description]);
+
+        return app(IncidentController::class)->store($request);
     }
 
     // ── Gestionnaire d'entrepôt ───────────────────────────────────────────────
@@ -221,8 +418,9 @@ class CommandeController extends Controller
     /**
      * Confirmer une commande en_attente.
      *
-     * Règle métier 1 : quantité stock >= quantité commandée, sinon 422.
-     * Règle métier 2 : déduction atomique du stock lors de la confirmation.
+     * Règle métier 1 : quantité disponible >= quantité commandée, sinon 422.
+     * Règle métier 2 : la confirmation RÉSERVE la quantité (atomique) ; elle
+     * ne sortira physiquement du stock qu'au départ de la livraison.
      */
     public function confirmer(Request $request, int $id): JsonResponse
     {
@@ -240,6 +438,10 @@ class CommandeController extends Controller
             ], 422);
         }
 
+        if ($commande->attendPaiement()) {
+            return response()->json(['message' => 'L\'acheteur n\'a pas encore payé : la commande sera à confirmer dès son paiement.'], 422);
+        }
+
         $stock = $commande->stock;
 
         if (! $stock) {
@@ -248,19 +450,10 @@ class CommandeController extends Controller
             ], 422);
         }
 
-        // Règle métier 1 — re-vérification au moment de la confirmation
-        if ($commande->quantite > $stock->quantite) {
-            return response()->json([
-                'message'             => 'Stock insuffisant pour confirmer cette commande.',
-                'quantite_disponible' => $stock->quantite,
-                'quantite_demandee'   => $commande->quantite,
-            ], 422);
-        }
-
-        // Règle métier 2 — transaction atomique : confirmation + déduction stock.
+        // Règle métier 2 — transaction atomique : confirmation + réservation.
         // Commande et stock sont verrouillés (FOR UPDATE) puis revérifiés : deux
-        // confirmations simultanées ne peuvent pas déduire deux fois la quantité.
-        $refus = DB::transaction(function () use ($commande, &$stock) {
+        // confirmations simultanées ne peuvent pas réserver deux fois la quantité.
+        $refus = DB::transaction(function () use ($commande, &$stock, $request) {
             $commandeVerrouillee = Commande::whereKey($commande->id)->lockForUpdate()->first();
 
             if ($commandeVerrouillee->statut !== 'en_attente') {
@@ -270,27 +463,26 @@ class CommandeController extends Controller
                 ], 422);
             }
 
-            $stock = Stock::whereKey($commandeVerrouillee->stock_id)->lockForUpdate()->first();
-
-            if (! $stock || $commandeVerrouillee->quantite > $stock->quantite) {
+            try {
+                // Lot 13 : déjà gardée pour l'acheteur pendant son paiement
+                $stock = $commandeVerrouillee->etat_stock === 'reserve' ? Stock::find($commandeVerrouillee->stock_id) : $this->gestionStock->reserver(
+                    $commandeVerrouillee->stock_id, (float) $commandeVerrouillee->quantite, $request->user(), 'commande', $commandeVerrouillee->id,
+                );
+            } catch (StockInsuffisantException $e) {
                 return response()->json([
                     'message'             => 'Stock insuffisant pour confirmer cette commande.',
-                    'quantite_disponible' => $stock?->quantite,
-                    'quantite_demandee'   => $commandeVerrouillee->quantite,
+                    'quantite_disponible' => $e->disponible,
+                    'quantite_demandee'   => $e->demandee,
                 ], 422);
             }
 
-            $commandeVerrouillee->statut = 'confirmee';
+            $commandeVerrouillee->statut     = 'confirmee';
+            $commandeVerrouillee->etat_stock = 'reserve';
             $commandeVerrouillee->save();
 
-            $stock->quantite -= $commandeVerrouillee->quantite;
-
-            if ($stock->quantite == 0) {
-                $stock->statut      = 'epuise';
-                $stock->date_sortie = now()->toDateString();
-            }
-
-            $stock->save();
+            HistoriqueOperation::consigner('commande', $commandeVerrouillee->id, 'confirmation', $request->user(), 'en_attente', 'confirmee', null, [
+                'quantite_reservee' => (float) $commandeVerrouillee->quantite,
+            ]);
 
             return null;
         });
@@ -302,9 +494,9 @@ class CommandeController extends Controller
         $commande->acheteur?->utilisateur?->notify(new CommandeConfirmeeNotification($commande));
 
         return response()->json([
-            'message'       => 'Commande confirmée. Stock mis à jour.',
+            'message'       => 'Commande confirmée. Quantité réservée dans le stock.',
             'commande'      => $commande->fresh()->load('stock'),
-            'stock_restant' => $stock->quantite,
+            'stock_restant' => $stock->quantite_disponible,
         ]);
     }
 
@@ -316,14 +508,17 @@ class CommandeController extends Controller
     public function indexEntrepot(Request $request): JsonResponse
     {
         $utilisateur = $request->user();
-        $request->validate(['statut' => ['nullable', 'in:en_attente,confirmee,annulee,livree']]);
+        $request->validate(['statut' => ['nullable', 'in:en_attente,confirmee,en_preparation,prete,en_livraison,receptionnee,litige,annulee']]);
 
         $query = Commande::with([
             'acheteur:id,utilisateur_id',
             'acheteur.utilisateur:id,nom,prenom,telephone',
-            'livraison:id,commande_id,numero_livraison,statut,transporteur_id,date_depart',
+            'stock:id,entrepot_id,produit',
+            'livraison:id,commande_id,numero_livraison,statut,transporteur_id,date_depart,mission_acceptee_le,parti_le,arrive_le,date_livraison',
             'livraison.transporteur:id,utilisateur_id,type_vehicule',
             'livraison.transporteur.utilisateur:id,nom,prenom,telephone',
+            'livraison.incidents' => fn ($q) => $q->ouverts(),
+            'incidents',
             'historique.utilisateur:id,nom,prenom,role',
         ])->when($request->statut, fn ($q, $statut) => $q->where('statut', $statut))
           ->orderByDesc('date_commande');
@@ -338,7 +533,71 @@ class CommandeController extends Controller
             $query->whereHas('stock', fn ($q) => $q->where('entrepot_id', $entrepot->id));
         }
 
-        return response()->json(['commandes' => $query->get()]);
+        return response()->json(['commandes' => $query->get()->map(fn (Commande $c) => $this->presenter($c, $utilisateur, false))]);
+    }
+
+    /** Lancer la préparation d'une commande confirmée. */
+    public function preparer(Request $request, int $id): JsonResponse
+    {
+        return $this->avancer($request, $id, 'confirmee', 'en_preparation', 'preparation', 'Préparation lancée.',
+            'Votre commande %s est en préparation à l\'entrepôt.');
+    }
+
+    /** Commande préparée, prête à être chargée : la livraison peut être organisée. */
+    public function marquerPrete(Request $request, int $id): JsonResponse
+    {
+        $reponse = $this->avancer($request, $id, 'en_preparation', 'prete', 'prete', 'Commande prête. Organisez maintenant sa livraison.',
+            'Votre commande %s est prête : sa livraison va être organisée.');
+
+        // Lot 11 : la livraison est confiée d'office au transporteur libre le plus proche
+        if ($reponse->isSuccessful() && ! \App\Services\PiloteAutomatique::$enCours) {
+            $c = Commande::with('stock.entrepot', 'livraison')->find($id);
+            app(\App\Services\PiloteAutomatique::class)->commandePrete($c);
+            if ($c->fresh()->livraison) {
+                $donnees = $reponse->getData(true);
+                $donnees['message'] = 'Commande prête. Un transporteur a été prévenu automatiquement.';
+
+                return response()->json($donnees, $reponse->getStatusCode());
+            }
+        }
+
+        return $reponse;
+    }
+
+    private function avancer(Request $request, int $id, string $depuis, string $vers, string $action, string $message, string $pourAcheteur): JsonResponse
+    {
+        $commande = Commande::with(['stock', 'acheteur.utilisateur'])->find($id);
+
+        if (! $commande) {
+            return response()->json(['message' => 'Commande introuvable.'], 404);
+        }
+
+        if (! $commande->estGereePar($request->user())) {
+            return response()->json(['message' => 'Accès non autorisé à cette commande.'], 403);
+        }
+
+        $refus = DB::transaction(function () use ($commande, $depuis, $vers, $action, $request) {
+            $c = Commande::whereKey($commande->id)->lockForUpdate()->first();
+
+            if ($c->statut !== $depuis) {
+                return response()->json(['message' => 'Cette étape n\'est pas possible maintenant : les étapes se suivent dans l\'ordre.', 'statut_actuel' => $c->statut], 422);
+            }
+
+            $c->statut = $vers;
+            $c->save();
+            HistoriqueOperation::consigner('commande', $c->id, $action, $request->user(), $depuis, $vers);
+
+            return null;
+        });
+
+        if ($refus) {
+            return $refus;
+        }
+
+        $commande->acheteur?->utilisateur?->notify(new OperationModifieeNotification("commande_{$vers}", sprintf($pourAcheteur, $commande->numero_commande),
+            ['commande_id' => $commande->id, 'numero_commande' => $commande->numero_commande]));
+
+        return response()->json(['message' => $message, 'commande' => $commande->fresh()]);
     }
 
     /** Refus par l'entrepôt d'une commande en attente (motif obligatoire, acheteur notifié). */
@@ -350,14 +609,15 @@ class CommandeController extends Controller
     }
 
     /**
-     * Annulation par l'entrepôt d'une commande confirmée par erreur, tant
-     * qu'aucune livraison n'a été créée : la quantité déduite est remise en stock.
+     * Annulation par l'entrepôt d'une commande confirmée, en préparation ou
+     * prête, tant que la marchandise n'est pas chargée : la quantité réservée
+     * est libérée et la livraison éventuelle annulée (transporteur prévenu).
      */
     public function annulerConfirmation(Request $request, int $id): JsonResponse
     {
         $request->validate(['motif' => ['required', 'string', 'max:500']], ['motif.required' => 'Indiquez le motif de l\'annulation.']);
 
-        return $this->annulerParLEntrepot($request, $id, 'confirmee', 'annulation_confirmation', 'Commande annulée, quantité remise en stock. L\'acheteur a été notifié.');
+        return $this->annulerParLEntrepot($request, $id, 'confirmee', 'annulation_confirmation', 'Commande annulée, quantité réservée libérée. L\'acheteur a été notifié.');
     }
 
     private function annulerParLEntrepot(Request $request, int $id, string $depuis, string $action, string $messageSucces): JsonResponse
@@ -372,51 +632,43 @@ class CommandeController extends Controller
             return response()->json(['message' => 'Accès non autorisé à cette commande.'], 403);
         }
 
-        $refus = DB::transaction(function () use ($commande, $depuis, $action, $request) {
-            $c = Commande::whereKey($commande->id)->lockForUpdate()->first();
+        $transporteur = null;
+        $refus = DB::transaction(function () use ($commande, $depuis, $action, $request, &$transporteur) {
+            $c = Commande::with('livraison')->whereKey($commande->id)->lockForUpdate()->first();
 
-            if ($c->statut !== $depuis) {
+            if ($depuis === 'en_attente') {
+                if ($c->statut !== 'en_attente') {
+                    return response()->json(['message' => 'Seules les commandes en attente peuvent être refusées.', 'statut_actuel' => $c->statut], 422);
+                }
+
+                $c->statut = 'annulee';
+                $c->save();
+                HistoriqueOperation::consigner('commande', $c->id, $action, $request->user(), 'en_attente', 'annulee', $request->input('motif'));
+
+                return null;
+            }
+
+            if (! in_array('annuler_commande', CircuitLivraison::actionsCommande($c, $request->user()), true)) {
                 return response()->json([
-                    'message'       => $depuis === 'en_attente'
-                        ? 'Seules les commandes en attente peuvent être refusées.'
-                        : 'Seules les commandes confirmées peuvent être annulées par l\'entrepôt.',
+                    'message'       => in_array($c->statut, ['en_livraison', 'receptionnee', 'litige'], true)
+                        ? 'La marchandise est déjà chargée : déclarez un incident pour la faire revenir.'
+                        : 'Cette commande ne peut pas être annulée par l\'entrepôt.',
                     'statut_actuel' => $c->statut,
                 ], 422);
             }
 
-            if ($depuis === 'confirmee') {
-                if ($c->livraison()->exists()) {
-                    return response()->json([
-                        'message'       => 'Une livraison existe déjà pour cette commande : elle ne peut plus être annulée.',
-                        'statut_actuel' => $c->statut,
-                    ], 422);
-                }
-
-                // Inverse exact de confirmer() : la quantité déduite revient au stock.
-                $stock = Stock::whereKey($c->stock_id)->lockForUpdate()->first();
-
-                if ($stock) {
-                    $stock->quantite += $c->quantite;
-
-                    if ($stock->statut === 'epuise' && $stock->quantite > 0) {
-                        $stock->statut      = 'disponible';
-                        $stock->date_sortie = null;
-                    }
-
-                    $stock->save();
-                }
-            }
-
-            $c->statut = 'annulee';
-            $c->save();
-            HistoriqueOperation::consigner('commande', $c->id, $action, $request->user(), $depuis, 'annulee', $request->input('motif'),
-                $depuis === 'confirmee' ? ['quantite_remise_en_stock' => $c->quantite] : []);
+            $transporteur = $this->annulation->annuler($c, $request->user(), $action, $request->input('motif'));
 
             return null;
         });
 
         if ($refus) {
             return $refus;
+        }
+
+        if ($transporteur) {
+            Transporteur::with('utilisateur')->find($transporteur)?->utilisateur?->notify(new OperationModifieeNotification('mission_annulee',
+                sprintf('La livraison de la commande %s est annulée par l\'entrepôt.', $commande->numero_commande), ['commande_id' => $commande->id]));
         }
 
         $commande->acheteur?->utilisateur?->notify(new OperationModifieeNotification("commande_{$action}", sprintf(

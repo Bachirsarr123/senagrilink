@@ -28,7 +28,8 @@ export class AuthService {
 
   register(payload: RegisterPayload): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${environment.apiUrl}/register`, payload).pipe(
-      tap(res => this.persistSession(res))
+      // Compte en attente de validation : pas de jeton, pas de session.
+      tap(res => { if (!res.en_attente_validation) this.persistSession(res); })
     );
   }
 
@@ -46,11 +47,12 @@ export class AuthService {
   /** Page d'accueil de l'espace du rôle connecté. */
   routeAccueil(): string {
     const routes: Record<string, string> = {
-      producteur:            '/producteur/productions',
-      gestionnaire_entrepot: '/entrepot/stocks',
-      acheteur_gros:         '/acheteur/catalogue',
+      // Lot 5 : chaque rôle arrive sur ce qui l'attend ; l'administrateur sur ses exceptions.
+      producteur:            '/a-faire',
+      gestionnaire_entrepot: '/entrepot/journee',
+      acheteur_gros:         '/a-faire',
       administrateur:        '/admin/dashboard',
-      transporteur:          '/transporteur/missions',
+      transporteur:          '/a-faire',
     };
     // Repli sur le profil (protégé) et non sur /login, pour éviter toute boucle.
     return routes[this.role() ?? ''] ?? '/profil';

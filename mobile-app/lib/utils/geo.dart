@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'nombres.dart';
+
 /// Le transporteur envoie sa position toutes les 10 s : au-delà d'une minute
 /// sans nouvelle position, elle n'est plus présentée comme « en direct ».
 const seuilPositionDirecte = Duration(seconds: 60);
@@ -7,9 +9,9 @@ const seuilPositionDirecte = Duration(seconds: 60);
 /// Coordonnées d'un point de l'API (`{latitude, longitude}`), ou null si incomplètes.
 ({double lat, double lng})? coordonnees(Object? point) {
   if (point is! Map) return null;
-  final lat = point['latitude'], lng = point['longitude'];
-  if (lat is! num || lng is! num) return null;
-  return (lat: lat.toDouble(), lng: lng.toDouble());
+  final lat = nombre(point['latitude']), lng = nombre(point['longitude']);
+  if (lat == null || lng == null) return null;
+  return (lat: lat, lng: lng);
 }
 
 /// Distance à vol d'oiseau (haversine), en kilomètres.

@@ -5,7 +5,7 @@ export type EtatEtape = 'termine' | 'actuel' | 'prevu' | 'alerte';
 /** Une étape réellement enregistrée dans le parcours d'un lot (aucune n'est inventée). */
 export interface EtapeChronologie {
   cle: string;
-  type: 'recolte' | 'entree' | 'sortie' | 'commande' | 'depart' | 'livree' | 'planifiee' | 'probleme';
+  type: 'recolte' | 'acheminement' | 'entree' | 'sortie' | 'commande' | 'depart' | 'livree' | 'planifiee' | 'probleme';
   titre: string;
   date: string | null;
   /** Lieu déclaré lors de l'opération (jamais une position GPS). */
@@ -62,6 +62,26 @@ export function construireChronologie(t: any): EtapeChronologie[] {
         ? `${kg(quantite)}${prod.quantite_reelle == null ? ' estimés' : ''}` : null, producteur && `par ${producteur}`),
     });
   }
+
+  // Acheminement vers l'entrepôt : étapes datées par le serveur. La réception
+  // elle-même apparaît comme « Entrée en entrepôt » (stock) ; un refus est une alerte.
+  const DEPOT_ACTIF = ['en_attente', 'confirmee', 'prise_en_charge', 'au_point_collecte', 'chargee', 'en_route', 'arrivee_entrepot'];
+  (t.etapes_acheminement ?? []).forEach((a: any, i: number) => {
+    const entrepot = joindre(a.entrepot?.nom, a.entrepot?.localisation);
+    const transporteur = nom(a.transporteur) && `Transporteur : ${nom(a.transporteur)}`;
+    const visibles = (a.etapes ?? []).filter((e: any) => !['reception', 'reception_partielle'].includes(e.action));
+    visibles.forEach((e: any, j: number) => {
+      const derniere = j === visibles.length - 1;
+      const refus = e.action === 'refus_reception';
+      ajouter({
+        cle: `depot-${i}-${j}`, type: refus ? 'probleme' : 'acheminement', titre: e.libelle ?? e.action, date: e.date ?? null,
+        lieu: entrepot,
+        detail: joindre(e.action === 'creation' ? kg(a.quantite_prevue) : null, ['acceptation_mission', 'en_route'].includes(e.action) ? transporteur : null),
+        statut: null,
+        etat: refus ? 'alerte' : derniere && DEPOT_ACTIF.includes(a.statut) ? 'actuel' : 'termine',
+      });
+    });
+  });
 
   (t.etapes_stockage ?? []).forEach((s: any, i: number) => {
     const entrepot = joindre(s.entrepot?.nom, s.entrepot?.localisation);

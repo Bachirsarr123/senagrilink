@@ -1,0 +1,141 @@
+name: Mobile — Préparer une version distribuée (brouillon, manuel)
+
+# SEUL chemin vers un APK destiné aux utilisateurs. Déclenchement manuel
+# uniquement, depuis l'onglet Actions, dans l'environnement protégé
+# « android-distribution » (approbation requise, à configurer dans GitHub).
+#
+# Le workflow :
+#   - exige la clé de distribution stable (secrets GitHub, jamais dans le dépôt) ;
+#   - refuse la clé de debug et toute empreinte différente de la référence ;
+#   - vérifie la compatibilité de mise à jour avec la version de référence ;
+#   - crée une release en BROUILLON (non visible du public). La publication
+#     reste une action humaine, depuis la page Releases.
+# Il ne touche jamais à la release historique « mobile-latest ».
+#
+# Secrets requis (environnement android-distribution) :
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+# Variable requise (non secrète) : ANDROID_CERT_SHA256 — empreinte SHA-256 du
+# certificat de distribution, relevée une fois à la création de la clé.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version affichée (ex. 1.0.0)"
+        required: true
+      version_code:
+        description: "versionCode entier, strictement supérieur à la version de référence (ex. 2)"
+        required: true
+      reference_tag:
+        description: "Tag de la release officielle de référence (vide pour la toute première version distribuée)"
+        required: false
+        default: ''
+      api_url:
+        description: "API de production visée par l'application"
+        required: true
+        default: 'https://senagrilink-backend.onrender.com/api'
+      confirmation:
+        description: "Écrire PREPARER-BROUILLON pour confirmer"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+jobs:
+  brouillon:
+    runs-on: ubuntu-24.04
+    environment: android-distribution
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - name: Contrôler les paramètres
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          EMPREINTE: ${{ vars.ANDROID_CERT_SHA256 }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: .
+        run: |
+          [ "$CONFIRMATION" = "PREPARER-BROUILLON" ] || { echo "::error::confirmation absente"; exit 1; }
+          [[ "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version_name invalide"; exit 1; }
+          [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::version_code invalide"; exit 1; }
+          [[ "$EMPREINTE" =~ ^[0-9a-fA-F:]{64,95}$ ]] || { echo "::error::variable ANDROID_CERT_SHA256 absente ou invalide"; exit 1; }
+          if gh release view "mobile-v$VERSION_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::error::la release mobile-v$VERSION_NAME existe déjà"; exit 1; fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter test
+
+      - name: Construire l'APK signé (clé de distribution)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          SENAGRILINK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SENAGRILINK_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SENAGRILINK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          SENAGRILINK_EXIGER_SIGNATURE: 'true'
+          API_URL: ${{ inputs.api_url }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          # Lot 6 : configuration Firebase (variables du dépôt, non secrètes) ; vides = notifications push désactivées
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_SENDER_ID: ${{ vars.FIREBASE_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          # Variables collées dans GitHub : on retire espaces et retours à la ligne parasites
+          for v in FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_SENDER_ID FIREBASE_PROJECT_ID; do export "$v=$(printf '%s' "${!v}" | tr -d '[:space:]')"; done
+          [ -n "$KEYSTORE_BASE64" ] || { echo "::error::secret ANDROID_KEYSTORE_BASE64 absent"; exit 1; }
+          export SENAGRILINK_KEYSTORE_PATH="$RUNNER_TEMP/distribution.jks"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$SENAGRILINK_KEYSTORE_PATH"
+          chmod 600 "$SENAGRILINK_KEYSTORE_PATH"
+          flutter build apk --release --build-name="$VERSION_NAME" --build-number="$VERSION_CODE" --dart-define=API_URL="$API_URL" --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY" --dart-define=FIREBASE_APP_ID="$FIREBASE_APP_ID" --dart-define=FIREBASE_SENDER_ID="$FIREBASE_SENDER_ID" --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
+
+      - name: Supprimer le keystore du runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/distribution.jks"
+
+      - name: Récupérer l'APK de référence
+        if: inputs.reference_tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REFERENCE_TAG: ${{ inputs.reference_tag }}
+        run: gh release download "$REFERENCE_TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.apk' --output "$RUNNER_TEMP/reference.apk"
+
+      - name: Vérifier l'APK (INTERNET, clé stable, compatibilité de mise à jour)
+        env:
+          EMPREINTE: ${{ vars.ANDROID_CERT_SHA256 }}
+          REFERENCE_TAG: ${{ inputs.reference_tag }}
+        run: |
+          OPTIONS=(--distribution --empreinte-attendue "$EMPREINTE")
+          [ -n "$REFERENCE_TAG" ] && OPTIONS+=(--reference "$RUNNER_TEMP/reference.apk")
+          ../.github/scripts/verifier-apk.sh build/app/outputs/flutter-apk/app-release.apk "${OPTIONS[@]}"
+
+      - name: Créer la release en brouillon (non publiée)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          API_URL: ${{ inputs.api_url }}
+          EMPREINTE: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          APK="senagrilink-$VERSION_NAME.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK"
+          sha256sum "$APK" > "$APK.sha256"
+          gh release create "mobile-v$VERSION_NAME" "$APK" "$APK.sha256" \
+            --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+            --title "SenAgriLink mobile $VERSION_NAME" \
+            --notes "Version $VERSION_NAME (versionCode $VERSION_CODE), commit $GITHUB_SHA, API $API_URL. Signée avec la clé de distribution (SHA-256 du certificat : $EMPREINTE). Brouillon : à relire puis publier manuellement."

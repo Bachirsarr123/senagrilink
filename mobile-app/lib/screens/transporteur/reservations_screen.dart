@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../utils/depot.dart';
 import '../../widgets/app_theme.dart';
-import '../../widgets/status_badge.dart';
+import '../../widgets/carte_depot.dart';
 
-/// Réservations d'entrepôt assignées au transporteur connecté :
-/// acheminement de la marchandise du producteur vers l'entrepôt.
+/// Acheminements vers l'entrepôt assignés au transporteur connecté : mission
+/// à accepter ou refuser, puis étapes (chez le producteur, chargement, départ,
+/// arrivée), dans l'ordre imposé par le serveur.
 class ReservationsScreen extends StatefulWidget {
   const ReservationsScreen({super.key});
   @override
@@ -12,6 +14,8 @@ class ReservationsScreen extends StatefulWidget {
 }
 
 class _ReservationsScreenState extends State<ReservationsScreen> {
+  static const _actions = ['accepter_mission', 'refuser_mission', 'arriver_collecte', 'charger', 'partir', 'arriver', 'declarer_incident'];
+
   List<Map<String, dynamic>> _reservations = [];
   bool _loading = true;
   String? _erreur;
@@ -24,37 +28,27 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
     setState(() { _loading = true; _erreur = null; });
     try {
       final res = await ApiService.getReservations();
-      setState(() {
-        _reservations = ((res['reservations'] as List?) ?? []).cast<Map<String, dynamic>>();
-        _loading = false;
-      });
+      final liste = ((res['reservations'] as List?) ?? []).cast<Map<String, dynamic>>();
+      // Missions à accepter d'abord, puis celles en cours, puis les terminées.
+      int rang(Map<String, dynamic> r) => peut(r, 'accepter_mission') ? 0 : statutsDepotActifs.contains(r['statut']) ? 1 : 2;
+      liste.sort((a, b) => rang(a).compareTo(rang(b)));
+      setState(() { _reservations = liste; _loading = false; });
     } on ApiException catch (e) {
       setState(() { _erreur = e.message; _loading = false; });
     }
   }
 
-  Future<void> _marquerArrivee(int id) async {
-    setState(() { _actionEnCours = id; });
-    try {
-      await ApiService.marquerArriveeReservation(id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Arrivée signalée. Le gestionnaire a été notifié.'), backgroundColor: AppTheme.vert));
-      }
-      await _charger();
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));
-      }
-    } finally {
-      if (mounted) setState(() { _actionEnCours = null; });
-    }
+  Future<void> _agir(Map<String, dynamic> r, String action) async {
+    setState(() => _actionEnCours = r['id'] as int);
+    final fait = await executerActionDepot(context, r, action);
+    if (!mounted) return;
+    setState(() => _actionEnCours = null);
+    if (fait) await _charger();
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Réservations entrepôt')),
+    appBar: AppBar(title: const Text('Acheminements vers l\'entrepôt')),
     body: _loading
         ? const Center(child: CircularProgressIndicator())
         : _erreur != null
@@ -67,7 +61,11 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                 ]),
               ))
             : _reservations.isEmpty
-                ? const Center(child: Text('Aucune réservation assignée.', style: TextStyle(color: Colors.grey)))
+                ? const Center(child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('Aucun acheminement. Les nouvelles missions apparaissent ici dès que l\'entrepôt vous les affecte.',
+                        style: TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+                  ))
                 : RefreshIndicator(
                     onRefresh: _charger,
                     child: ListView.builder(
@@ -75,35 +73,12 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                       itemCount: _reservations.length,
                       itemBuilder: (_, i) {
                         final r = _reservations[i];
-                        final statut = r['statut'] as String;
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                Expanded(child: Text(r['numero_reservation'] ?? '',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
-                                const SizedBox(width: 8),
-                                StatusBadge(statut),
-                              ]),
-                              const SizedBox(height: 6),
-                              Text(r['produit'] ?? '', style: const TextStyle(fontSize: 15)),
-                              Text('${r['quantite_reservee']} kg', style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                              if (r['entrepot'] != null)
-                                Text('Vers : ${r['entrepot']['nom_entrepot']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              if (statut == 'confirmee') ...[
-                                const SizedBox(height: 10),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.check_circle_outline, size: 18),
-                                    label: Text(_actionEnCours == r['id'] ? 'Envoi...' : 'Marquer arrivée entrepôt'),
-                                    onPressed: _actionEnCours == r['id'] ? null : () => _marquerArrivee(r['id']),
-                                  ),
-                                ),
-                              ],
-                            ]),
-                          ),
+                        return CarteDepot(
+                          reservation: r,
+                          actionsAffichees: _actions,
+                          vueTransporteur: true,
+                          enCours: _actionEnCours == r['id'],
+                          onAction: (a) => _agir(r, a),
                         );
                       },
                     ),

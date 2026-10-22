@@ -3,11 +3,13 @@ import 'package:provider/provider.dart';
 import '../../models/production.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
 import 'nouvelle_recolte_screen.dart';
 import 'commandes_disponibles_screen.dart';
+import 'depots_screen.dart';
 import 'planifier_ventes_screen.dart';
 import '../shared/tracabilite_screen.dart';
 import '../shared/profil_screen.dart';
@@ -39,63 +41,89 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
     }
   }
 
+  /// Modification d'une récolte. Une fois le lot en entrepôt, seules ses
+  /// informations de vente restent modifiables : le prix au kilo (les commandes
+  /// déjà passées gardent le prix figé à la commande).
   Future<void> _modifierProduction(Production p) async {
+    final verrouille = p.estVerrouille;
     final typCtl  = TextEditingController(text: p.typeCulture ?? '');
-    final qteCtl  = TextEditingController(text: p.quantiteEstimee?.toStringAsFixed(0) ?? '');
-    final qreCtl  = TextEditingController(text: p.quantiteReelle?.toStringAsFixed(0) ?? '');
+    final qteCtl  = TextEditingController(text: p.quantiteEstimee == null ? '' : nombreLisible(p.quantiteEstimee!));
+    final qreCtl  = TextEditingController(text: p.quantiteReelle == null ? '' : nombreLisible(p.quantiteReelle!));
     final dateCtl = TextEditingController(text: p.dateRecolte ?? '');
+    final prixCtl = TextEditingController(text: p.prixUnitaire == null ? '' : nombreLisible(p.prixUnitaire!));
+    final formKey = GlobalKey<FormState>();
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Modifier la production'),
-        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
-            controller: typCtl,
-            decoration: const InputDecoration(labelText: 'Type de culture *'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: dateCtl,
-            decoration: const InputDecoration(labelText: 'Date récolte (YYYY-MM-DD)'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: qteCtl,
+        title: Text(verrouille ? 'Modifier le prix' : 'Modifier la production'),
+        content: SingleChildScrollView(child: Form(key: formKey, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (verrouille)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text('Ce lot est en entrepôt : ses informations sont figées. '
+                  'Seul le prix au kilo peut encore changer.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+            )
+          else ...[
+            TextFormField(
+              controller: typCtl,
+              decoration: const InputDecoration(labelText: 'Type de culture *'),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Type de culture requis.' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: dateCtl,
+              decoration: const InputDecoration(labelText: 'Date récolte (AAAA-MM-JJ)'),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: qteCtl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Quantité estimée (kg)', suffixText: 'kg'),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: qreCtl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Quantité réelle (kg)', suffixText: 'kg'),
+            ),
+            const SizedBox(height: 12),
+          ],
+          TextFormField(
+            key: const Key('modifier-prix'),
+            controller: prixCtl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Quantité estimée (kg)', suffixText: 'kg'),
+            decoration: const InputDecoration(labelText: 'Prix de vente (FCFA / kg) *', suffixText: 'FCFA/kg'),
+            validator: validerPrixAuKilo,
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: qreCtl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Quantité réelle (kg)', suffixText: 'kg'),
-          ),
-        ])),
+        ]))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sauvegarder')),
+          ElevatedButton(
+            onPressed: () { if (formKey.currentState!.validate()) Navigator.pop(context, true); },
+            child: const Text('Sauvegarder'),
+          ),
         ],
       ),
     );
 
     if (ok != true) return;
-    if (typCtl.text.trim().isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Type de culture requis.'), backgroundColor: AppTheme.rouge));
-      return;
-    }
+    double? lu(TextEditingController c) => nombre(c.text.trim().replaceAll(',', '.'));
 
     try {
       await ApiService.updateProduction(p.id, {
-        'type_culture':     typCtl.text.trim(),
-        'date_recolte':     dateCtl.text.trim().isEmpty ? null : dateCtl.text.trim(),
-        'quantite_estimee': double.tryParse(qteCtl.text.trim()),
-        'quantite_reelle':  double.tryParse(qreCtl.text.trim()),
+        if (!verrouille) ...{
+          'type_culture':     typCtl.text.trim(),
+          'date_recolte':     dateCtl.text.trim().isEmpty ? null : dateCtl.text.trim(),
+          'quantite_estimee': lu(qteCtl),
+          'quantite_reelle':  lu(qreCtl),
+        },
+        'prix_unitaire': lu(prixCtl),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Production mise à jour.'), backgroundColor: AppTheme.vert));
+          SnackBar(content: Text(verrouille ? 'Prix mis à jour.' : 'Production mise à jour.'), backgroundColor: AppTheme.vert));
         _charger();
       }
     } on ApiException catch (e) {
@@ -111,6 +139,12 @@ class _ProductionsScreenState extends State<ProductionsScreen> {
       appBar: AppBar(
         title: Text('Bonjour, ${auth.utilisateur?.prenom ?? ''}'),
         actions: [
+          IconButton(
+            key: const Key('menu-depots'),
+            icon: const Icon(Icons.warehouse_outlined),
+            tooltip: 'Mes dépôts en entrepôt',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DepotsScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.storefront_outlined),
             tooltip: 'Planifier mes ventes',
@@ -194,18 +228,20 @@ class _ProductionTile extends StatelessWidget {
           if (p.dateRecolte != null)
             Text('📅 ${p.dateRecolte}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
           if (p.quantiteEstimee != null)
-            Text('⚖️ ${p.quantiteEstimee!.toStringAsFixed(0)} kg estimés',
+            Text('⚖️ ${kg(p.quantiteEstimee!)} estimés',
                 style: const TextStyle(fontSize: 13)),
           if (p.quantiteReelle != null)
-            Text('✅ ${p.quantiteReelle!.toStringAsFixed(0)} kg réels',
+            Text('✅ ${kg(p.quantiteReelle!)} réels',
                 style: const TextStyle(fontSize: 13)),
+          Text(p.prixUnitaire != null ? '💰 ${fcfa(p.prixUnitaire!)} / kg' : '💰 Prix à fixer',
+              style: TextStyle(fontSize: 13, color: p.prixUnitaire != null ? null : AppTheme.orange)),
           if (modifiable) ...[
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.edit_outlined, size: 15),
-                label: const Text('Modifier'),
+                label: Text(p.estVerrouille ? 'Modifier le prix' : 'Modifier'),
                 onPressed: onModifier,
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

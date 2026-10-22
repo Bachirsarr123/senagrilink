@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
 
 class NouvelleRecolteScreen extends StatefulWidget {
@@ -14,14 +15,18 @@ class _NouvelleRecolteScreenState extends State<NouvelleRecolteScreen> {
   final _superficieCtl  = TextEditingController();
   final _qteEstimeeCtl  = TextEditingController();
   final _qteReelleCtl   = TextEditingController();
+  final _prixCtl        = TextEditingController();
   DateTime? _dateRecolte;
   bool _loading = false;
+  /// Une clé par saisie, réutilisée si le producteur réessaie après une erreur :
+  /// la récolte n'est jamais enregistrée deux fois (P-25).
+  final _cleIdempotence = ApiService.nouvelleCleIdempotence();
   String? _erreur;
 
   @override
   void dispose() {
     _cultureCtl.dispose(); _superficieCtl.dispose();
-    _qteEstimeeCtl.dispose(); _qteReelleCtl.dispose();
+    _qteEstimeeCtl.dispose(); _qteReelleCtl.dispose(); _prixCtl.dispose();
     super.dispose();
   }
 
@@ -49,10 +54,11 @@ class _NouvelleRecolteScreenState extends State<NouvelleRecolteScreen> {
         'date_recolte':     '${_dateRecolte!.year}-${_dateRecolte!.month.toString().padLeft(2,'0')}-${_dateRecolte!.day.toString().padLeft(2,'0')}',
         'quantite_estimee': double.parse(_qteEstimeeCtl.text),
         'quantite_reelle':  _qteReelleCtl.text.isEmpty ? null : double.tryParse(_qteReelleCtl.text),
-      });
+        'prix_unitaire':    nombre(_prixCtl.text.trim().replaceAll(',', '.')),
+      }, cleIdempotence: _cleIdempotence);
       if (mounted) Navigator.pop(context, true);
     } on ApiException catch (e) {
-      setState(() { _erreur = e.message; _loading = false; });
+      if (mounted) setState(() { _erreur = e.message; _loading = false; });
     }
   }
 
@@ -121,6 +127,18 @@ class _NouvelleRecolteScreenState extends State<NouvelleRecolteScreen> {
               controller: _qteReelleCtl,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Quantité réelle (kg)', suffixText: 'kg'),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              key: const Key('recolte-prix'),
+              controller: _prixCtl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Prix de vente (FCFA / kg) *',
+                suffixText: 'FCFA/kg',
+                helperText: 'Les acheteurs verront ce prix. Tu pourras le modifier plus tard.',
+              ),
+              validator: validerPrixAuKilo,
             ),
             const SizedBox(height: 28),
             ElevatedButton(

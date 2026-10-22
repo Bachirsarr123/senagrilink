@@ -59,17 +59,21 @@ class PerimetreGestionnaireTest extends TestCase
             'quantite'      => $quantite,
             'date_commande' => now(),
             'statut'        => $statut,
+            'statut_paiement' => 'a_la_livraison',
         ]);
     }
 
     private function donneesLivraison(Commande $commande): array
     {
-        return ['commande_id' => $commande->id, 'origine' => 'Entrepôt test', 'destination' => 'Dakar'];
+        return [
+            'commande_id' => $commande->id, 'origine' => 'Entrepôt test', 'destination' => 'Dakar',
+            'transporteur_id' => Utilisateur::factory()->transporteur()->create()->transporteur->id,
+        ];
     }
 
     // ── V2 : confirmation de commande ─────────────────────────────────────────
 
-    public function test_gestionnaire_de_lentrepot_confirme_et_le_stock_est_deduit(): void
+    public function test_gestionnaire_de_lentrepot_confirme_et_la_quantite_est_reservee(): void
     {
         $commande = $this->commande();
 
@@ -78,7 +82,8 @@ class PerimetreGestionnaireTest extends TestCase
              ->assertOk()
              ->assertJsonPath('commande.statut', 'confirmee');
 
-        $this->assertEquals(80, $this->stock->fresh()->quantite);
+        $this->assertEquals(90, $this->stock->fresh()->quantite);
+        $this->assertEquals(80, $this->stock->fresh()->quantite_disponible);
     }
 
     public function test_gestionnaire_dun_autre_entrepot_ne_peut_pas_confirmer(): void
@@ -113,7 +118,7 @@ class PerimetreGestionnaireTest extends TestCase
              ->putJson("/api/commandes/{$commande->id}/confirmer")
              ->assertOk();
 
-        $this->assertEquals(80, $this->stock->fresh()->quantite);
+        $this->assertEquals(80, $this->stock->fresh()->quantite_disponible);
     }
 
     public function test_confirmation_commande_inexistante_retourne_404(): void
@@ -170,7 +175,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_gestionnaire_de_lentrepot_cree_la_livraison(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
 
         $this->en($this->gestionnaire)
              ->postJson('/api/livraisons', $this->donneesLivraison($commande))
@@ -182,7 +187,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_gestionnaire_dun_autre_entrepot_ne_peut_pas_creer_la_livraison(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
 
         $this->en($this->autreGestionnaire)
              ->postJson('/api/livraisons', $this->donneesLivraison($commande))
@@ -193,7 +198,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_administrateur_peut_creer_la_livraison(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
 
         $this->en($this->admin)
              ->postJson('/api/livraisons', $this->donneesLivraison($commande))
@@ -226,7 +231,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_seconde_livraison_pour_la_meme_commande_refusee(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
 
         $this->en($this->gestionnaire)
              ->postJson('/api/livraisons', $this->donneesLivraison($commande))
@@ -248,7 +253,7 @@ class PerimetreGestionnaireTest extends TestCase
 
     public function test_livraison_pour_commande_sans_stock_refusee_au_gestionnaire(): void
     {
-        $commande = $this->commande('confirmee');
+        $commande = $this->commande('prete');
         $commande->forceFill(['stock_id' => null])->save();
 
         $this->en($this->gestionnaire)

@@ -59,21 +59,31 @@ void main() {
 
   group('SuiviLivraisonScreen', () {
     late List<String> requetes;
-    final positionDemo = demo['/livraisons/1/position'] as Map<String, dynamic>;
+    final positionDemo = demo['/suivi/livraison/1'] as Map<String, dynamic>;
 
-    Map<String, dynamic> position({Duration age = Duration.zero}) {
+    Map<String, dynamic> position({Duration age = Duration.zero, Duration arrivee = const Duration(minutes: 35)}) {
       final maintenant = DateTime.now().toUtc();
       return {
         ...positionDemo,
         'genere_le': maintenant.toIso8601String(),
+        'arrivee_estimee_le': maintenant.add(arrivee).toIso8601String(),
         'position': {...positionDemo['position'] as Map, 'timestamp': maintenant.subtract(age).toIso8601String()},
       };
     }
+
+    /// Hors trajet : le serveur répond sans position (Q11).
+    Map<String, dynamic> horsTrajet(String statut, {Map<String, dynamic> details = const {}}) => {
+      ...positionDemo, 'statut': statut, 'en_route': false, 'position': null, 'trace': [], 'trajet': null,
+      'arrivee_estimee_le': null, 'details': {...positionDemo['details'] as Map, ...details},
+    };
 
     void api(List<(int, Object)> reponses) {
       requetes = [];
       ApiService.client = MockClient((req) async {
         final chemin = req.url.path.replaceFirst(RegExp(r'^.*/api'), '');
+        if (chemin == '/suivi/configuration') {
+          return http.Response(jsonEncode(demo['/suivi/configuration']), 200, headers: {'content-type': 'application/json; charset=utf-8'});
+        }
         if (chemin.startsWith('/tracabilite/')) {
           return http.Response(jsonEncode({'tracabilite': tracabilite}), 200, headers: {'content-type': 'application/json; charset=utf-8'});
         }
@@ -108,7 +118,13 @@ void main() {
       expect(find.byType(FlutterMap), findsOneWidget);
       expect(find.textContaining('En direct'), findsOneWidget);
       expect(find.textContaining('Position indisponible'), findsNothing);
-      expect(find.textContaining('jusqu’à la destination'), findsOneWidget);
+      // Heure d'arrivée estimée par la route, trace et trajet dessinés
+      expect(find.byKey(const Key('arrivee-estimee')), findsOneWidget);
+      expect(find.textContaining('dans 3'), findsOneWidget);
+      expect(find.textContaining('Estimation par la route'), findsOneWidget);
+      expect(find.textContaining('Ousmane Sarr-Diallo'), findsOneWidget);
+      final traits = tester.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines;
+      expect(traits, hasLength(2));
       await fermer(tester);
     });
 
@@ -121,11 +137,10 @@ void main() {
     });
 
     testWidgets('livraison terminée : plus de carte ni de position, suivi arrêté', (tester) async {
-      api([(404, {'message': 'Suivi en direct disponible uniquement pendant la livraison en cours.', 'statut_livraison': 'livree',
-        'livraison': {...positionDemo['livraison'] as Map, 'date_livraison': '2026-10-19 15:00:00'}})]);
+      api([(200, horsTrajet('livree', details: {'arrive_le': '2026-10-19T15:00:00Z'}))]);
       await ouvrir(tester);
       expect(find.byType(FlutterMap), findsNothing);
-      expect(find.text('Livraison effectuée'), findsOneWidget);
+      expect(find.text('Trajet terminé'), findsOneWidget);
       expect(find.text('Livré le'), findsOneWidget);
       await tester.pump(const Duration(minutes: 2));
       expect(requetes, hasLength(1));
@@ -133,9 +148,9 @@ void main() {
     });
 
     testWidgets('livraison pas encore partie : le suivi reprend seul au départ', (tester) async {
-      api([(404, {'statut_livraison': 'en_attente', 'livraison': positionDemo['livraison']}), (200, position())]);
+      api([(200, horsTrajet('chargee')), (200, position())]);
       await ouvrir(tester);
-      expect(find.text('Livraison pas encore partie'), findsOneWidget);
+      expect(find.text('Pas encore parti'), findsOneWidget);
       await tester.pump(delaiAttente);
       await tester.pump(const Duration(milliseconds: 50));
       expect(find.byType(FlutterMap), findsOneWidget);

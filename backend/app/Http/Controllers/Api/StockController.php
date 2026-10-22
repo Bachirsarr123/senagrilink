@@ -3,16 +3,20 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreEntreeStockRequest;
-use App\Http\Requests\StoreSortieStockRequest;
 use App\Models\Entrepot;
 use App\Models\Stock;
+use App\Services\GestionStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class StockController extends Controller
 {
+    public function __construct(private readonly GestionStock $gestionStock)
+    {
+    }
+
     /**
      * Liste des stocks de l'entrepôt du gestionnaire connecté.
      * L'administrateur voit tous les stocks de tous les entrepôts.
@@ -42,80 +46,80 @@ class StockController extends Controller
     }
 
     /**
-     * Enregistrer une entrée de stock (nouvelle ligne dans l'entrepôt).
+     * Ajustement manuel motivé (perte, avarie, retrait par le producteur,
+     * correction d'inventaire). Il n'existe plus d'entrée ni de sortie libre :
+     * une entrée vient d'une réception, une sortie de commande du départ de
+     * sa livraison ; tout le reste passe ici et laisse un mouvement.
      */
-    public function entree(StoreEntreeStockRequest $request): JsonResponse
+    public function ajuster(Request $request, int $id): JsonResponse
     {
-        $entrepot = $this->getEntrepot($request);
-
-        if ($entrepot instanceof JsonResponse) {
-            return $entrepot;
-        }
-
-        $stock = Stock::create([
-            'entrepot_id'   => $entrepot->id,
-            'production_id' => $request->production_id,
-            'produit'       => $request->produit,
-            'quantite'      => $request->quantite,
-            'date_entree'   => $request->date_entree ?? now()->toDateString(),
-            'seuil_alerte'  => $request->seuil_alerte,
-            'statut'        => 'disponible',
+        $donnees = $request->validate([
+            'motif_type' => ['required', Rule::in(GestionStock::MOTIFS_AJUSTEMENT)],
+            'quantite'   => ['required', 'numeric', 'min:0.01'],
+            'sens'       => ['required', Rule::in(['retrait', 'ajout'])],
+            'motif'      => ['required', 'string', 'max:500'],
+        ], [
+            'motif_type.required' => 'Choisissez la raison de l\'ajustement.',
+            'motif_type.in'       => 'Raison inconnue : perte, avarie, retrait par le producteur ou correction d\'inventaire.',
+            'quantite.min'        => 'La quantité doit être supérieure à zéro.',
+            'motif.required'      => 'Expliquez l\'ajustement en quelques mots.',
         ]);
 
-        return response()->json([
-            'message' => 'Entrée de stock enregistrée.',
-            'stock'   => $stock->load('production:id,code_tracabilite,type_culture'),
-        ], 201);
-    }
-
-    /**
-     * Enregistrer une sortie de stock (réduction de quantité).
-     * Retourne 422 si la quantité disponible est insuffisante.
-     */
-    public function sortie(StoreSortieStockRequest $request): JsonResponse
-    {
-        $entrepot = $this->getEntrepot($request);
-
-        if ($entrepot instanceof JsonResponse) {
-            return $entrepot;
+        if ($donnees['sens'] === 'ajout' && $donnees['motif_type'] !== 'correction_inventaire') {
+            return response()->json(['message' => 'Seule une correction d\'inventaire peut augmenter le stock.'], 422);
         }
 
-        $stock = Stock::where('id', $request->stock_id)
-            ->where('entrepot_id', $entrepot->id)
-            ->first();
+        $stock = $this->stockDeLEntrepot($request, $id);
 
-        if (! $stock) {
-            return response()->json(['message' => 'Stock introuvable dans votre entrepôt.'], 404);
+        if ($stock instanceof JsonResponse) {
+            return $stock;
         }
 
-        if ($request->quantite_sortie > $stock->quantite) {
-            return response()->json([
-                'message'             => 'Quantité insuffisante en stock.',
-                'quantite_disponible' => $stock->quantite,
-                'quantite_demandee'   => $request->quantite_sortie,
-            ], 422);
-        }
+        $variation = $donnees['sens'] === 'retrait' ? -(float) $donnees['quantite'] : (float) $donnees['quantite'];
 
-        DB::transaction(function () use ($stock, $request) {
-            $stock->quantite -= $request->quantite_sortie;
-
-            if ($stock->quantite == 0) {
-                $stock->statut      = 'epuise';
-                $stock->date_sortie = $request->date_sortie ?? now()->toDateString();
-            }
-
-            $stock->save();
-        });
+        $stock = DB::transaction(fn () => $this->gestionStock->ajuster(
+            $stock->id, $donnees['motif_type'], $variation, $donnees['motif'], $request->user(),
+        ));
 
         return response()->json([
-            'message'             => 'Sortie de stock enregistrée.',
-            'stock'               => $stock->fresh(),
-            'quantite_restante'   => $stock->quantite,
+            'message' => 'Ajustement enregistré.',
+            'stock'   => $stock->fresh()->load('production:id,code_tracabilite,type_culture'),
         ]);
     }
 
+    /** Modifier le seuil d'alerte d'un stock (null : aucune alerte). */
+    public function seuil(Request $request, int $id): JsonResponse
+    {
+        $donnees = $request->validate(['seuil_alerte' => ['present', 'nullable', 'numeric', 'min:0']]);
+        $stock   = $this->stockDeLEntrepot($request, $id);
+
+        if ($stock instanceof JsonResponse) {
+            return $stock;
+        }
+
+        $stock->update(['seuil_alerte' => $donnees['seuil_alerte']]);
+
+        return response()->json(['message' => 'Seuil d\'alerte mis à jour.', 'stock' => $stock->fresh()]);
+    }
+
+    /** Journal des mouvements d'un stock (plus ancien d'abord). */
+    public function mouvements(Request $request, int $id): JsonResponse
+    {
+        $stock = $this->stockDeLEntrepot($request, $id);
+
+        if ($stock instanceof JsonResponse) {
+            return $stock;
+        }
+
+        return response()->json([
+            'stock'      => $stock->load('production:id,code_tracabilite,type_culture'),
+            'mouvements' => $stock->mouvements()->with('utilisateur:id,nom,prenom,role')->get(),
+        ]);
+    }
+
     /**
-     * Produits dont la quantité est inférieure ou égale au seuil d'alerte.
+     * Produits dont la quantité disponible (physique - réservé) est inférieure
+     * ou égale au seuil d'alerte.
      */
     public function alertes(Request $request): JsonResponse
     {
@@ -127,10 +131,10 @@ class StockController extends Controller
 
         $alertes = Stock::where('entrepot_id', $entrepot->id)
             ->whereNotNull('seuil_alerte')
-            ->whereColumn('quantite', '<=', 'seuil_alerte')
+            ->whereRaw('(quantite - quantite_reservee) <= seuil_alerte')
             ->where('statut', '!=', 'epuise')
             ->with(['production:id,code_tracabilite,type_culture'])
-            ->orderBy('quantite')
+            ->orderByRaw('(quantite - quantite_reservee)')
             ->get();
 
         return response()->json([
@@ -190,11 +194,23 @@ class StockController extends Controller
         return $entrepot;
     }
 
+    /** Stock de l'entrepôt du gestionnaire (tous pour l'administrateur), sinon 404. */
+    private function stockDeLEntrepot(Request $request, int $id): Stock|JsonResponse
+    {
+        $utilisateur = $request->user();
+        $stock       = Stock::find($id);
+
+        $autorise = $stock && ($utilisateur->role === 'administrateur'
+            || (int) $stock->entrepot_id === (int) $utilisateur->entrepot?->id);
+
+        return $autorise ? $stock : response()->json(['message' => 'Stock introuvable dans votre entrepôt.'], 404);
+    }
+
     private function construireRapportEntrepot(Entrepot $entrepot, $stocks): array
     {
         $disponibles = $stocks->where('statut', 'disponible');
         $epuises     = $stocks->where('statut', 'epuise');
-        $enAlerte    = $stocks->filter(fn ($s) => $s->seuil_alerte !== null && $s->quantite <= $s->seuil_alerte);
+        $enAlerte    = $stocks->filter(fn ($s) => $s->seuil_alerte !== null && $s->quantite_disponible <= $s->seuil_alerte);
 
         return [
             'entrepot'              => [
@@ -208,6 +224,8 @@ class StockController extends Controller
             'lignes_epuisees'       => $epuises->count(),
             'lignes_en_alerte'      => $enAlerte->count(),
             'quantite_totale'       => $stocks->sum('quantite'),
+            'quantite_reservee'     => $stocks->sum('quantite_reservee'),
+            'quantite_disponible'   => $stocks->sum(fn ($s) => $s->quantite_disponible),
             'stocks'                => $stocks->values(),
         ];
     }

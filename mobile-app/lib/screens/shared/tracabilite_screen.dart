@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
@@ -167,12 +168,19 @@ class _Resume extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Lot ${resultat['code_tracabilite'] ?? ''}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey)),
-        const SizedBox(height: 4),
-        Text(prod?['type_culture'] ?? 'Produit non renseigné',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.vertFonce)),
-        if (nomProducteur != null && nomProducteur.isNotEmpty)
-          Text('Produit par $nomProducteur${producteur?['region'] != null ? ' · ${producteur!['region']}' : ''}'),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Lot ${resultat['code_tracabilite'] ?? ''}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 4),
+            Text(prod?['type_culture'] ?? 'Produit non renseigné',
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.vertFonce)),
+            if (nomProducteur != null && nomProducteur.isNotEmpty)
+              Text('Produit par $nomProducteur${producteur?['region'] != null ? ' · ${producteur!['region']}' : ''}'),
+          ])),
+          // Lot 5 (Q13) : QR code du lot, scanné par le gestionnaire à la réception
+          if (resultat['code_tracabilite'] is String)
+            Semantics(label: 'QR code du lot', child: QrImageView(key: const Key('qr-lot'), data: resultat['code_tracabilite'] as String, size: 88, padding: EdgeInsets.zero)),
+        ]),
         if (actuelle != null) ...[
           const SizedBox(height: 10),
           Container(
@@ -222,7 +230,7 @@ class _Etape extends StatelessWidget {
   const _Etape({required this.etape, required this.derniere, required this.suivantePrevue, required this.peutSuivre, required this.ouvrirCarte});
 
   static const _icones = {
-    'recolte': Icons.eco, 'entree': Icons.warehouse, 'sortie': Icons.output, 'commande': Icons.shopping_cart,
+    'recolte': Icons.eco, 'acheminement': Icons.local_shipping_outlined, 'entree': Icons.warehouse, 'sortie': Icons.output, 'commande': Icons.shopping_cart,
     'depart': Icons.local_shipping, 'livree': Icons.check_circle, 'planifiee': Icons.event, 'probleme': Icons.warning_amber_rounded,
   };
 

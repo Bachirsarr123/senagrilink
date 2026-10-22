@@ -26,7 +26,7 @@ class StatutProductionTest extends TestCase
 
     private function recolte(array $extra = []): array
     {
-        return array_merge(['type_culture' => 'riz', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 100], $extra);
+        return array_merge(['type_culture' => 'riz', 'date_recolte' => '2026-06-01', 'quantite_estimee' => 100, 'prix_unitaire' => 200], $extra);
     }
 
     public function test_creation_sans_statut_donne_en_attente(): void
@@ -97,15 +97,15 @@ class StatutProductionTest extends TestCase
 
         $rid = $this->en($this->producteur)->postJson('/api/reservations', [
             'entrepot_id' => $gestionnaire->entrepot->id, 'production_id' => $production->id,
-            'produit' => 'riz', 'quantite_reservee' => 100, 'date_debut' => '2026-06-02',
+            'produit' => 'riz', 'quantite_reservee' => 100, 'date_debut' => '2026-06-02', 'mode_transport' => 'transporteur',
         ])->assertStatus(201)->json('reservation.id');
 
         $this->en($gestionnaire)->putJson("/api/reservations/{$rid}/confirmer")->assertOk();
         $this->en($gestionnaire)->putJson("/api/reservations/{$rid}/assigner-transporteur", [
             'transporteur_id' => $transporteur->transporteur->id,
         ])->assertOk();
-        $this->en($transporteur)->putJson("/api/reservations/{$rid}/arrivee")->assertOk();
-        $this->en($gestionnaire)->putJson("/api/reservations/{$rid}/valider", ['quantite_reelle' => 95])->assertStatus(201);
+        $this->acheminer($transporteur, $rid);
+        $this->receptionner($gestionnaire, $rid, 95)->assertStatus(201);
 
         $this->assertSame('disponible', $production->fresh()->statut);
     }

@@ -249,7 +249,12 @@
      }
     },
     "livraison": null,
-    "alerte_livraison": false
+    "alerte_livraison": false,
+    "incidents": [],
+    "actions": [
+     "modifier",
+     "annuler"
+    ]
    },
    {
     "id": 5,
@@ -272,7 +277,12 @@
      }
     },
     "livraison": null,
-    "alerte_livraison": false
+    "alerte_livraison": false,
+    "incidents": [],
+    "actions": [
+     "modifier",
+     "annuler"
+    ]
    },
    {
     "id": 2,
@@ -283,7 +293,7 @@
     "quantite": 75,
     "prix": 187500,
     "date_commande": "2026-10-18 11:30:24",
-    "statut": "confirmee",
+    "statut": "en_livraison",
     "stock": {
      "id": 1,
      "produit": "riz",
@@ -297,12 +307,37 @@
     "livraison": {
      "id": 1,
      "commande_id": 2,
-     "statut": "en_cours",
+     "statut": "arrivee",
      "date_depart": "2026-10-19 11:30:24",
      "date_livraison": null,
-     "numero_livraison": "LIV-20261019-ZLEH"
+     "numero_livraison": "LIV-20261019-ZLEH",
+     "transporteur": {
+      "utilisateur": {
+       "prenom": "Ousmane",
+       "nom": "Sarr-Diallo",
+       "telephone": "770000004"
+      }
+     }
     },
-    "alerte_livraison": false
+    "alerte_livraison": false,
+    "incidents": [
+     {
+      "id": 2,
+      "type": "demande_annulation",
+      "statut": "resolu",
+      "decision": "refuser_annulation",
+      "motif_decision": "Marchandise déjà chargée dans le camion"
+     }
+    ],
+    "actions": [
+     "confirmer_reception",
+     "declarer_anomalie"
+    ],
+    "code_reception": "0427",
+    "prochaine_etape": {
+     "libelle": "Réception à confirmer par l'acheteur"
+    },
+    "panier": "PAN-20261019-ABCDE"
    }
   ]
  },
@@ -317,15 +352,50 @@
     "destination": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12",
     "date_depart": "2026-10-19 11:30:24",
     "date_livraison": null,
-    "statut": "en_cours",
+    "statut": "arrivee",
     "destination_latitude": 14.69,
     "destination_longitude": -17.44,
     "commande": {
      "id": 2,
      "numero_commande": "CMD-20261019-ZWIO",
      "produit": "riz",
-     "quantite": 75
-    }
+     "quantite": 75,
+     "acheteur": {
+      "latitude": 14.69,
+      "longitude": -17.44,
+      "utilisateur": {
+       "prenom": "Aminata Mariama",
+       "nom": "Ndiaye-Diop Fall",
+       "telephone": "770000003",
+       "adresse": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12"
+      }
+     },
+     "stock": {
+      "entrepot": {
+       "nom_entrepot": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)",
+       "localisation": "Thiès, route de Dakar km 4",
+       "latitude": 14.79,
+       "longitude": -16.93,
+       "utilisateur": {
+        "telephone": "770000002"
+       }
+      }
+     }
+    },
+    "actions": [
+     "confirmer_par_code",
+     "declarer_incident"
+    ],
+    "prochaine_etape": {
+     "libelle": "Réception à confirmer par l'acheteur"
+    },
+    "incidents": [
+     {
+      "id": 1,
+      "type": "acheteur_absent",
+      "statut": "ouvert"
+     }
+    ]
    },
    {
     "id": 2,
@@ -343,8 +413,31 @@
      "id": 3,
      "numero_commande": "CMD-20261019-QTPS",
      "produit": "riz",
-     "quantite": 100
-    }
+     "quantite": 100,
+     "acheteur": {
+      "latitude": 14.69,
+      "longitude": -17.44,
+      "utilisateur": {
+       "prenom": "Aminata Mariama",
+       "nom": "Ndiaye-Diop Fall",
+       "telephone": "770000003",
+       "adresse": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12"
+      }
+     },
+     "stock": {
+      "entrepot": {
+       "nom_entrepot": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)",
+       "localisation": "Thiès, route de Dakar km 4",
+       "latitude": 14.79,
+       "longitude": -16.93,
+       "utilisateur": {
+        "telephone": "770000002"
+       }
+      }
+     }
+    },
+    "actions": [],
+    "incidents": []
    },
    {
     "id": 3,
@@ -355,15 +448,44 @@
     "destination": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12",
     "date_depart": "2026-10-19 11:30:24",
     "date_livraison": null,
-    "statut": "en_cours",
+    "statut": "en_attente",
     "destination_latitude": 14.69,
     "destination_longitude": -17.44,
     "commande": {
      "id": 6,
      "numero_commande": "CMD-20261019-0Z4I",
      "produit": "oignon",
-     "quantite": 75
-    }
+     "quantite": 75,
+     "acheteur": {
+      "latitude": 14.69,
+      "longitude": -17.44,
+      "utilisateur": {
+       "prenom": "Aminata Mariama",
+       "nom": "Ndiaye-Diop Fall",
+       "telephone": "770000003",
+       "adresse": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12"
+      }
+     },
+     "stock": {
+      "entrepot": {
+       "nom_entrepot": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)",
+       "localisation": "Thiès, route de Dakar km 4",
+       "latitude": 14.79,
+       "longitude": -16.93,
+       "utilisateur": {
+        "telephone": "770000002"
+       }
+      }
+     }
+    },
+    "actions": [
+     "accepter_mission",
+     "refuser_mission"
+    ],
+    "prochaine_etape": {
+     "libelle": "Mission à accepter par le transporteur"
+    },
+    "incidents": []
    }
   ]
  },
@@ -394,7 +516,8 @@
       "id": 1,
       "nom": "Ndiaye-Diop Fall",
       "prenom": "Aminata Mariama",
-      "telephone": "770000001"
+      "telephone": "770000001",
+      "adresse": "Quartier Médina, rue 22 x 15, Thiès"
      }
     },
     "transporteur": {
@@ -407,7 +530,15 @@
       "prenom": "Aron",
       "telephone": "770000002"
      }
-    }
+    },
+    "mode_transport": "transporteur",
+    "production": {
+     "id": 1,
+     "code_tracabilite": "LOT-2026-49RTEX",
+     "type_culture": "riz"
+    },
+    "actions": [],
+    "prochaine_etape": null
    },
    {
     "id": 2,
@@ -421,7 +552,7 @@
     "date_fin": null,
     "date_reservation": "2026-10-19 11:30:24",
     "transporteur_id": 1,
-    "statut": "en_attente",
+    "statut": "confirmee",
     "entrepot": {
      "id": 1,
      "nom_entrepot": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)",
@@ -434,7 +565,8 @@
       "id": 1,
       "nom": "Ndiaye-Diop Fall",
       "prenom": "Aminata Mariama",
-      "telephone": "770000003"
+      "telephone": "770000003",
+      "adresse": "Quartier Médina, rue 22 x 15, Thiès"
      }
     },
     "transporteur": {
@@ -447,6 +579,22 @@
       "prenom": "Aron",
       "telephone": "770000004"
      }
+    },
+    "mode_transport": "transporteur",
+    "production": {
+     "id": 2,
+     "code_tracabilite": "LOT-2026-49RTEX",
+     "type_culture": "mil"
+    },
+    "actions": [
+     "accepter_mission",
+     "refuser_mission",
+     "partir",
+     "annuler"
+    ],
+    "prochaine_etape": {
+     "libelle": "Mission à accepter par le transporteur (collecte chez le producteur)",
+     "acteur": "transporteur"
     }
    },
    {
@@ -474,7 +622,8 @@
       "id": 2,
       "nom": "Jerde",
       "prenom": "Jazmin",
-      "telephone": "770000005"
+      "telephone": "770000005",
+      "adresse": "Quartier Médina, rue 22 x 15, Thiès"
      }
     },
     "transporteur": {
@@ -487,7 +636,15 @@
       "prenom": "Aron",
       "telephone": "770000006"
      }
-    }
+    },
+    "mode_transport": "transporteur",
+    "production": {
+     "id": 3,
+     "code_tracabilite": "LOT-2026-49RTEX",
+     "type_culture": "arachide"
+    },
+    "actions": [],
+    "prochaine_etape": null
    }
   ]
  },
@@ -630,7 +787,478 @@
   "genere_le": "2026-10-19T11:30:24.000000Z"
  },
  "/notifications": {
-  "notifications": [],
-  "non_lues": 0
+  "notifications": [
+   {
+    "id": "n1",
+    "data": {
+     "type": "incident",
+     "message": "Incident « acheteur absent » déclaré sur LIV-20261019-ZLEH : personne sur place au marché central de Dakar. Une décision est attendue."
+    },
+    "read_at": null,
+    "created_at": "2026-10-19T09:00:00Z"
+   },
+   {
+    "id": "n2",
+    "data": {
+     "type": "compte_valide",
+     "message": "Votre compte SenAgriLink est activé : vous pouvez vous connecter."
+    },
+    "read_at": "2026-10-19T09:10:00Z",
+    "created_at": "2026-10-19T09:05:00Z"
+   }
+  ],
+  "non_lues": 1
+ },
+ "/entrepots/disponibles": {
+  "entrepots": [
+   {
+    "id": 1,
+    "nom_entrepot": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)",
+    "localisation": "Thiès, route de Dakar km 4",
+    "capacite": 50000,
+    "capacite_disponible": 42350.5
+   }
+  ]
+ },
+ "/suivi/livraison/1": {
+  "sujet_type": "livraison",
+  "sujet_id": 1,
+  "numero": "LIV-20261019-ZLEH",
+  "statut": "en_cours",
+  "en_route": true,
+  "conducteur": {
+   "nom": "Ousmane Sarr-Diallo",
+   "telephone": "770000004"
+  },
+  "details": {
+   "produit": "oignon",
+   "quantite": 75,
+   "code_tracabilite": "LOT-2026-49RTEX",
+   "parti_le": "2026-10-19T11:30:24Z",
+   "arrive_le": null
+  },
+  "origine": {
+   "nom": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)",
+   "latitude": null,
+   "longitude": null,
+   "adresse": "Thiès, route de Dakar km 4"
+  },
+  "destination": {
+   "adresse": "Quartier Médina, rue 22 x 15, Thiès",
+   "latitude": 14.69,
+   "longitude": -17.44,
+   "nom": "Aminata Mariama Ndiaye-Diop Fall"
+  },
+  "genere_le": "2026-10-19T11:30:24.000000Z",
+  "parti_le": "2026-10-19T11:30:24Z",
+  "position": {
+   "latitude": 14.75,
+   "longitude": -17,
+   "timestamp": "2026-10-19T11:30:24.000000Z",
+   "vitesse": 52
+  },
+  "age_position_s": 5,
+  "position_recente": true,
+  "trace": [
+   [
+    14.79,
+    -16.93
+   ],
+   [
+    14.77,
+    -16.97
+   ],
+   [
+    14.75,
+    -17
+   ]
+  ],
+  "trajet": [
+   [
+    14.74,
+    -17.1
+   ],
+   [
+    14.71,
+    -17.3
+   ],
+   [
+    14.69,
+    -17.44
+   ]
+  ],
+  "arrivee_estimee_le": "2026-10-19T12:20:00Z",
+  "distance_restante_km": 48.5,
+  "estimation_routiere": true
+ },
+ "/suivi/configuration": {
+  "tuiles_url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "attribution": "© les contributeurs d'OpenStreetMap",
+  "routage_routier": true,
+  "position_recente_s": 60
+ },
+ "/a-faire": {
+  "elements": [
+   {
+    "categorie": "incident",
+    "sujet_type": "livraison",
+    "sujet_id": 1,
+    "incident_id": 1,
+    "numero": "LIV-20261019-ZLEH",
+    "titre": "Le camion est tombé en panne sur la route nationale 2 à la sortie de Thiès",
+    "etape": "Incident à décider : panne",
+    "urgence": "haute",
+    "en_retard": true,
+    "depuis": "2026-10-19T09:30:00Z"
+   },
+   {
+    "categorie": "commande",
+    "sujet_type": "commande",
+    "sujet_id": 2,
+    "numero": "CMD-20261019-ZWIO",
+    "titre": "oignon violet de Galmi — 1 250,5 kg",
+    "etape": "Livraison à organiser",
+    "urgence": "normale",
+    "en_retard": false,
+    "depuis": "2026-10-19T11:30:00Z"
+   },
+   {
+    "categorie": "stock",
+    "sujet_type": "stock",
+    "sujet_id": 1,
+    "numero": "riz",
+    "titre": "riz : 12 kg disponibles (seuil 50 kg)",
+    "etape": "Stock sous le seuil d'alerte",
+    "urgence": "normale",
+    "en_retard": false,
+    "depuis": null
+   }
+  ]
+ },
+ "/commandes": {
+  "commandes": [
+   {
+    "id": 2,
+    "numero_commande": "CMD-20261019-ZWIO",
+    "produit": "oignon violet de Galmi",
+    "quantite": 1250.5,
+    "prix": 187500,
+    "statut": "prete",
+    "actions": [
+     "organiser_livraison",
+     "annuler_commande"
+    ],
+    "prochaine_etape": {
+     "libelle": "Livraison à organiser"
+    },
+    "incidents": [
+     {
+      "id": 3,
+      "type": "demande_annulation",
+      "statut": "ouvert"
+     }
+    ],
+    "acheteur": {
+     "utilisateur": {
+      "prenom": "Aminata Mariama",
+      "nom": "Ndiaye-Diop Fall",
+      "telephone": "770000003"
+     }
+    },
+    "livraison": null
+   },
+   {
+    "id": 3,
+    "numero_commande": "CMD-20261019-QTPS",
+    "produit": "riz",
+    "quantite": 100,
+    "prix": 15000,
+    "statut": "en_attente",
+    "actions": [
+     "confirmer",
+     "refuser"
+    ],
+    "prochaine_etape": {
+     "libelle": "Commande à confirmer par l'entrepôt"
+    },
+    "incidents": [],
+    "acheteur": {
+     "utilisateur": {
+      "prenom": "Moussa",
+      "nom": "Ba"
+     }
+    },
+    "livraison": null
+   }
+  ]
+ },
+ "/incidents": {
+  "incidents": [
+   {
+    "id": 1,
+    "type": "acheteur_absent",
+    "statut": "ouvert",
+    "description": "Personne sur place au marché central, téléphone sans réponse depuis 30 minutes",
+    "sujet": {
+     "numero": "LIV-20261019-ZLEH"
+    },
+    "declarant": {
+     "prenom": "Ousmane",
+     "nom": "Sarr-Diallo"
+    },
+    "decisions": [
+     "reprendre",
+     "changer_transporteur",
+     "retour_entrepot",
+     "annuler_commande"
+    ]
+   },
+   {
+    "id": 2,
+    "type": "demande_annulation",
+    "statut": "resolu",
+    "decision": "refuser_annulation",
+    "motif_decision": "Marchandise déjà chargée dans le camion",
+    "sujet": {
+     "numero": "CMD-20261019-ZWIO"
+    },
+    "decisions": []
+   }
+  ]
+ },
+ "/fiches/commande/2": {
+  "role": "gestionnaire",
+  "commande": {
+   "id": 2,
+   "numero_commande": "CMD-20261019-ZWIO",
+   "produit": "oignon violet de Galmi",
+   "quantite": 1250.5,
+   "statut": "en_livraison",
+   "prix": 187500,
+   "prix_unitaire": 150
+  },
+  "actions": [
+   "preparer"
+  ],
+  "prochaine_etape": {
+   "libelle": "Réception à confirmer par l'acheteur"
+  },
+  "code_reception": null,
+  "lot": {
+   "code_tracabilite": "LOT-2026-49RTEX",
+   "entrepot": "Entrepôt coopératif régional de Thiès-Nord (zone industrielle)"
+  },
+  "acheteur": {
+   "nom": "Aminata Mariama Ndiaye-Diop Fall",
+   "telephone": "770000003",
+   "adresse": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12"
+  },
+  "livraison": {
+   "id": 1,
+   "numero_livraison": "LIV-20261019-ZLEH",
+   "statut": "en_cours",
+   "destination": "Marché central de Dakar, avenue Blaise Diagne, entrepôt 12",
+   "suivi_disponible": true,
+   "transporteur": {
+    "nom": "Ousmane Sarr-Diallo",
+    "telephone": "770000004"
+   }
+  },
+  "incidents": [
+   {
+    "id": 1,
+    "libelle": "acheteur absent",
+    "description": "Personne sur place",
+    "statut": "ouvert",
+    "decision": null
+   }
+  ],
+  "etapes": [
+   {
+    "date": "2026-10-19T09:00:00Z",
+    "libelle": "Création",
+    "auteur": "Aminata Mariama Ndiaye-Diop Fall",
+    "sujet": "commande"
+   },
+   {
+    "date": "2026-10-19T10:00:00Z",
+    "libelle": "Transporteur changé",
+    "auteur": "Ibrahima Ndiaye",
+    "sujet": "livraison",
+    "motif": "Le premier véhicule est en révision au garage"
+   }
+  ]
+ },
+ "/navigation/livraison/5": {
+  "sujet_type": "livraison",
+  "sujet_id": 5,
+  "numero": "LIV-2026-000005",
+  "statut": "chargee",
+  "vers": "destination",
+  "cible": {
+   "nom": "Aminata Mariama Ndiaye-Diop Fall",
+   "adresse": "Quartier Médina, rue 22 x 15, en face de la grande mosquée, Thiès",
+   "latitude": 14.79,
+   "longitude": -16.93
+  },
+  "actions": [
+   "partir",
+   "declarer_incident"
+  ],
+  "proche": false,
+  "itineraire": {
+   "km": 72.4,
+   "secondes": 5400,
+   "routier": true,
+   "arrivee_vers": "2026-10-22T11:30:00Z",
+   "points": [
+    [
+     14.8,
+     -16.95
+    ],
+    [
+     14.795,
+     -16.94
+    ],
+    [
+     14.79,
+     -16.93
+    ]
+   ],
+   "etapes": [
+    {
+     "instruction": "Partez par la Route nationale 1",
+     "type": "depart",
+     "distance_m": 1200,
+     "debut": 0,
+     "fin": 1
+    },
+    {
+     "instruction": "Au rond-point, prenez la 3e sortie sur la Route nationale 2 en direction de Saint-Louis",
+     "type": "rond_point",
+     "distance_m": 1100,
+     "debut": 1,
+     "fin": 2
+    },
+    {
+     "instruction": "Arrivée à destination",
+     "type": "arrivee",
+     "distance_m": 0,
+     "debut": 2,
+     "fin": 2
+    }
+   ]
+  },
+  "action_principale": "demarrer",
+  "arrivee_automatique": false
+ },
+ "/journee": {
+  "attention": [
+   {
+    "categorie": "incident",
+    "sujet_type": "livraison",
+    "sujet_id": 2,
+    "numero": "LIV-2026-000002",
+    "titre": "Moteur",
+    "etape": "Incident à décider : panne du camion sur la route nationale",
+    "urgence": "haute",
+    "en_retard": true
+   }
+  ],
+  "arrivent": [
+   {
+    "id": 3,
+    "numero": "RES-2026-000003",
+    "produit": "Arachide décortiquée de qualité supérieure",
+    "quantite": 1250.5,
+    "statut": "en_route",
+    "etape": "En route vers l'entrepôt",
+    "producteur": {
+     "nom": "Aminata Mariama Ndiaye-Diop Fall"
+    },
+    "transporteur": {
+     "nom": "Alioune Badara Fall Ndiaye"
+    },
+    "livre_lui_meme": false,
+    "a_receptionner": true,
+    "arrivee_estimee_le": "2026-10-22T14:35:00Z"
+   }
+  ],
+  "a_preparer": [
+   {
+    "id": 8,
+    "numero": "CMD-2026-000008",
+    "produit": "Riz paddy de la vallée du fleuve",
+    "quantite": 10,
+    "statut": "confirmee",
+    "acheteur": {
+     "nom": "Fatou Binetou Sow Diagne"
+    },
+    "action": "prete"
+   }
+  ],
+  "partent": [
+   {
+    "id": 5,
+    "numero": "LIV-2026-000005",
+    "commande_id": 9,
+    "produit": "Maïs",
+    "quantite": 5,
+    "statut": "en_attente",
+    "etape": "Mission à accepter",
+    "acheteur": {
+     "nom": "Modou Kane"
+    },
+    "transporteur": null,
+    "sans_transporteur": true,
+    "mission_acceptee": false
+   }
+  ],
+  "pilote": {
+   "auto_accepter_depots": true,
+   "auto_confirmer_commandes": true,
+   "auto_affecter_transporteurs": true,
+   "delai_reponse_min": 10
+  }
+ },
+ "/argent": {
+  "totaux": {
+   "mis_de_cote": 1250000,
+   "verse": 8420500,
+   "a_regler": 35000,
+   "regle": 0
+  },
+  "moyen_paiement": "orange_money",
+  "numero_paiement": "771234567",
+  "versements": [
+   {
+    "id": 1,
+    "beneficiaire": "producteur",
+    "montant": 1250000,
+    "statut": "bloque",
+    "commande": {
+     "numero_commande": "CMD-2026-000008",
+     "produit": "Arachide décortiquée de qualité supérieure",
+     "quantite": 1250.5,
+     "prix": 1300000,
+     "frais_stockage": 6252,
+     "commission": 26000
+    }
+   },
+   {
+    "id": 2,
+    "beneficiaire": "producteur",
+    "montant": 35000,
+    "statut": "a_regler",
+    "commande": {
+     "numero_commande": "CMD-2026-000009",
+     "produit": "Mil",
+     "quantite": 50,
+     "prix": 36000,
+     "frais_stockage": 250,
+     "commission": 720
+    }
+   }
+  ]
  }
 }

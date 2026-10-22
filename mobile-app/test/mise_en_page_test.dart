@@ -9,6 +9,8 @@ import 'package:agri_platform_mobile/screens/auth/login_screen.dart';
 import 'package:agri_platform_mobile/screens/auth/register_screen.dart';
 import 'package:agri_platform_mobile/screens/gestionnaire/stocks_screen.dart';
 import 'package:agri_platform_mobile/screens/producteur/commandes_disponibles_screen.dart';
+import 'package:agri_platform_mobile/screens/producteur/depots_screen.dart';
+import 'package:agri_platform_mobile/screens/producteur/nouveau_depot_screen.dart';
 import 'package:agri_platform_mobile/screens/producteur/nouvelle_recolte_screen.dart';
 import 'package:agri_platform_mobile/screens/producteur/planifier_ventes_screen.dart';
 import 'package:agri_platform_mobile/screens/producteur/productions_screen.dart';
@@ -17,6 +19,16 @@ import 'package:agri_platform_mobile/screens/shared/tracabilite_screen.dart';
 import 'package:agri_platform_mobile/screens/transporteur/detail_livraison_screen.dart';
 import 'package:agri_platform_mobile/screens/transporteur/livraisons_screen.dart';
 import 'package:agri_platform_mobile/screens/transporteur/reservations_screen.dart';
+import 'package:agri_platform_mobile/screens/gestionnaire/commandes_entrepot_screen.dart';
+import 'package:agri_platform_mobile/screens/gestionnaire/depots_entrepot_screen.dart';
+import 'package:agri_platform_mobile/screens/gestionnaire/incidents_screen.dart';
+import 'package:agri_platform_mobile/screens/shared/a_faire_screen.dart';
+import 'package:agri_platform_mobile/screens/conduite/conduite_screen.dart';
+import 'package:agri_platform_mobile/screens/gestionnaire/ma_journee_screen.dart';
+import 'package:agri_platform_mobile/screens/paiement/argent_screen.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:agri_platform_mobile/screens/shared/notifications_screen.dart';
+import 'package:agri_platform_mobile/screens/shared/fiche_commande_screen.dart';
 import 'package:agri_platform_mobile/services/api_service.dart';
 import 'package:agri_platform_mobile/services/auth_provider.dart';
 import 'package:agri_platform_mobile/widgets/app_theme.dart';
@@ -52,9 +64,9 @@ void main() {
     'telephone': '770000001', 'adresse': 'Quartier Médina, rue 22 x 15, Thiès', 'role': role, 'statut': 'actif',
   };
 
-  final livraison = Livraison.fromJson(
-    Map<String, dynamic>.from((reponses['/livraisons']['livraisons'] as List).first as Map)..['statut'] = 'en_attente',
-  );
+  final livraisons = (reponses['/livraisons']['livraisons'] as List).cast<Map<String, dynamic>>();
+  final livraison = Livraison.fromJson(livraisons[2]);
+  final remise = Livraison.fromJson(livraisons[0]);
 
   // Écran → (rôle connecté, construction, texte attendu une fois les données chargées).
   // Le texte attendu garantit que l'écran a bien rendu son contenu réel, et non
@@ -66,15 +78,27 @@ void main() {
     'Nouvelle récolte':         ('producteur', () => const NouvelleRecolteScreen(), 'Enregistrer la récolte'),
     'Planifier mes ventes':     ('producteur', () => const PlanifierVentesScreen(), 'LOT-2026-H83OSV'),
     'Commandes disponibles':    ('producteur', () => const CommandesDisponiblesScreen(), 'Acheteur : Moussa Ba'),
+    'Mes dépôts':               ('producteur', () => const DepotsScreen(), 'Je pars vers l\'entrepôt'),
+    'Déposer une récolte':      ('producteur', () => const NouveauDepotScreen(), 'Envoyer la demande'),
     'Stocks':                   ('gestionnaire_entrepot', () => const StocksScreen(), '1340'),
     'Catalogue':                ('acheteur_gros', () => const CatalogueScreen(), 'oignon'),
-    'Mes commandes':            ('acheteur_gros', () => const MesCommandesScreen(), 'CMD-20261019-OFXJ'),
+    'Mes commandes':            ('acheteur_gros', () => const MesCommandesScreen(), 'J\'ai bien reçu ma commande'),
     'Suivi de livraison':       ('acheteur_gros', () => const SuiviLivraisonScreen(livraisonId: 1), 'En cours'),
     'Livraisons':               ('transporteur', () => const LivraisonsScreen(), 'LIV-20261019-ZLEH'),
-    'Réservations à acheminer': ('transporteur', () => const ReservationsScreen(), 'RES-20261019-Y7UB'),
-    'Détail de livraison':      ('transporteur', () => DetailLivraisonScreen(livraison: livraison), 'Statut actuel'),
-    'Profil':                   ('producteur', () => const ProfilScreen(), 'Modifier mes informations'),
+    'Acheminements':            ('transporteur', () => const ReservationsScreen(), 'Accepter la mission'),
+    'Détail de livraison':      ('transporteur', () => DetailLivraisonScreen(livraison: livraison), 'Accepter la mission'),
+    'Remise par code':          ('transporteur', () => DetailLivraisonScreen(livraison: remise), 'Remettre avec le code'),
+    'À faire':                  ('gestionnaire_entrepot', () => const AFaireScreen(), 'Incident à décider : panne'),
+    'Commandes de l\'entrepôt': ('gestionnaire_entrepot', () => const CommandesEntrepotScreen(), 'Organiser la livraison'),
+    'Dépôts de l\'entrepôt':    ('gestionnaire_entrepot', () => const DepotsEntrepotScreen(), 'Dépôts'),
+    'Incidents':                ('gestionnaire_entrepot', () => const IncidentsScreen(), 'Personne sur place'),
+    'Fiche de commande':        ('gestionnaire_entrepot', () => const FicheCommandeScreen(commandeId: 2), 'Réception à confirmer'),
+    'Notifications':            ('acheteur_gros', () => const NotificationsScreen(), 'Tout lire'),
+    'Profil':                   ('producteur', () => const ProfilScreen(afficherTuiles: false), 'Position de votre exploitation'),
     'Traçabilité':              ('acheteur_gros', () => const TracabiliteScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
+    'Mon argent':               ('producteur', () => const ArgentScreen(), 'Arachide décortiquée'),
+    'Ma journée':               ('gestionnaire_entrepot', () => const MaJourneeScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
+    'Conduite':                 ('transporteur', () => const ConduiteScreen(type: 'livraison', id: 5, numero: 'LIV-2026-000005'), 'Route nationale 2'),
   };
 
   // Police réelle (Roboto, fournie avec le SDK Flutter) plutôt que la police de
@@ -93,6 +117,8 @@ void main() {
   });
 
   setUp(() {
+    ConduiteScreen.sourcePositions = () => Stream.value(const LatLng(14.80, -16.95));
+    ConduiteScreen.parler = (_) async {};
     ApiService.client = MockClient((req) async {
       final chemin = req.url.path.replaceFirst(RegExp(r'^.*/api'), '');
       final corps = reponses[chemin];

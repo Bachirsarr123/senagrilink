@@ -8,7 +8,28 @@ class Entrepot extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['utilisateur_id', 'nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude'];
+    protected $fillable = [
+        'utilisateur_id', 'nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude',
+        // Lot 11 : pilote automatique
+        'auto_accepter_depots', 'auto_confirmer_commandes', 'auto_affecter_transporteurs', 'delai_reponse_min',
+        // Lot 12 : frais d'entrepôt par kg vendu
+        'frais_stockage_kg',
+    ];
+
+    /**
+     * Nombres renvoyés comme tels en JSON : sous PostgreSQL, les colonnes
+     * float/decimal arrivent en chaînes (« 12.5 ») et cassaient les clients (P-07).
+     */
+    protected $casts = [
+        'capacite'  => 'float',
+        'latitude'  => 'float',
+        'longitude' => 'float',
+        'auto_accepter_depots'        => 'boolean',
+        'auto_confirmer_commandes'    => 'boolean',
+        'auto_affecter_transporteurs' => 'boolean',
+        'delai_reponse_min'           => 'integer',
+        'frais_stockage_kg'           => 'float',
+    ];
 
     public function utilisateur()
     {

@@ -84,8 +84,8 @@ class ConcurrencePostgresTest extends TestCase
 
         $fin = $this->transactionConcurrente([
             "SELECT id FROM commandes WHERE id = {$commande->id} FOR UPDATE",
-            "UPDATE commandes SET statut = 'confirmee' WHERE id = {$commande->id}",
-            "UPDATE stocks SET quantite = quantite - 10 WHERE id = {$p->stock->id}",
+            "UPDATE commandes SET statut = 'confirmee', etat_stock = 'reserve' WHERE id = {$commande->id}",
+            "UPDATE stocks SET quantite_reservee = quantite_reservee + 10 WHERE id = {$p->stock->id}",
         ]);
 
         $debut = microtime(true);
@@ -96,7 +96,7 @@ class ConcurrencePostgresTest extends TestCase
         $fin();
 
         $this->assertGreaterThan(0.5, $attente, 'La requête aurait dû attendre le verrou.');
-        $this->assertEquals(70, Stock::find($p->stock->id)->quantite); // déduit une seule fois
+        $this->assertEquals(10, Stock::find($p->stock->id)->quantite_reservee); // réservé une seule fois
     }
 
     public function test_h1_deux_commandes_sur_le_meme_stock_sans_mise_a_jour_perdue(): void
@@ -107,8 +107,8 @@ class ConcurrencePostgresTest extends TestCase
 
         $fin = $this->transactionConcurrente([
             "SELECT id FROM stocks WHERE id = {$p->stock->id} FOR UPDATE",
-            "UPDATE commandes SET statut = 'confirmee' WHERE id = {$c1->id}",
-            "UPDATE stocks SET quantite = quantite - 10 WHERE id = {$p->stock->id}",
+            "UPDATE commandes SET statut = 'confirmee', etat_stock = 'reserve' WHERE id = {$c1->id}",
+            "UPDATE stocks SET quantite_reservee = quantite_reservee + 10 WHERE id = {$p->stock->id}",
         ]);
 
         $this->en($p->gestionnaire)->putJson("/api/commandes/{$c2->id}/confirmer")
@@ -116,7 +116,7 @@ class ConcurrencePostgresTest extends TestCase
              ->assertJsonPath('stock_restant', 60);
         $fin();
 
-        $this->assertEquals(60, Stock::find($p->stock->id)->quantite); // 80 - 10 - 10
+        $this->assertEquals(20, Stock::find($p->stock->id)->quantite_reservee); // 10 + 10, aucune réservation perdue
     }
 
     public function test_r8_blocage_croise_garde_un_administrateur_actif(): void
@@ -137,5 +137,154 @@ class ConcurrencePostgresTest extends TestCase
         $fin();
 
         $this->assertSame('actif', $admin2->fresh()->statut);
+    }
+
+    /** Durée minimale attendue derrière le verrou, preuve que la requête a bien été sérialisée. */
+    private function chrono(\Closure $requete): float
+    {
+        $debut = microtime(true);
+        $requete();
+
+        return microtime(true) - $debut;
+    }
+
+    public function test_p05_marchandise_receptionnee_une_seule_fois(): void
+    {
+        $p     = $this->parcours();
+        $prod  = $this->production($p->producteur);
+        $resa  = $this->reservation($prod, $p->gestionnaire, 'arrivee_entrepot');
+        $avant = Stock::count();
+
+        // Une première validation est en cours (même verrou que validerMarchandise)
+        $fin = $this->transactionConcurrente([
+            "SELECT id FROM reservations WHERE id = {$resa->id} FOR UPDATE",
+            "UPDATE reservations SET statut = 'enregistree' WHERE id = {$resa->id}",
+            "INSERT INTO stocks (entrepot_id, production_id, produit, quantite, statut) VALUES ({$resa->entrepot_id}, {$prod->id}, 'riz', 100, 'disponible')",
+        ]);
+
+        $attente = $this->chrono(fn () => $this->receptionner($p->gestionnaire, $resa->id, 100)->assertStatus(422));
+        $fin();
+
+        $this->assertGreaterThan(0.5, $attente, 'La validation aurait dû attendre le verrou.');
+        $this->assertSame($avant + 1, Stock::count()); // une seule ligne de stock pour le lot
+    }
+
+    public function test_p08_ajustement_sans_mise_a_jour_perdue(): void
+    {
+        $p = $this->parcours(); // stock de 80 kg, rien de réservé
+
+        // Une confirmation de commande réserve 10 kg sous verrou
+        $fin = $this->transactionConcurrente([
+            "SELECT id FROM stocks WHERE id = {$p->stock->id} FOR UPDATE",
+            "UPDATE stocks SET quantite_reservee = quantite_reservee + 10 WHERE id = {$p->stock->id}",
+        ]);
+
+        // Retrait de 75 kg : possible sur l'ancienne lecture (80 disponibles), impossible sur la réelle (70)
+        $attente = $this->chrono(fn () => $this->en($p->gestionnaire)
+            ->postJson("/api/stocks/{$p->stock->id}/ajustement", ['motif_type' => 'perte', 'sens' => 'retrait', 'quantite' => 75, 'motif' => 'x'])
+            ->assertStatus(422));
+        $fin();
+
+        $this->assertGreaterThan(0.5, $attente);
+        $stock = Stock::find($p->stock->id);
+        $this->assertEquals([80.0, 10.0], [$stock->quantite, $stock->quantite_reservee]);
+    }
+
+    public function test_p10_capacite_dentrepot_non_depassee_par_deux_demandes_simultanees(): void
+    {
+        $p = $this->parcours();
+        $p->gestionnaire->entrepot->update(['capacite' => 180]); // 80 kg déjà en stock → 100 disponibles
+        $prod = $this->production($p->producteur);
+        $avant = \App\Models\Reservation::count();
+
+        // Une autre demande de 60 kg est en cours de création (même verrou sur l'entrepôt)
+        $fin = $this->transactionConcurrente([
+            "SELECT id FROM entrepots WHERE id = {$p->gestionnaire->entrepot->id} FOR UPDATE",
+            "INSERT INTO reservations (entrepot_id, producteur_id, production_id, produit, quantite_reservee, date_debut, date_reservation, statut) "
+                ."VALUES ({$p->gestionnaire->entrepot->id}, {$prod->producteur_id}, {$prod->id}, 'riz', 60, '2026-06-02', NOW(), 'en_attente')",
+        ]);
+
+        $attente = $this->chrono(fn () => $this->en($p->producteur)->postJson('/api/reservations', [
+            'entrepot_id' => $p->gestionnaire->entrepot->id, 'production_id' => $prod->id, 'produit' => 'riz', 'quantite_reservee' => 60, 'date_debut' => '2026-06-02', 'mode_transport' => 'transporteur',
+        ])->assertStatus(422));
+        $fin();
+
+        $this->assertGreaterThan(0.5, $attente);
+        $this->assertSame($avant + 1, \App\Models\Reservation::count());
+    }
+
+    public function test_p25_une_seule_livraison_par_commande(): void
+    {
+        $p = $this->parcours('en_attente');
+        $p->livraison->delete();
+        $avant = \App\Models\Livraison::count();
+
+        $fin = $this->transactionConcurrente([
+            "SELECT id FROM commandes WHERE id = {$p->commande->id} FOR UPDATE",
+            "INSERT INTO livraisons (commande_id, transporteur_id, origine, destination, statut) "
+                ."VALUES ({$p->commande->id}, {$p->transporteur->transporteur->id}, 'E', 'D', 'en_attente')",
+        ]);
+
+        $attente = $this->chrono(fn () => $this->en($p->gestionnaire)->postJson('/api/livraisons', [
+            'commande_id' => $p->commande->id, 'transporteur_id' => $p->transporteur->transporteur->id, 'origine' => 'E', 'destination' => 'D',
+        ])->assertStatus(422));
+        $fin();
+
+        $this->assertGreaterThan(0.5, $attente);
+        $this->assertSame($avant + 1, \App\Models\Livraison::count());
+    }
+
+    public function test_arrivee_refusee_au_transporteur_remplace_pendant_la_requete(): void
+    {
+        $p      = $this->parcours();
+        $autre  = Utilisateur::factory()->transporteur()->create();
+        $resa   = $this->reservation($this->production($p->producteur), $p->gestionnaire, 'confirmee');
+        $resa->update(['transporteur_id' => $p->transporteur->transporteur->id, 'statut' => 'en_route', 'mission_acceptee_le' => now()]);
+        $requete = $this->en($p->transporteur);
+
+        // Réassignation simultanée par le gestionnaire
+        $fin = $this->transactionConcurrente([
+            "SELECT id FROM reservations WHERE id = {$resa->id} FOR UPDATE",
+            "UPDATE reservations SET transporteur_id = {$autre->transporteur->id} WHERE id = {$resa->id}",
+        ]);
+
+        $requete->putJson("/api/reservations/{$resa->id}/arrivee")->assertStatus(403);
+        $fin();
+
+        $this->assertSame('en_route', $resa->fresh()->statut);
+    }
+
+    public function test_idempotence_sans_transaction_englobante_sous_postgresql(): void
+    {
+        // Chemin de production : pas de transaction de test autour de la requête,
+        // la violation d'unicité est rattrapée au premier niveau de transaction.
+        $p   = $this->parcours();
+        $cle = 'concurrence-cle-0001';
+        $envoyer = fn () => $this->en($p->acheteur)->withHeader('Idempotency-Key', $cle)
+            ->postJson('/api/commandes', ['stock_id' => $p->stock->id, 'quantite' => 3]);
+
+        $premiere = $envoyer()->assertStatus(201);
+        $seconde  = $envoyer()->assertStatus(201)->assertHeader('Idempotent-Replayed', 'true');
+
+        $this->assertSame($premiere->json('commande.id'), $seconde->json('commande.id'));
+        $this->assertSame(1, \App\Models\Commande::where('quantite', 3)->count());
+    }
+
+    public function test_confirmation_lit_la_capacite_de_lentrepot_verrouille(): void
+    {
+        $p = $this->parcours(); // 80 kg en stock
+        $p->gestionnaire->entrepot->update(['capacite' => 200]);
+        $resa = $this->reservation($this->production($p->producteur), $p->gestionnaire, 'en_attente'); // 100 kg
+
+        // Le gestionnaire réduit simultanément la capacité à 150 kg (disponible : 150 - 80 = 70 < 100)
+        $fin = $this->transactionConcurrente([
+            "SELECT id FROM entrepots WHERE id = {$p->gestionnaire->entrepot->id} FOR UPDATE",
+            "UPDATE entrepots SET capacite = 150 WHERE id = {$p->gestionnaire->entrepot->id}",
+        ]);
+
+        $this->en($p->gestionnaire)->putJson("/api/reservations/{$resa->id}/confirmer")->assertStatus(422);
+        $fin();
+
+        $this->assertSame('en_attente', $resa->fresh()->statut);
     }
 }

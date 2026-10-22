@@ -1,3 +1,5 @@
+import '../utils/nombres.dart';
+
 class Livraison {
   final int id;
   final String numeroLivraison;
@@ -7,6 +9,13 @@ class Livraison {
   final String? dateLivraison;
   final String statut;
   final Map<String, dynamic>? commande;
+  /// Actions possibles pour le transporteur connecté (décidées par le serveur).
+  final List<String> actions;
+  final String? prochaineEtape;
+  /// Incidents ouverts sur la livraison.
+  final List<Map<String, dynamic>> incidents;
+  final double? destinationLatitude;
+  final double? destinationLongitude;
 
   const Livraison({
     required this.id,
@@ -17,7 +26,17 @@ class Livraison {
     this.dateLivraison,
     required this.statut,
     this.commande,
+    this.actions = const [],
+    this.prochaineEtape,
+    this.incidents = const [],
+    this.destinationLatitude,
+    this.destinationLongitude,
   });
+
+  bool peut(String action) => actions.contains(action);
+
+  Map<String, dynamic>? get acheteur => (commande?['acheteur'] as Map?)?['utilisateur'] as Map<String, dynamic>?;
+  Map<String, dynamic>? get entrepot => (commande?['stock'] as Map?)?['entrepot'] as Map<String, dynamic>?;
 
   factory Livraison.fromJson(Map<String, dynamic> j) => Livraison(
         id: j['id'],
@@ -28,5 +47,10 @@ class Livraison {
         dateLivraison: j['date_livraison'],
         statut: j['statut'],
         commande: j['commande'],
+        actions: ((j['actions'] as List?) ?? const []).cast<String>(),
+        prochaineEtape: (j['prochaine_etape'] as Map?)?['libelle'] as String?,
+        incidents: ((j['incidents'] as List?) ?? const []).cast<Map<String, dynamic>>(),
+        destinationLatitude: nombre(j['destination_latitude']),
+        destinationLongitude: nombre(j['destination_longitude']),
       );
 }

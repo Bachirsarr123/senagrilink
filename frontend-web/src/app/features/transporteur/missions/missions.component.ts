@@ -1,8 +1,25 @@
-import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { PartagePositionService } from '../../../shared/suivi/partage-position';
+import { DecimalPipe } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
+import { demanderMotif } from '../../../shared/confirmation/confirmation';
+import { ActionDepot, CONFIRMATION_ETAPE, ETAPE_DE_L_ACTION, LIBELLE_ACTION, peut } from '../../../shared/depot/depot';
+import {
+  ActionLivraison, CONFIRMATION_ETAPE_LIVRAISON, ETAPE_LIVRAISON, LIBELLE_ACTION_LIVRAISON, TYPES_INCIDENT, libelleIncident, peutFaire,
+} from '../../../shared/livraison/livraison';
+import { IncidentFormComponent } from '../../../shared/incident/incident-form';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
+
+/** Acheminement en cours pour le transporteur : proposé, accepté, en collecte ou en route. */
+const ACHEMINEMENT_ACTIF = ['confirmee', 'prise_en_charge', 'au_point_collecte', 'chargee', 'en_route'];
+/** Avant le chargement, le transporteur se rend chez le producteur ; ensuite, à l'entrepôt. */
+const VERS_LE_PRODUCTEUR = ['confirmee', 'prise_en_charge', 'au_point_collecte'];
+
+/** Livraison en cours : proposée, acceptée, chargée, en route ou arrivée chez l'acheteur. */
+const LIVRAISON_ACTIVE = ['en_attente', 'prise_en_charge', 'chargee', 'en_cours', 'arrivee'];
 
 /** Actualisation automatique de la liste (une assignation faite par l'entrepôt apparaît sans action). */
 export const INTERVALLE_ACTUALISATION_MS = 60_000;
@@ -10,7 +27,7 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
 @Component({
   selector: 'app-transporteur-missions',
   standalone: true,
-  imports: [LibelleStatutPipe, DatePipe, DecimalPipe],
+  imports: [RouterLink, LibelleStatutPipe, DecimalPipe, IncidentFormComponent],
   template: `
     <div class="page">
       <div class="page-header">
@@ -40,21 +57,45 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
           } @else {
             <div class="cards-grid">
               @for (r of acheminementsActifs(); track r.id) {
-                <article class="product-card mission">
+                <article class="product-card mission" [class.a-accepter]="peut(r, 'accepter_mission')">
                   <div class="product-header">
                     <h3>{{ r.produit }} — {{ r.quantite_reservee | number }} kg</h3>
-                    <span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span>
+                    @if (peut(r, 'accepter_mission')) { <span class="badge badge-en_attente">Nouvelle mission à accepter</span> }
+                    @else { <span class="badge badge-{{ r.statut }}">{{ r.statut | libelleStatut }}</span> }
                   </div>
                   <div class="product-info">
                     <div class="info-row"><span>Réservation</span><span><code class="code-lot">{{ r.numero_reservation }}</code></span></div>
+                    @if (r.production?.code_tracabilite) { <div class="info-row"><span>Lot</span><span><code class="code-lot">{{ r.production.code_tracabilite }}</code></span></div> }
                     <div class="info-row"><span>Chez le producteur</span><span>{{ r.producteur?.utilisateur?.prenom }} {{ r.producteur?.utilisateur?.nom }}
-                      @if (r.producteur?.utilisateur?.telephone) { · <a [href]="'tel:' + r.producteur.utilisateur.telephone">{{ r.producteur.utilisateur.telephone }}</a> }</span></div>
+                      @if (r.producteur?.utilisateur?.telephone) { · <a [href]="'tel:' + r.producteur.utilisateur.telephone">{{ r.producteur.utilisateur.telephone }}</a> }
+                      @if (r.producteur?.utilisateur?.adresse) { <br><small>{{ r.producteur.utilisateur.adresse }}</small> }</span></div>
                     <div class="info-row"><span>Vers l'entrepôt</span><span>{{ r.entrepot?.nom_entrepot }}@if (r.entrepot?.localisation) { · {{ r.entrepot.localisation }} }</span></div>
-                    <div class="info-row"><span>À partir du</span><span>{{ r.date_debut | date:'dd/MM/yyyy' }}</span></div>
+                    @if (r.incidents?.length) { <div class="info-row"><span>Incident</span><span>{{ libelleIncident(r.incidents[0].type) }} — en attente de l'entrepôt</span></div> }
+                    @if (r.prochaine_etape) { <div class="info-row"><span>Étape suivante</span><span>{{ r.prochaine_etape.libelle }}</span></div> }
                   </div>
-                  <button class="btn-success btn-full" [disabled]="actionEnCours() === 'r' + r.id" (click)="signalerArrivee(r)">
-                    {{ actionEnCours() === 'r' + r.id ? 'Envoi…' : 'Signaler l\\'arrivée à l\\'entrepôt' }}
-                  </button>
+                  @if (r.statut === 'en_route') {
+                    <div class="partage" [class.partage--actif]="partage.partage('reservation', r.id)">
+                      @if (partage.partage('reservation', r.id)) {
+                        <span>📡 Position partagée depuis ce navigateur — gardez la page ouverte@if (partage.enAttente()) { ({{ partage.enAttente() }} en attente d'envoi) }.</span>
+                        <button class="btn-ghost btn-sm" (click)="partage.arreter()">Arrêter</button>
+                      } @else {
+                        <span>Sur téléphone, l'application partage votre position même écran verrouillé.</span>
+                        <button class="btn-secondary btn-sm" (click)="partager('reservation', r.id, r.numero_reservation)">Partager ma position depuis ce navigateur</button>
+                      }
+                      @if (partage.erreur(); as e) { <span class="partage__erreur">{{ e }}</span> }
+                    </div>
+                  }
+                  <!-- Lot 9 : guidage dans le site, à la place de Google Maps -->
+                  @if (conduisible(r.statut, 'reservation')) {
+                    <a class="btn-primary btn-full lien-itineraire" [routerLink]="['/conduite', 'reservation', r.id]">🧭 {{ versLeProducteur(r) ? 'Conduire jusqu\'au producteur' : "Conduire jusqu'à l'entrepôt" }}</a>
+                  }
+                  <div class="btn-group">
+                    @for (a of actionsTransporteur(r); track a) {
+                      <button [class]="a === 'refuser_mission' || a === 'declarer_incident' ? 'btn-ghost' : 'btn-success'" [disabled]="actionEnCours() === 'r' + r.id" (click)="agir(r, a)">
+                        {{ actionEnCours() === 'r' + r.id ? 'Envoi…' : libelle(a) }}
+                      </button>
+                    }
+                  </div>
                 </article>
               }
             </div>
@@ -68,26 +109,53 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
           } @else {
             <div class="cards-grid">
               @for (l of livraisonsActives(); track l.id) {
-                <article class="product-card mission">
+                <article class="product-card mission" [class.a-accepter]="peutFaire(l, 'accepter_mission')">
                   <div class="product-header">
                     <h3>{{ l.commande?.produit }} — {{ l.commande?.quantite | number }} kg</h3>
-                    <span class="badge badge-{{ l.statut }}">{{ l.statut | libelleStatut }}</span>
+                    @if (peutFaire(l, 'accepter_mission')) { <span class="badge badge-en_attente">Nouvelle livraison à accepter</span> }
+                    @else { <span class="badge badge-{{ l.statut }}">{{ l.statut | libelleStatut }}</span> }
                   </div>
+                  @if (l.incidents?.length) {
+                    <div class="alert alert-error" role="status">Incident déclaré : {{ libelleIncident(l.incidents[0].type) }}. L'entrepôt décide de la suite.</div>
+                  }
                   <div class="product-info">
-                    <div class="info-row"><span>Livraison</span><span><code class="code-lot">{{ l.numero_livraison }}</code></span></div>
-                    <div class="info-row"><span>Départ</span><span>{{ l.origine }}</span></div>
-                    <div class="info-row"><span>Destination</span><span>{{ l.destination }}</span></div>
-                    @if (l.date_depart) { <div class="info-row"><span>Départ prévu</span><span>{{ l.date_depart | date:'dd/MM/yyyy HH:mm' }}</span></div> }
+                    <div class="info-row"><span>Livraison</span><span><a [routerLink]="['/commandes', l.commande_id]" title="Ouvrir la fiche"><code class="code-lot">{{ l.numero_livraison }}</code></a></span></div>
+                    <div class="info-row"><span>Charger à</span><span>{{ l.commande?.stock?.entrepot?.nom_entrepot ?? l.origine }}
+                      @if (l.commande?.stock?.entrepot?.utilisateur?.telephone; as tel) { · <a [href]="'tel:' + tel">{{ tel }}</a> }</span></div>
+                    <div class="info-row"><span>Livrer à</span><span>{{ l.commande?.acheteur?.utilisateur?.prenom }} {{ l.commande?.acheteur?.utilisateur?.nom }}
+                      @if (l.commande?.acheteur?.utilisateur?.telephone; as tel) { · <a [href]="'tel:' + tel">{{ tel }}</a> }
+                      <br><small>{{ l.destination }}</small></span></div>
+                    @if (l.prochaine_etape) { <div class="info-row"><span>Étape suivante</span><span>{{ l.prochaine_etape.libelle }}</span></div> }
                   </div>
+                  @if (l.statut === 'en_cours') {
+                    <div class="partage" [class.partage--actif]="partage.partage('livraison', l.id)">
+                      @if (partage.partage('livraison', l.id)) {
+                        <span>📡 Position partagée depuis ce navigateur — gardez la page ouverte@if (partage.enAttente()) { ({{ partage.enAttente() }} en attente d'envoi) }.</span>
+                        <button class="btn-ghost btn-sm" (click)="partage.arreter()">Arrêter</button>
+                      } @else {
+                        <span>Sur téléphone, l'application partage votre position même écran verrouillé.</span>
+                        <button class="btn-secondary btn-sm" (click)="partager('livraison', l.id, l.numero_livraison)">Partager ma position depuis ce navigateur</button>
+                      }
+                      @if (partage.erreur(); as e) { <span class="partage__erreur">{{ e }}</span> }
+                    </div>
+                  }
+                  @if (conduisible(l.statut, 'livraison')) {
+                    <a class="btn-primary btn-full lien-itineraire" [routerLink]="['/conduite', 'livraison', l.id]">🧭 {{ versLEntrepot(l) ? "Conduire jusqu'à l'entrepôt" : "Conduire jusqu'à l'acheteur" }}</a>
+                  }
+                  @if (peutFaire(l, 'confirmer_par_code')) {
+                    <div class="remise">
+                      <label [for]="'code-' + l.id">Code de réception donné par l'acheteur</label>
+                      <div class="btn-group">
+                        <input [id]="'code-' + l.id" #code inputmode="numeric" maxlength="4" placeholder="4 chiffres" />
+                        <button class="btn-success" [disabled]="actionEnCours() === 'l' + l.id" (click)="remettre(l, code.value)">{{ libelleLivraison('confirmer_par_code') }}</button>
+                      </div>
+                    </div>
+                  }
                   <div class="btn-group">
-                    @if (l.statut === 'en_attente') {
-                      <button class="btn-primary" [disabled]="actionEnCours() === 'l' + l.id" (click)="changerStatut(l, 'en_cours')">Démarrer la livraison</button>
-                    }
-                    @if (l.statut === 'en_cours') {
-                      <button class="btn-success" [disabled]="actionEnCours() === 'l' + l.id" (click)="changerStatut(l, 'livree')">Marquer comme livrée</button>
-                    }
-                    @if (l.statut === 'en_attente' || l.statut === 'en_cours') {
-                      <button class="btn-ghost" [disabled]="actionEnCours() === 'l' + l.id" (click)="signalerProbleme(l)">Signaler un problème</button>
+                    @for (a of actionsLivraison(l); track a) {
+                      <button [class]="a === 'refuser_mission' || a === 'declarer_incident' ? 'btn-ghost' : 'btn-success'" [disabled]="actionEnCours() === 'l' + l.id" (click)="agirLivraison(l, a)">
+                        {{ actionEnCours() === 'l' + l.id ? 'Envoi…' : libelleLivraison(a) }}
+                      </button>
                     }
                   </div>
                 </article>
@@ -96,6 +164,12 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
             <p class="note">Le suivi GPS en temps réel de l'acheteur est alimenté par l'application mobile SenAgriLink.</p>
           }
         </div>
+
+        @if (incidentPour(); as cible) {
+          <app-incident-form [titre]="'Déclarer un incident — ' + cible.numero" sousTitre="L'entrepôt est prévenu et décide de la suite. En cas de panne ou d'accès impossible, le transport est suspendu jusqu'à sa décision."
+            [types]="typesIncident(cible.sujet_type)" [erreur]="erreurIncident()" [envoi]="actionEnCours() === 'incident'"
+            (envoyer)="declarer(cible, $event)" (fermer)="incidentPour.set(null)" />
+        }
 
         @if (terminees().length > 0) {
           <div class="card">
@@ -116,6 +190,13 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
     .mission .btn-group { margin-top:.75rem; }
     .note { margin:.75rem 0 0; font-size:.8rem; color:#6b7280; }
     .terminees { margin:0; padding-left:1.1rem; display:grid; gap:.4rem; }
+    .a-accepter { border:2px solid #f59e0b; }
+    .partage { margin-top:.75rem; padding:.5rem .65rem; border-radius:8px; background:#f3f4f6; font-size:.8rem; display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; justify-content:space-between; }
+    .partage--actif { background:#d8f3dc; color:#1b4332; }
+    .partage__erreur { color:#b91c1c; width:100%; }
+    .remise { margin-top:.75rem; display:grid; gap:.35rem; font-size:.85rem; }
+    .remise input { width:7rem; padding:.5rem; border:1px solid #e5e7eb; border-radius:6px; font-size:1.1rem; letter-spacing:.3em; }
+    .lien-itineraire { margin-top:.75rem; text-align:center; text-decoration:none; }
   `],
   styleUrls: ['../../shared.styles.scss'],
 })
@@ -129,19 +210,31 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
   message       = signal<string | null>(null);
   actionEnCours = signal<string | null>(null);
 
-  acheminementsActifs = computed(() => this.reservations().filter(r => r.statut === 'confirmee'));
-  livraisonsActives   = computed(() => this.livraisons().filter(l => ['en_attente', 'en_cours', 'probleme'].includes(l.statut)));
+  /** Missions à accepter en premier, puis celles en cours. */
+  acheminementsActifs = computed(() => this.reservations()
+    .filter(r => ACHEMINEMENT_ACTIF.includes(r.statut))
+    .sort((a, b) => Number(peut(b, 'accepter_mission')) - Number(peut(a, 'accepter_mission'))));
+  livraisonsActives   = computed(() => this.livraisons()
+    .filter(l => LIVRAISON_ACTIVE.includes(l.statut))
+    .sort((a, b) => Number(peutFaire(b, 'accepter_mission')) - Number(peutFaire(a, 'accepter_mission'))));
+  incidentPour   = signal<{ sujet_type: 'livraison' | 'reservation'; sujet_id: number; numero: string } | null>(null);
+  erreurIncident = signal<string | null>(null);
   terminees = computed(() => [
-    ...this.reservations().filter(r => r.statut !== 'confirmee')
+    ...this.reservations().filter(r => !ACHEMINEMENT_ACTIF.includes(r.statut))
       .map(r => ({ cle: 'r' + r.id, numero: r.numero_reservation, libelle: `${r.produit} → ${r.entrepot?.nom_entrepot ?? ''}`, statut: r.statut })),
-    ...this.livraisons().filter(l => l.statut === 'livree')
+    ...this.livraisons().filter(l => !LIVRAISON_ACTIVE.includes(l.statut))
       .map(l => ({ cle: 'l' + l.id, numero: l.numero_livraison, libelle: `${l.commande?.produit ?? ''} → ${l.destination}`, statut: l.statut })),
   ]);
 
+  private cleIncident = new CleSoumission();
   private minuteur?: ReturnType<typeof setInterval>;
   private readonly surRetourAuPremierPlan = () => { if (document.visibilityState === 'visible') this.charger(); };
 
+  readonly partage = inject(PartagePositionService);
+
   constructor(private api: ApiService) {}
+
+  partager(type: 'livraison' | 'reservation', id: number, numero: string): void { this.partage.demarrer({ type, id, numero }); }
 
   ngOnInit(): void {
     this.charger();
@@ -175,30 +268,106 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
     });
   }
 
-  signalerArrivee(r: any): void {
-    if (!confirm(`Confirmer l'arrivée de ${r.produit} (${r.quantite_reservee} kg) à l'entrepôt ${r.entrepot?.nom_entrepot ?? ''} ?\n\nLe gestionnaire sera notifié pour vérifier la marchandise. Cette action ne peut pas être annulée.`)) return;
-    this.executer('r' + r.id, this.api.signalerArriveeReservation(r.id), 'Arrivée signalée. Le gestionnaire a été notifié.');
+  readonly peut = peut;
+
+  libelle(a: ActionDepot): string { return LIBELLE_ACTION[a]; }
+
+  actionsTransporteur(r: any): ActionDepot[] {
+    return (['accepter_mission', 'refuser_mission', 'arriver_collecte', 'charger', 'partir', 'arriver', 'declarer_incident'] as ActionDepot[]).filter(a => peut(r, a));
   }
 
-  changerStatut(l: any, statut: 'en_cours' | 'livree'): void {
-    const question = statut === 'en_cours'
-      ? `Démarrer la livraison ${l.numero_livraison} ? L'acheteur sera informé du départ. Le transporteur ne pourra plus être changé.`
-      : `Confirmer la remise de la livraison ${l.numero_livraison} à l'acheteur ? Cette action est définitive.`;
-    if (!confirm(question)) return;
-    this.executer('l' + l.id, this.api.updateStatutLivraison(l.id, statut), statut === 'en_cours' ? 'Livraison démarrée.' : 'Livraison terminée.');
+  versLeProducteur(r: any): boolean { return VERS_LE_PRODUCTEUR.includes(r.statut); }
+
+  /** Étapes où il y a un trajet à faire (même règle que le serveur, NavigationController::versOu). */
+  conduisible(statut: string, type: 'reservation' | 'livraison'): boolean {
+    return (type === 'reservation' ? ['prise_en_charge', 'au_point_collecte', 'chargee', 'en_route'] : ['prise_en_charge', 'chargee', 'en_cours']).includes(statut);
   }
 
-  signalerProbleme(l: any): void {
-    if (!confirm(`Signaler un problème sur la livraison ${l.numero_livraison} ? L'acheteur en sera informé.`)) return;
-    this.executer('l' + l.id, this.api.signalerProbleme(l.id), 'Problème signalé.');
+  agir(r: any, a: ActionDepot): void {
+    const cle = 'r' + r.id;
+    if (a === 'declarer_incident') { this.erreurIncident.set(null); this.incidentPour.set({ sujet_type: 'reservation', sujet_id: r.id, numero: r.numero_reservation }); return; }
+    if (a === 'accepter_mission') {
+      if (!confirm(`Accepter la mission ${r.numero_reservation} : ${r.produit} (${r.quantite_reservee} kg) à aller chercher chez le producteur ?`)) return;
+      return this.executer(cle, this.api.accepterMission(r.id), "Mission acceptée. L'entrepôt et le producteur ont été prévenus.");
+    }
+    if (a === 'refuser_mission') {
+      const motif = demanderMotif(`Refuser la mission ${r.numero_reservation} ?\nElle sera rendue à l'entrepôt, qui affectera un autre transporteur.`, true);
+      if (motif === null) return;
+      return this.executer(cle, this.api.refuserMission(r.id, motif), "Mission refusée. L'entrepôt a été prévenu.");
+    }
+    if (!confirm(CONFIRMATION_ETAPE[a] ?? 'Confirmer ?')) return;
+    this.executer(cle, this.api.etapeReservation(r.id, ETAPE_DE_L_ACTION[a]!), 'Étape enregistrée.', () => {
+      if (a === 'partir') this.partager('reservation', r.id, r.numero_reservation);
+      if (a === 'arriver' && this.partage.partage('reservation', r.id)) this.partage.arreter();
+    });
   }
 
-  private executer(cle: string, action: ReturnType<ApiService['getReservations']>, succes: string): void {
+  readonly peutFaire = peutFaire;
+  readonly libelleIncident = libelleIncident;
+
+  libelleLivraison(a: ActionLivraison): string { return LIBELLE_ACTION_LIVRAISON[a]; }
+
+  /** Boutons de la carte (la remise par code a son propre champ). */
+  actionsLivraison(l: any): ActionLivraison[] {
+    return (['accepter_mission', 'refuser_mission', 'charger', 'partir', 'arriver', 'declarer_incident'] as ActionLivraison[]).filter(a => peutFaire(l, a));
+  }
+
+  typesIncident(sujet: 'livraison' | 'reservation') { return TYPES_INCIDENT[sujet]; }
+
+  /** Avant le chargement, le transporteur se rend à l'entrepôt ; ensuite, chez l'acheteur. */
+  versLEntrepot(l: any): boolean { return ['en_attente', 'prise_en_charge'].includes(l.statut); }
+
+  agirLivraison(l: any, a: ActionLivraison): void {
+    const cle = 'l' + l.id;
+    if (a === 'declarer_incident') { this.erreurIncident.set(null); this.incidentPour.set({ sujet_type: 'livraison', sujet_id: l.id, numero: l.numero_livraison }); return; }
+    if (a === 'accepter_mission') {
+      if (!confirm(`Accepter la livraison ${l.numero_livraison} : ${l.commande?.produit} (${l.commande?.quantite} kg) à charger à l'entrepôt et livrer à ${l.destination} ?`)) return;
+      return this.executer(cle, this.api.accepterMissionLivraison(l.id), "Mission acceptée. L'entrepôt a été prévenu.");
+    }
+    if (a === 'refuser_mission') {
+      const motif = demanderMotif(`Refuser la livraison ${l.numero_livraison} ?\nElle sera rendue à l'entrepôt, qui affectera un autre transporteur.`, true);
+      if (motif === null) return;
+      return this.executer(cle, this.api.refuserMissionLivraison(l.id, motif), "Mission refusée. L'entrepôt a été prévenu.");
+    }
+    if (!confirm(CONFIRMATION_ETAPE_LIVRAISON[a] ?? 'Confirmer ?')) return;
+    this.executer(cle, this.api.etapeLivraison(l.id, ETAPE_LIVRAISON[a]!), 'Étape enregistrée.', () => {
+      if (a === 'partir') this.partager('livraison', l.id, l.numero_livraison);
+      if (a === 'arriver' && this.partage.partage('livraison', l.id)) this.partage.arreter();
+    });
+  }
+
+  remettre(l: any, code: string): void {
+    const saisi = (code ?? '').trim();
+    if (!/^\d{4}$/.test(saisi)) { this.erreurAction.set('Le code de réception comporte 4 chiffres.'); return; }
+    this.executer('l' + l.id, this.api.remettreLivraison(l.id, saisi), "Livraison remise à l'acheteur. Mission terminée.");
+  }
+
+  declarer(cible: { sujet_type: 'livraison' | 'reservation'; sujet_id: number }, saisie: { type: string; description: string }): void {
+    this.actionEnCours.set('incident');
+    this.erreurIncident.set(null);
+    this.api.declarerIncident({ sujet_type: cible.sujet_type, sujet_id: cible.sujet_id, ...saisie }, this.cleIncident.valeur).subscribe({
+      next: () => {
+        this.cleIncident.renouveler();
+        this.actionEnCours.set(null);
+        this.incidentPour.set(null);
+        this.message.set("Incident déclaré. L'entrepôt a été prévenu.");
+        setTimeout(() => this.message.set(null), 4000);
+        this.charger();
+      },
+      error: err => {
+        this.actionEnCours.set(null);
+        this.erreurIncident.set(err.status === 0 ? 'Serveur injoignable : incident non envoyé, réessayez.' : err.error?.message ?? 'Déclaration impossible.');
+      },
+    });
+  }
+
+  private executer(cle: string, action: ReturnType<ApiService['getReservations']>, succes: string, apres?: () => void): void {
     this.actionEnCours.set(cle);
     this.erreurAction.set(null);
     action.subscribe({
       next: () => {
         this.actionEnCours.set(null);
+        apres?.();
         this.message.set(succes);
         setTimeout(() => this.message.set(null), 4000);
         this.charger();

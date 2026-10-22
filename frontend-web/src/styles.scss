@@ -102,12 +102,41 @@ app-root { display: block; min-height: 100vh; }
   &:hover { background: #b91c1c; }
 }
 
+// Pastilles de statut : un code d'API par classe (badge-en_attente…), libellé via libelleStatut
 .badge {
-  display: inline-block;
-  padding: .2rem .6rem;
-  border-radius: 12px;
-  font-size: .75rem;
-  font-weight: 600;
+  display: inline-flex; align-items: center; padding: .2rem .6rem;
+  border-radius: 12px; font-size: .75rem; font-weight: 600; line-height: 1.4; white-space: nowrap;
+
+  &-en_attente   { background: #fef9c3; color: #854d0e; }
+  &-confirmee    { background: #d1fae5; color: #065f46; }
+  &-annulee      { background: #fee2e2; color: #991b1b; }
+  &-livree       { background: #dbeafe; color: #1e40af; }
+  &-en_cours     { background: #e0e7ff; color: #3730a3; }
+  &-probleme     { background: #fee2e2; color: #dc2626; }
+  &-disponible   { background: #d1fae5; color: #065f46; }
+  &-epuise       { background: #f3f4f6; color: #6b7280; }
+  &-actif        { background: #d1fae5; color: #065f46; }
+  &-bloque       { background: #fee2e2; color: #991b1b; }
+  &-role         { background: #f0fdf4; color: #1b4332; border: 1px solid #d8f3dc; }
+  &-arrivee_entrepot  { background: #dbeafe; color: #1e40af; }
+  &-enregistree       { background: #d1fae5; color: #065f46; }
+  &-refusee           { background: #fee2e2; color: #991b1b; }
+  &-prise_en_charge   { background: #e0e7ff; color: #3730a3; }
+  &-au_point_collecte { background: #e0e7ff; color: #3730a3; }
+  &-chargee           { background: #e0e7ff; color: #3730a3; }
+  &-en_route          { background: #e0e7ff; color: #3730a3; }
+  &-reception_refusee { background: #fee2e2; color: #991b1b; }
+  &-en_preparation    { background: #fef9c3; color: #854d0e; }
+  &-prete             { background: #d1fae5; color: #065f46; }
+  &-en_livraison      { background: #e0e7ff; color: #3730a3; }
+  &-arrivee           { background: #dbeafe; color: #1e40af; }
+  &-receptionnee      { background: #dbeafe; color: #1e40af; }
+  &-litige            { background: #fee2e2; color: #dc2626; }
+  &-retournee         { background: #f3f4f6; color: #6b7280; }
+  &-ouvert            { background: #fee2e2; color: #dc2626; }
+  &-resolu            { background: #d1fae5; color: #065f46; }
+  &-en_attente_validation { background: #fef9c3; color: #854d0e; }
+  &-refuse            { background: #fee2e2; color: #991b1b; }
 }
 
 .badge-success  { background: #d1fae5; color: #065f46; }

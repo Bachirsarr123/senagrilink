@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/livraison.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
+import '../../utils/livraison.dart';
 import '../../widgets/app_theme.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/info_card.dart';
@@ -30,7 +31,9 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
     try {
       final res = await ApiService.getLivraisons();
       setState(() {
-        _livraisons = (res['livraisons'] as List).map((e) => Livraison.fromJson(e)).toList();
+        // Missions à accepter d'abord, puis en cours, puis terminées.
+        _livraisons = (res['livraisons'] as List).map((e) => Livraison.fromJson(e)).toList()
+          ..sort((a, b) => _rang(a).compareTo(_rang(b)));
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -38,18 +41,19 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
     }
   }
 
-  Color _couleurStatut(String s) => switch (s) {
-    'en_cours'  => AppTheme.orange,
+  int _rang(Livraison l) => l.peut('accepter_mission') ? 0 : statutsLivraisonActifs.contains(l.statut) ? 1 : 2;
+
+  Color _couleurStatut(Livraison l) => l.incidents.isNotEmpty ? AppTheme.rouge : switch (l.statut) {
+    'chargee' || 'en_cours' || 'arrivee' => AppTheme.orange,
     'livree'    => Colors.green,
-    'probleme'  => AppTheme.rouge,
     _           => Colors.grey,
   };
 
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthProvider>();
-    final enCours   = _livraisons.where((l) => l.statut == 'en_cours').length;
-    final enAttente = _livraisons.where((l) => l.statut == 'en_attente').length;
+    final enCours   = _livraisons.where((l) => statutsLivraisonActifs.contains(l.statut) && !l.peut('accepter_mission')).length;
+    final enAttente = _livraisons.where((l) => l.peut('accepter_mission')).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -57,7 +61,7 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.warehouse_outlined),
-            tooltip: 'Réservations entrepôt',
+            tooltip: 'Acheminements vers l\'entrepôt',
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReservationsScreen())),
           ),
           IconButton(
@@ -87,7 +91,7 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     child: Row(children: [
                       Expanded(child: InfoCard(icon: Icons.local_shipping_outlined, label: 'En cours', value: '$enCours', color: AppTheme.orange)),
-                      Expanded(child: InfoCard(icon: Icons.hourglass_empty, label: 'En attente', value: '$enAttente')),
+                      Expanded(child: InfoCard(icon: Icons.hourglass_empty, label: 'À accepter', value: '$enAttente', color: enAttente > 0 ? AppTheme.orange : null)),
                     ]),
                   ),
                   Expanded(
@@ -99,17 +103,21 @@ class _LivraisonsScreenState extends State<LivraisonsScreen> {
                               itemCount: _livraisons.length,
                               itemBuilder: (_, i) {
                                 final l = _livraisons[i];
+                                final aAccepter = l.peut('accepter_mission');
                                 return Card(
+                                  shape: aAccepter ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppTheme.orange, width: 2)) : null,
                                   child: ListTile(
                                     leading: CircleAvatar(
-                                      backgroundColor: _couleurStatut(l.statut).withAlpha(30),
-                                      child: Icon(Icons.local_shipping, color: _couleurStatut(l.statut)),
+                                      backgroundColor: _couleurStatut(l).withAlpha(30),
+                                      child: Icon(Icons.local_shipping, color: _couleurStatut(l)),
                                     ),
                                     title: Text(l.numeroLivraison, style: const TextStyle(fontWeight: FontWeight.bold)),
                                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      if (l.origine != null) Text('De : ${l.origine}', style: const TextStyle(fontSize: 12)),
+                                      if (l.commande != null) Text('${l.commande!['produit'] ?? ''} — ${l.commande!['quantite'] ?? ''} kg', style: const TextStyle(fontSize: 12)),
                                       if (l.destination != null) Text('Vers : ${l.destination}', style: const TextStyle(fontSize: 12)),
-                                      if (l.dateDepart != null) Text('Départ : ${l.dateDepart}', style: const TextStyle(fontSize: 11)),
+                                      if (aAccepter) const Text('Nouvelle livraison à accepter', style: TextStyle(fontSize: 12, color: AppTheme.orange, fontWeight: FontWeight.bold))
+                                      else if (l.prochaineEtape != null) Text(l.prochaineEtape!, style: const TextStyle(fontSize: 11)),
+                                      if (l.incidents.isNotEmpty) const Text('Incident en cours', style: TextStyle(fontSize: 11, color: AppTheme.rouge)),
                                     ]),
                                     trailing: StatusBadge(l.statut),
                                     onTap: () async {

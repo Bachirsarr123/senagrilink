@@ -1,6 +1,9 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { demanderMotif } from '../../../shared/confirmation/confirmation';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
+import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { TableauResponsiveDirective } from '../../../shared/directives/tableau-responsive.directive';
 import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
 
@@ -14,7 +17,7 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
         <h1>Gestion des utilisateurs</h1>
         <div class="btn-group">
           <span class="subtitle">{{ utilisateurs().length }} utilisateur(s)</span>
-          <button class="btn-primary" (click)="showForm.set(!showForm())">
+          <button class="btn-primary" (click)="basculerFormulaire()">
             {{ showForm() ? 'Annuler' : '+ Ajouter un utilisateur' }}
           </button>
         </div>
@@ -90,6 +93,8 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
             <option value="">Tous les statuts</option>
             <option value="actif">Actif</option>
             <option value="bloque">Bloqué</option>
+            <option value="en_attente_validation" [selected]="params.statut === 'en_attente_validation'">En attente de validation</option>
+            <option value="refuse">Refusé</option>
           </select>
         </div>
 
@@ -111,7 +116,14 @@ import { LibelleStatutPipe } from '../../../shared/pipes/libelle-statut.pipe';
                   <td><span class="badge badge-role">{{ u.role | libelleStatut }}</span></td>
                   <td><span class="badge badge-{{ u.statut }}">{{ u.statut | libelleStatut }}</span></td>
                   <td>
-                    @if (u.statut === 'actif') {
+                    @if (u.statut === 'en_attente_validation') {
+                      <div class="btn-group">
+                        <button class="btn-success btn-sm" (click)="valider(u)">Valider</button>
+                        <button class="btn-ghost btn-sm" (click)="refuser(u)">Refuser</button>
+                      </div>
+                    } @else if (u.statut === 'refuse') {
+                      <small class="text-muted">Refusé@if (u.motif_refus) { : {{ u.motif_refus }} }</small>
+                    } @else if (u.statut === 'actif') {
                       <button class="btn-danger btn-sm" (click)="bloquer(u)">Bloquer</button>
                     } @else {
                       <button class="btn-success btn-sm" (click)="debloquer(u)">Débloquer</button>
@@ -135,11 +147,18 @@ export class UtilisateursComponent implements OnInit {
   message      = signal<string | null>(null);
   erreur       = signal<string | null>(null);
   form!: FormGroup;
-  private params: any = {};
+  params: any = {};
+
+  private cleCreation = new CleSoumission();
+
+  private route = inject(ActivatedRoute);
 
   constructor(private api: ApiService, private fb: FormBuilder) {}
 
   ngOnInit(): void {
+    // Lien « Valider » du tableau des exceptions : la liste s'ouvre sur les comptes à valider.
+    const statut = this.route.snapshot.queryParamMap.get('statut');
+    if (statut) this.params.statut = statut;
     this.form = this.fb.group({
       prenom:       ['', Validators.required],
       nom:          ['', Validators.required],
@@ -171,12 +190,19 @@ export class UtilisateursComponent implements OnInit {
     this.charger();
   }
 
+  /** Une clé d'idempotence par ouverture du formulaire de création. */
+  basculerFormulaire(): void {
+    if (!this.showForm()) this.cleCreation.renouveler();
+    this.showForm.set(!this.showForm());
+  }
+
   creerUtilisateur(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     this.loadingForm.set(true);
     this.erreur.set(null);
-    this.api.createUtilisateur(this.form.value).subscribe({
+    this.api.createUtilisateur(this.form.value, this.cleCreation.valeur).subscribe({
       next: res => {
+        this.cleCreation.renouveler();
         this.utilisateurs.update(list => [res.utilisateur, ...list]);
         this.message.set(`Compte créé pour ${this.form.value.prenom} ${this.form.value.nom}.`);
         this.form.reset();
@@ -188,6 +214,24 @@ export class UtilisateursComponent implements OnInit {
         this.erreur.set(err.error?.message ?? 'Erreur lors de la création.');
         this.loadingForm.set(false);
       },
+    });
+  }
+
+  /** Q9 : activer un compte de gestionnaire ou de transporteur. */
+  valider(u: any): void {
+    if (!confirm(`Valider le compte de ${u.prenom} ${u.nom} (${u.role}) ? Il pourra se connecter.`)) return;
+    this.api.validerUtilisateur(u.id).subscribe({
+      next: () => this.utilisateurs.update(list => list.map(x => x.id === u.id ? { ...x, statut: 'actif' } : x)),
+      error: err => alert(err.error?.message ?? 'Validation impossible.'),
+    });
+  }
+
+  refuser(u: any): void {
+    const motif = demanderMotif(`Refuser la demande de compte de ${u.prenom} ${u.nom} ?\nLe motif lui sera indiqué s'il essaie de se connecter.`, true);
+    if (motif === null) return;
+    this.api.refuserUtilisateur(u.id, motif).subscribe({
+      next: () => this.utilisateurs.update(list => list.map(x => x.id === u.id ? { ...x, statut: 'refuse', motif_refus: motif } : x)),
+      error: err => alert(err.error?.message ?? 'Refus impossible.'),
     });
   }
 
