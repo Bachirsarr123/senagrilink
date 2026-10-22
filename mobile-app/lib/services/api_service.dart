@@ -262,6 +262,10 @@ class ApiService {
 
   // ── Profil ───────────────────────────────────────────────────────────────
   static Future<dynamic> updateProfile(Map<String, dynamic> data) => put('/profile', data);
+  /// Lot 11 : « Ma journée » du gestionnaire et fiche par agriculteur.
+  static Future<dynamic> getJournee() => get('/journee');
+  static Future<dynamic> getAgriculteurs(String q) => get('/entrepot/producteurs${q.isEmpty ? '' : '?q=${Uri.encodeQueryComponent(q)}'}');
+  static Future<dynamic> getAgriculteur(int id) => get('/entrepot/producteurs/$id');
 
   // ── Notifications ────────────────────────────────────────────────────────
   static Future<dynamic> getNotifications() => get('/notifications');

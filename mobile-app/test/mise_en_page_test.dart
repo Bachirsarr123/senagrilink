@@ -24,6 +24,7 @@ import 'package:agri_platform_mobile/screens/gestionnaire/depots_entrepot_screen
 import 'package:agri_platform_mobile/screens/gestionnaire/incidents_screen.dart';
 import 'package:agri_platform_mobile/screens/shared/a_faire_screen.dart';
 import 'package:agri_platform_mobile/screens/conduite/conduite_screen.dart';
+import 'package:agri_platform_mobile/screens/gestionnaire/ma_journee_screen.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:agri_platform_mobile/screens/shared/notifications_screen.dart';
 import 'package:agri_platform_mobile/screens/shared/fiche_commande_screen.dart';
@@ -94,6 +95,7 @@ void main() {
     'Notifications':            ('acheteur_gros', () => const NotificationsScreen(), 'Tout lire'),
     'Profil':                   ('producteur', () => const ProfilScreen(afficherTuiles: false), 'Position de votre exploitation'),
     'Traçabilité':              ('acheteur_gros', () => const TracabiliteScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
+    'Ma journée':               ('gestionnaire_entrepot', () => const MaJourneeScreen(), 'Aminata Mariama Ndiaye-Diop Fall'),
     'Conduite':                 ('transporteur', () => const ConduiteScreen(type: 'livraison', id: 5, numero: 'LIV-2026-000005'), 'Route nationale 2'),
   };
 

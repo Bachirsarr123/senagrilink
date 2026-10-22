@@ -10,6 +10,7 @@ String libelleActionDirecte(String action, {String sujetType = 'reservation', St
       'accepter_et_confier' => transporteur != null ? 'Accepter et confier à $transporteur' : 'Accepter',
       'prete_et_confier' => transporteur != null ? 'Prête — confier à $transporteur' : 'Commande prête',
       'demarrer' => 'Démarrer',
+      'prete' => 'Commande prête',
       'assigner' || 'organiser_livraison' => transporteur != null ? 'Confier à $transporteur' : 'Choisir un transporteur',
       'accepter_mission' => 'J\'accepte la mission',
       'arriver_collecte' => 'Je suis chez le producteur',
@@ -36,6 +37,11 @@ Future<String> executerActionDirecte(String sujetType, int id, String action,
       if (statut == 'confirmee') await ApiService.preparerCommande(id);
       await ApiService.marquerCommandePrete(id);
       return executerActionDirecte(sujetType, id, 'organiser_livraison', transporteurId: transporteurId);
+    case ('commande', 'prete'):
+      // Lot 11 : préparation comprise ; le pilote automatique trouve ensuite le transporteur
+      if (statut == 'confirmee') await ApiService.preparerCommande(id);
+      final res = await ApiService.marquerCommandePrete(id);
+      return (res is Map ? res['message'] as String? : null) ?? 'Commande prête.';
     case (_, 'demarrer'):
       // Chargement (s'il reste à faire) puis départ, en un appui
       if (actions.contains('charger')) await executerActionDirecte(sujetType, id, 'charger');

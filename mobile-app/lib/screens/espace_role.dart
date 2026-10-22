@@ -8,6 +8,7 @@ import 'gestionnaire/stocks_screen.dart';
 import 'producteur/depots_screen.dart';
 import 'producteur/productions_screen.dart';
 import 'shared/a_faire_screen.dart';
+import 'gestionnaire/ma_journee_screen.dart';
 import 'transporteur/livraisons_screen.dart';
 import 'transporteur/reservations_screen.dart';
 
@@ -57,12 +58,19 @@ class _EspaceRoleState extends State<EspaceRole> {
     }
 
     return Scaffold(
-      body: _index == 0 ? AFaireScreen(key: const ValueKey('a-faire'), ouvrirOnglet: ouvrir) : onglets[_index - 1].ecran(),
+      // Lot 11 : le gestionnaire commence par « Ma journée » (le pilote automatique fait le reste)
+      body: _index == 0
+          ? (widget.role == 'gestionnaire_entrepot'
+              ? MaJourneeScreen(key: const ValueKey('ma-journee'), ouvrirOnglet: ouvrir)
+              : AFaireScreen(key: const ValueKey('a-faire'), ouvrirOnglet: ouvrir))
+          : onglets[_index - 1].ecran(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: [
-          const NavigationDestination(icon: Icon(Icons.checklist), label: 'À faire'),
+          widget.role == 'gestionnaire_entrepot'
+              ? const NavigationDestination(icon: Icon(Icons.today), label: 'Ma journée')
+              : const NavigationDestination(icon: Icon(Icons.checklist), label: 'À faire'),
           for (final o in onglets) NavigationDestination(icon: Icon(o.icone), label: o.libelle),
         ],
       ),

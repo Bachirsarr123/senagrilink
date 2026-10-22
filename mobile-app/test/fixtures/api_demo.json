@@ -1151,5 +1151,74 @@
   },
   "action_principale": "demarrer",
   "arrivee_automatique": false
+ },
+ "/journee": {
+  "attention": [
+   {
+    "categorie": "incident",
+    "sujet_type": "livraison",
+    "sujet_id": 2,
+    "numero": "LIV-2026-000002",
+    "titre": "Moteur",
+    "etape": "Incident à décider : panne du camion sur la route nationale",
+    "urgence": "haute",
+    "en_retard": true
+   }
+  ],
+  "arrivent": [
+   {
+    "id": 3,
+    "numero": "RES-2026-000003",
+    "produit": "Arachide décortiquée de qualité supérieure",
+    "quantite": 1250.5,
+    "statut": "en_route",
+    "etape": "En route vers l'entrepôt",
+    "producteur": {
+     "nom": "Aminata Mariama Ndiaye-Diop Fall"
+    },
+    "transporteur": {
+     "nom": "Alioune Badara Fall Ndiaye"
+    },
+    "livre_lui_meme": false,
+    "a_receptionner": true,
+    "arrivee_estimee_le": "2026-10-22T14:35:00Z"
+   }
+  ],
+  "a_preparer": [
+   {
+    "id": 8,
+    "numero": "CMD-2026-000008",
+    "produit": "Riz paddy de la vallée du fleuve",
+    "quantite": 10,
+    "statut": "confirmee",
+    "acheteur": {
+     "nom": "Fatou Binetou Sow Diagne"
+    },
+    "action": "prete"
+   }
+  ],
+  "partent": [
+   {
+    "id": 5,
+    "numero": "LIV-2026-000005",
+    "commande_id": 9,
+    "produit": "Maïs",
+    "quantite": 5,
+    "statut": "en_attente",
+    "etape": "Mission à accepter",
+    "acheteur": {
+     "nom": "Modou Kane"
+    },
+    "transporteur": null,
+    "sans_transporteur": true,
+    "mission_acceptee": false
+   }
+  ],
+  "pilote": {
+   "auto_accepter_depots": true,
+   "auto_confirmer_commandes": true,
+   "auto_affecter_transporteurs": true,
+   "delai_reponse_min": 10
+  }
  }
 }

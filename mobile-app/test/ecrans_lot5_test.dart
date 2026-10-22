@@ -43,19 +43,24 @@ void main() {
     {'id': 6, 'type_vehicule': 'Pick-up', 'missions_actives': 2, 'utilisateur': {'prenom': 'Alioune', 'nom': 'Fall'}},
   ]};
 
-  testWidgets('gestionnaire : « À faire » mène à l\'onglet qui convient', (tester) async {
+  testWidgets('gestionnaire : « Ma journée » (lot 11), puis « À traiter » mène à l\'onglet qui convient', (tester) async {
+    const incident = {'categorie': 'incident', 'sujet_type': 'livraison', 'sujet_id': 2, 'numero': 'LIV-2', 'titre': 'Moteur',
+      'etape': 'Incident à décider : panne', 'urgence': 'haute', 'en_retard': false};
     await afficher(tester, 'gestionnaire_entrepot', const EspaceRole(role: 'gestionnaire_entrepot'), (req) async => switch (req.url.path) {
-      final p when p.endsWith('/a-faire') => json({'elements': [
-        {'categorie': 'incident', 'sujet_type': 'livraison', 'sujet_id': 2, 'numero': 'LIV-2', 'titre': 'Moteur', 'etape': 'Incident à décider : panne', 'urgence': 'haute', 'en_retard': false},
-      ]}),
+      final p when p.endsWith('/journee') => json({'attention': [incident], 'arrivent': [], 'a_preparer': [], 'partent': [],
+        'pilote': {'auto_accepter_depots': true, 'auto_confirmer_commandes': true, 'auto_affecter_transporteurs': true, 'delai_reponse_min': 10}}),
+      final p when p.endsWith('/a-faire') => json({'elements': [incident]}),
       final p when p.endsWith('/incidents') => json({'incidents': []}),
       _ => json({}),
     });
-    expect(find.text('Incident à décider : panne'), findsOneWidget);
-    expect(find.text('1 action(s) en attente'), findsOneWidget);
+    expect(find.text('Ma journée'), findsWidgets);
+    expect(find.text('1 chose(s) à traiter'), findsOneWidget);
     expect(find.text('Dépôts'), findsOneWidget);
     expect(find.text('Stocks'), findsOneWidget);
 
+    await tester.tap(find.byKey(const Key('a-traiter')));
+    await tester.pumpAndSettle();
+    expect(find.text('Incident à décider : panne'), findsOneWidget);
     await tester.tap(find.byKey(const Key('a-faire-incident-2')));
     await tester.pumpAndSettle();
     expect(find.byType(IncidentsScreen), findsOneWidget);
