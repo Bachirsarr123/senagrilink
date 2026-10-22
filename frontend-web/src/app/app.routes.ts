@@ -50,6 +50,20 @@ export const routes: Routes = [
         loadComponent: () => import('./features/shared/conduite/conduite.component').then(m => m.ConduiteComponent),
       },
 
+      // Lot 12 : paiement (page simulée en attendant Wave Business) et « Mon argent »
+      {
+        path: 'paiement/:reference',
+        canActivate: [roleGuard],
+        data: { roles: ['acheteur_gros'] },
+        loadComponent: () => import('./features/acheteur/paiement/paiement.component').then(m => m.PaiementComponent),
+      },
+      {
+        path: 'argent',
+        canActivate: [roleGuard],
+        data: { roles: ['producteur', 'gestionnaire_entrepot', 'transporteur'] },
+        loadComponent: () => import('./features/shared/argent/argent.component').then(m => m.ArgentComponent),
+      },
+
       // Profil — accessible à tous les rôles authentifiés
       {
         path: 'profil',
@@ -178,6 +192,10 @@ export const routes: Routes = [
         data: { roles: ['administrateur'] },
         children: [
           { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+          {
+            path: 'paiements',
+            loadComponent: () => import('./features/admin/paiements/paiements.component').then(m => m.AdminPaiementsComponent),
+          },
           {
             path: 'dashboard',
             loadComponent: () => import('./features/admin/dashboard/dashboard.component').then(m => m.DashboardComponent),

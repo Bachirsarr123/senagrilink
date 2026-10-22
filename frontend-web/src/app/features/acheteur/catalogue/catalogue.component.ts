@@ -101,8 +101,13 @@ import { PositionAppareilService } from '../../../shared/position/position-appar
                     </div>
                   </div>
                   @if (montant(p) !== null) {
-                    <p class="montant">Total : <strong>{{ montant(p) | number:'1.0-2' }} FCFA</strong>
+                    <p class="montant">Marchandise : <strong>{{ montant(p) | number:'1.0-2' }} FCFA</strong>
                       ({{ formCommande.value.quantite | number }} kg × {{ p.prix_unitaire | number }} FCFA)</p>
+                    <!-- Lot 12 : ce que l'acheteur paiera, livraison comprise -->
+                    @if (devis(); as d) {
+                      <p class="montant total-paye">À payer : <strong>{{ d.total_a_payer | number:'1.0-0' }} FCFA</strong>
+                        (dont livraison {{ d.frais_livraison | number:'1.0-0' }} FCFA{{ d.distance_km ? ', ' + d.distance_km + ' km' : '' }})</p>
+                    }
                   }
                   @if (depasse(p)) {
                     <span class="field-error">Il ne reste que {{ p.quantite_disponible | number }} kg disponibles.</span>
@@ -129,6 +134,7 @@ import { PositionAppareilService } from '../../../shared/position/position-appar
   styleUrls: ['../../shared.styles.scss'],
   styles: [`
     .montant { margin: .25rem 0 .75rem; font-size: .95rem; }
+    .total-paye { color:#166534; }
     .quantite { display:flex; gap:.5rem; align-items:center; }
     .quantite input { text-align:center; font-size:1.2rem; font-weight:700; }
     .pas { min-width:48px; min-height:48px; font-size:1.5rem; line-height:1; }
@@ -199,6 +205,11 @@ export class CatalogueComponent implements OnInit {
   ngOnInit(): void {
     this.chargerCatalogue();
     this.trouverLieu();
+    // Lot 12 : total à payer recalculé à chaque changement de quantité
+    this.formCommande.valueChanges.subscribe(() => {
+      const p = this.produits().find(x => x.stock_id === this.commandeOuverte());
+      if (p) this.calculerDevis(p);
+    });
   }
 
   chargerCatalogue(): void {
@@ -222,7 +233,21 @@ export class CatalogueComponent implements OnInit {
     return Number(this.formCommande.value.quantite) > p.quantite_disponible;
   }
 
+  /** Lot 12 : total à payer (marchandise + livraison), recalculé par le serveur quand la quantité change. */
+  devis = signal<any>(null);
+  private minuteurDevis: ReturnType<typeof setTimeout> | null = null;
+
+  private calculerDevis(produit: any): void {
+    if (this.minuteurDevis) clearTimeout(this.minuteurDevis);
+    const q = Number(this.formCommande.value.quantite);
+    if (!(q > 0) || q > produit.quantite_disponible) { this.devis.set(null); return; }
+    this.minuteurDevis = setTimeout(() => this.api.getDevis(produit.stock_id, q, this.lieuLivraison()).subscribe({
+      next: res => this.devis.set(res.devis), error: () => this.devis.set(null),
+    }), 300);
+  }
+
   ouvrirCommande(produit: any): void {
+    this.devis.set(null);
     this.commandeOuverte.set(produit.stock_id);
     this.formCommande.reset();
     this.cleCommande.renouveler();

@@ -34,6 +34,8 @@ const ACTUALISATION_MS = 30_000;
           <select (change)="reglerDelai($event)">
             @for (m of [5, 10, 15, 30]; track m) { <option [value]="m" [selected]="m === (pilote()?.delai_reponse_min ?? 10)">{{ m }} min</option> }
           </select></label>
+        <!-- Lot 12 : frais d'entrepôt retenus sur chaque vente -->
+        <label>Frais d'entrepôt <input type="number" min="0" step="1" class="frais" [value]="pilote()?.frais_stockage_kg ?? 5" (change)="reglerFrais($event)" /> FCFA / kg</label>
       </section>
 
       <section aria-label="À traiter">
@@ -88,6 +90,7 @@ const ACTUALISATION_MS = 30_000;
     .pilote { display:flex; flex-wrap:wrap; gap:.6rem 1.2rem; align-items:center; padding:.8rem 1rem; margin-bottom:1rem; }
     .pilote label { display:flex; gap:.4rem; align-items:center; font-size:.95rem; }
     .pilote input[type=checkbox] { width:20px; height:20px; }
+    .pilote .frais { width:70px; }
     h2 { font-size:1.1rem; margin:1rem 0 .6rem; }
     .colonnes { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem; margin-top:1rem; }
     .colonne h2 { margin-top:0; }
@@ -140,6 +143,10 @@ export class JourneeComponent implements OnInit, OnDestroy {
 
   reglerDelai(evenement: Event): void {
     this.enregistrer({ delai_reponse_min: Number((evenement.target as HTMLSelectElement).value) });
+  }
+
+  reglerFrais(evenement: Event): void {
+    this.enregistrer({ frais_stockage_kg: Number((evenement.target as HTMLInputElement).value) || 0 });
   }
 
   private enregistrer(reglage: Record<string, unknown>): void {

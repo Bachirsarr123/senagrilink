@@ -29,6 +29,7 @@ import { EchoService } from '../../../core/services/echo.service';
           }
           @if (role() === 'producteur') {
             <li><a routerLink="/producteur/productions" routerLinkActive="active">Mes productions</a></li>
+            <li><a routerLink="/argent" routerLinkActive="active">Mon argent</a></li>
             <li><a routerLink="/producteur/reservations" routerLinkActive="active">Déposer ma récolte</a></li>
             <li><a routerLink="/producteur/planifier-ventes" routerLinkActive="active">Planifier ventes</a></li>
             <li><a routerLink="/producteur/commandes-disponibles" routerLinkActive="active">Demandes</a></li>
@@ -40,6 +41,7 @@ import { EchoService } from '../../../core/services/echo.service';
             <li><a routerLink="/entrepot/reservations" routerLinkActive="active">Dépôts</a></li>
             <li><a routerLink="/entrepot/commandes" routerLinkActive="active">Commandes</a></li>
             <li><a routerLink="/entrepot/incidents" routerLinkActive="active">Incidents</a></li>
+            <li><a routerLink="/argent" routerLinkActive="active">Mon argent</a></li>
             <li><a routerLink="/entrepot/rapport" routerLinkActive="active">Rapport</a></li>
           }
           @if (role() === 'acheteur_gros') {
@@ -48,11 +50,13 @@ import { EchoService } from '../../../core/services/echo.service';
           }
           @if (role() === 'transporteur') {
             <li><a routerLink="/transporteur/missions" routerLinkActive="active">Mes missions</a></li>
+            <li><a routerLink="/argent" routerLinkActive="active">Mon argent</a></li>
           }
           @if (role() === 'administrateur') {
             <li><a routerLink="/admin/dashboard" routerLinkActive="active">Tableau de bord</a></li>
             <li><a routerLink="/admin/utilisateurs" routerLinkActive="active">Utilisateurs</a></li>
             <li><a routerLink="/admin/journal" routerLinkActive="active">Journal</a></li>
+            <li><a routerLink="/admin/paiements" routerLinkActive="active">Paiements</a></li>
           }
           <!-- Traçabilité : tous les rôles -->
           <li><a routerLink="/tracabilite" routerLinkActive="active">Traçabilité</a></li>

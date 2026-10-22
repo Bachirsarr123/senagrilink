@@ -128,6 +128,16 @@ export class ApiService {
   updateProfile(data: any): Observable<any> { return this.http.put(`${this.base}/profile`, data); }
   /** Lot 11 : « Ma journée » du gestionnaire et fiche par agriculteur. */
   getJournee(): Observable<any> { return this.http.get(`${this.base}/journee`); }
+  /** Lot 12 : paiements (simulés en attendant Wave Business) et « Mon argent ». */
+  getDevis(stockId: number, quantite: number, lieu?: { latitude: number; longitude: number } | null): Observable<any> {
+    return this.http.get(`${this.base}/commandes/devis`, { params: { stock_id: stockId, quantite, ...(lieu ? { livraison_latitude: lieu.latitude, livraison_longitude: lieu.longitude } : {}) } });
+  }
+  payer(commandes: number[], moyen: string, cle: string): Observable<any> { return this.http.post(`${this.base}/paiements`, { commandes, moyen }, this.idempotence(cle)); }
+  getPaiement(reference: string): Observable<any> { return this.http.get(`${this.base}/paiements/${reference}`); }
+  simulerPaiement(reference: string, resultat: 'reussi' | 'echoue'): Observable<any> { return this.http.post(`${this.base}/paiements/${reference}/simulation`, { resultat }); }
+  getArgent(): Observable<any> { return this.http.get(`${this.base}/argent`); }
+  getPaiementsAdmin(): Observable<any> { return this.http.get(`${this.base}/admin/paiements`); }
+  deciderPaiement(commandeId: number, decision: 'liberer' | 'rembourser'): Observable<any> { return this.http.put(`${this.base}/admin/commandes/${commandeId}/paiement`, { decision }); }
   getAgriculteurs(q = ''): Observable<any> { return this.http.get(`${this.base}/entrepot/producteurs`, { params: q ? { q } : {} }); }
   getAgriculteur(id: number): Observable<any> { return this.http.get(`${this.base}/entrepot/producteurs/${id}`); }
 }
