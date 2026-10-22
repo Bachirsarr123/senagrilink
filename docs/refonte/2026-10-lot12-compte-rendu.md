@@ -91,4 +91,8 @@ Le parcours dans le navigateur vérifie :
 
 ## 7. Vérifications GitHub
 
-*À compléter.*
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16, cycle des migrations 000026 → 000018, garde de démarrage (exécution 39786373612) | `bd9262a` | **Réussi** |
+| Site : tests et compilation de production (exécution 39786373585) | `bd9262a` | **Réussi** |
+| Mobile : analyse, tests, APK de test construit et contrôlé, sans publication (exécution 39786373481) | `bd9262a` | **Réussi** |
