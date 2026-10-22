@@ -59,4 +59,8 @@
 
 ## 5. Vérifications GitHub sur la branche
 
-*À compléter après l'exécution.*
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16, cycle des migrations 000024 → 000018, garde de démarrage, Dockerfile complet (exécution 39750075963) | `39e9183` | **Réussi** |
+| Site : tests et compilation de production (exécution 39750075826) | `39e9183` | **Réussi** |
+| Mobile : analyse, tests, APK de test construit et contrôlé, sans publication (exécution 39750076022) | `39e9183` | **Réussi** |
