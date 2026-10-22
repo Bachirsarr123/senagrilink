@@ -77,3 +77,12 @@ describe('Lot 13 — commander et payer d\'un seul appui', () => {
     expect(nav).toHaveBeenCalledWith(['/paiement', 'PAY-4']);
   });
 });
+
+describe('Correctif — bouton de conduite des missions', () => {
+  it('affiche un texte lisible, jamais le code du modèle', async () => {
+    const { TransporteurMissionsComponent } = await import('./transporteur/missions/missions.component');
+    const c = Object.create(TransporteurMissionsComponent.prototype);
+    expect(c.libelleConduite({ statut: 'confirmee' })).toBe("Conduire jusqu'au producteur");
+    expect(c.libelleConduite({ statut: 'en_route' })).toBe("Conduire jusqu'à l'entrepôt");
+  });
+});

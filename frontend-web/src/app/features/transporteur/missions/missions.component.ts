@@ -87,7 +87,7 @@ export const INTERVALLE_ACTUALISATION_MS = 60_000;
                   }
                   <!-- Lot 9 : guidage dans le site, à la place de Google Maps -->
                   @if (conduisible(r.statut, 'reservation')) {
-                    <a class="btn-primary btn-full lien-itineraire" [routerLink]="['/conduite', 'reservation', r.id]">🧭 {{ versLeProducteur(r) ? 'Conduire jusqu\'au producteur' : "Conduire jusqu'à l'entrepôt" }}</a>
+                    <a class="btn-primary btn-full lien-itineraire" [routerLink]="['/conduite', 'reservation', r.id]">🧭 {{ libelleConduite(r) }}</a>
                   }
                   <div class="btn-group">
                     @for (a of actionsTransporteur(r); track a) {
@@ -277,6 +277,8 @@ export class TransporteurMissionsComponent implements OnInit, OnDestroy {
   }
 
   versLeProducteur(r: any): boolean { return VERS_LE_PRODUCTEUR.includes(r.statut); }
+  /** Texte du bouton de conduite (une apostrophe échappée dans le modèle s'affichait telle quelle). */
+  libelleConduite(r: any): string { return this.versLeProducteur(r) ? "Conduire jusqu'au producteur" : "Conduire jusqu'à l'entrepôt"; }
 
   /** Étapes où il y a un trajet à faire (même règle que le serveur, NavigationController::versOu). */
   conduisible(statut: string, type: 'reservation' | 'livraison'): boolean {
