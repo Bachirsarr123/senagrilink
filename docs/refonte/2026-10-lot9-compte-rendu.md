@@ -80,4 +80,8 @@ L'offre gratuite d'OpenRouteService autorise 2 000 trajets par jour. Le serveur 
 
 ## 6. Vérifications GitHub sur la branche
 
-*À compléter après l'exécution.*
+| Vérification | Commit | Résultat |
+|---|---|---|
+| Serveur : SQLite, PostgreSQL 16, cycle des migrations, garde de démarrage, Dockerfile complet (exécution 39761219078) | `91b4b52` | **Réussi** |
+| Site : tests et compilation de production (exécution 39761218980) | `91b4b52` | **Réussi** |
+| Mobile : analyse, tests, APK de test construit et contrôlé (avec la synthèse vocale), sans publication (exécution 39761219080) | `91b4b52` | **Réussi** |
