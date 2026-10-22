@@ -47,6 +47,16 @@ class Lieux
         return [(float) $lat, (float) $lng, $adresse];
     }
 
+    /** Lieu envoyé, sinon lieu habituel ; rien n'est mémorisé (devis). @return array{0: ?float, 1: ?float} */
+    public static function retenirSansMemoriser(Request $request, string $prefixe, ?Model $profil): array
+    {
+        $lat = $request->input("{$prefixe}_latitude");
+        $lng = $request->input("{$prefixe}_longitude");
+
+        return $lat !== null && $lng !== null ? [(float) $lat, (float) $lng]
+            : [$profil?->latitude !== null ? (float) $profil->latitude : null, $profil?->longitude !== null ? (float) $profil->longitude : null];
+    }
+
     /** Distance à vol d'oiseau, en kilomètres. */
     public static function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
     {

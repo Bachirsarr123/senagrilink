@@ -22,6 +22,8 @@ class Commande extends Model
         'livraison_latitude',
         'livraison_longitude',
         'livraison_adresse',
+        // Lot 12 : montants figés à la commande, et paiement
+        'frais_livraison', 'frais_stockage', 'commission', 'montant_producteur', 'total_a_payer', 'statut_paiement', 'paiement_id',
         'code_reception',
         'date_commande',
         'statut',
@@ -36,6 +38,11 @@ class Commande extends Model
 
     protected $casts = [
         'livraison_latitude'  => 'float',
+        'frais_livraison'     => 'float',
+        'frais_stockage'      => 'float',
+        'commission'          => 'float',
+        'montant_producteur'  => 'float',
+        'total_a_payer'       => 'float',
         'livraison_longitude' => 'float',
         'quantite' => 'float',
         'prix'          => 'float',
@@ -49,6 +56,12 @@ class Commande extends Model
                 $commande->numero_commande = 'CMD-' . now()->format('Ymd') . '-' . strtoupper(Str::random(4));
             }
         });
+    }
+
+    /** Lot 12 : paiement de l'acheteur (éventuellement partagé par un panier). */
+    public function paiement()
+    {
+        return $this->belongsTo(Paiement::class, 'paiement_id');
     }
 
     public function acheteur()

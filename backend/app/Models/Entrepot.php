@@ -12,6 +12,8 @@ class Entrepot extends Model
         'utilisateur_id', 'nom_entrepot', 'capacite', 'localisation', 'latitude', 'longitude',
         // Lot 11 : pilote automatique
         'auto_accepter_depots', 'auto_confirmer_commandes', 'auto_affecter_transporteurs', 'delai_reponse_min',
+        // Lot 12 : frais d'entrepôt par kg vendu
+        'frais_stockage_kg',
     ];
 
     /**
@@ -26,6 +28,7 @@ class Entrepot extends Model
         'auto_confirmer_commandes'    => 'boolean',
         'auto_affecter_transporteurs' => 'boolean',
         'delai_reponse_min'           => 'integer',
+        'frais_stockage_kg'           => 'float',
     ];
 
     public function utilisateur()

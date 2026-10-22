@@ -22,6 +22,9 @@ class UpdateProfileRequest extends FormRequest
             'email'     => ['sometimes', 'email', 'max:150', Rule::unique('utilisateurs', 'email')->ignore($userId)],
             'telephone' => ['nullable', 'string', 'max:20'],
             'adresse'   => ['nullable', 'string', 'max:255'],
+            // Lot 12 : où recevoir son argent
+            'moyen_paiement'  => ['nullable', 'in:wave,orange_money'],
+            'numero_paiement' => ['nullable', 'string', 'regex:/^\+?[0-9 ]{9,15}$/'],
             'photo'     => ['nullable', 'string', 'max:255'],
 
             // P-17 — changement de mot de passe : le mot de passe actuel est exigé,
@@ -43,6 +46,7 @@ class UpdateProfileRequest extends FormRequest
             'auto_confirmer_commandes'    => ['sometimes', 'boolean'],
             'auto_affecter_transporteurs' => ['sometimes', 'boolean'],
             'delai_reponse_min'           => ['sometimes', 'integer', 'between:2,120'],
+            'frais_stockage_kg'           => ['sometimes', 'numeric', 'between:0,1000'],
 
             // Position sur la carte (producteur, entrepôt, acheteur) : préremplit les missions
             'latitude'     => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitude'],
@@ -62,6 +66,7 @@ class UpdateProfileRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'numero_paiement.regex' => 'Le numéro Wave ou Orange Money doit être un numéro de téléphone (9 à 15 chiffres).',
             'mot_de_passe.min'                  => 'Le nouveau mot de passe doit contenir au moins 8 caractères.',
             'mot_de_passe.confirmed'            => 'La confirmation du nouveau mot de passe ne correspond pas.',
             'mot_de_passe_actuel.required_with' => 'Indiquez votre mot de passe actuel pour le modifier.',

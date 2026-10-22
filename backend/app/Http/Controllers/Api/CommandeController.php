@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Support\Lieux;
+use App\Support\Tarifs;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCommandeRequest;
 use App\Http\Requests\UpdateCommandeRequest;
@@ -93,7 +94,7 @@ class CommandeController extends Controller
             $commandes = [];
 
             foreach ($lignes as $index => $ligne) {
-                $stock    = Stock::with('production:id,producteur_id,prix_unitaire')->whereKey($ligne['stock_id'])->lockForUpdate()->first();
+                $stock    = Stock::with('production:id,producteur_id,prix_unitaire', 'entrepot')->whereKey($ligne['stock_id'])->lockForUpdate()->first();
                 $quantite = (float) $ligne['quantite'];
                 $contexte = count($lignes) > 1 ? ['ligne' => $index, 'produit' => $stock?->produit] : [];
 
@@ -127,6 +128,8 @@ class CommandeController extends Controller
                     'livraison_latitude'  => $livLat,
                     'livraison_longitude' => $livLng,
                     'livraison_adresse'   => $livAdresse,
+                    // Lot 12 : montants figés (livraison selon la distance, frais d'entrepôt, commission)
+                    ...array_diff_key(Tarifs::calculer(round($prixUnitaire * $quantite, 2), $quantite, $stock->entrepot, $livLat, $livLng), ['prix' => 0, 'distance_km' => 0]),
                     'date_commande' => now(),
                     'statut'        => 'en_attente',
                 ]);
@@ -197,9 +200,15 @@ class CommandeController extends Controller
                     ], 422);
                 }
 
+                if ($c->statut_paiement !== 'a_payer') {
+                    return response()->json(['message' => 'Cette commande est déjà payée : elle ne peut plus être modifiée. Annulez-la pour être remboursé.'], 422);
+                }
+
                 $ancienne     = (float) $c->quantite;
                 $c->quantite  = $request->quantite;
                 $c->prix      = $c->prix_unitaire !== null ? round($c->prix_unitaire * $request->quantite, 2) : $c->prix;
+                // Lot 12 : montants recalculés pour la nouvelle quantité
+                $c->fill(array_diff_key(Tarifs::calculer((float) $c->prix, (float) $c->quantite, $stock->entrepot, $c->livraison_latitude, $c->livraison_longitude), ['prix' => 0, 'distance_km' => 0]));
                 $c->save();
 
                 HistoriqueOperation::consigner('commande', $c->id, 'modification', $request->user(), 'en_attente', 'en_attente', null, [
@@ -253,9 +262,13 @@ class CommandeController extends Controller
             return $refus;
         }
 
+        // Lot 12 : déjà payée en ligne, elle est remboursée
+        app(\App\Services\Paiements::class)->rembourser($commande);
+        $c = $commande->fresh();
+
         return response()->json([
-            'message'  => 'Commande annulée.',
-            'commande' => $commande->fresh(),
+            'message'  => $c->statut_paiement === 'rembourse' ? 'Commande annulée. Vous êtes remboursé.' : 'Commande annulée.',
+            'commande' => $c,
         ]);
     }
 
@@ -357,7 +370,14 @@ class CommandeController extends Controller
             'description' => ['required', 'string', 'max:1000'],
         ], ['type.required' => 'Choisissez le type d\'anomalie.', 'description.required' => 'Décrivez l\'anomalie constatée.']);
 
-        return $this->declarer($request, $id, $request->type, $request->description);
+        $reponse = $this->declarer($request, $id, $request->type, $request->description);
+
+        // Lot 12 : l'argent mis de côté reste bloqué jusqu'à la décision (litige)
+        if ($reponse->isSuccessful()) {
+            Commande::whereKey($id)->where('statut_paiement', 'paye')->update(['statut_paiement' => 'litige']);
+        }
+
+        return $reponse;
     }
 
     private function declarer(Request $request, int $id, string $type, string $description): JsonResponse

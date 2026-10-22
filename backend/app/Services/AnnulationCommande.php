@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\DB;
 use App\Models\Commande;
 use App\Models\HistoriqueOperation;
 use App\Models\Livraison;
@@ -23,6 +24,9 @@ class AnnulationCommande
     /** Renvoie l'identifiant du transporteur à prévenir (mission retirée), ou null. */
     public function annuler(Commande $c, ?Utilisateur $auteur, string $action, ?string $motif, bool $retourEntrepot = false): ?int
     {
+        // Lot 12 : une commande payée et annulée est remboursée à l'acheteur
+        DB::afterCommit(fn () => app(Paiements::class)->rembourser($c));
+
         $l = Livraison::where('commande_id', $c->id)->whereNotIn('statut', ['annulee', 'retournee', 'livree'])->lockForUpdate()->first();
         $transporteur = $l?->transporteur_id;
 

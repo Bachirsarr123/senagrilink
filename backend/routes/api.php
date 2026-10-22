@@ -71,6 +71,11 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     Route::middleware('role:acheteur_gros')->group(function () {
         Route::get('/catalogue',                [\App\Http\Controllers\Api\CommandeController::class, 'catalogue']);
         Route::post('/commandes',               [\App\Http\Controllers\Api\CommandeController::class, 'store'])->middleware('idempotence');
+        // Lot 12 : devis, paiement (Wave, Orange Money ou espèces à la livraison), simulation
+        Route::get('/commandes/devis',          [\App\Http\Controllers\Api\PaiementController::class, 'devis']);
+        Route::post('/paiements',               [\App\Http\Controllers\Api\PaiementController::class, 'payer'])->middleware('idempotence');
+        Route::get('/paiements/{reference}',    [\App\Http\Controllers\Api\PaiementController::class, 'voir']);
+        Route::post('/paiements/{reference}/simulation', [\App\Http\Controllers\Api\PaiementController::class, 'simuler']);
         Route::put('/commandes/{id}',           [\App\Http\Controllers\Api\CommandeController::class, 'update']);
         Route::delete('/commandes/{id}',        [\App\Http\Controllers\Api\CommandeController::class, 'destroy']);
         Route::get('/commandes/historique',     [\App\Http\Controllers\Api\CommandeController::class, 'historique']);
@@ -101,6 +106,9 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
 
     // ── Module Administrateur ─────────────────────────────────────────────────
     Route::middleware('role:administrateur')->prefix('admin')->group(function () {
+        // Lot 12 : paiements et litiges
+        Route::get('/paiements',                        [\App\Http\Controllers\Api\PaiementController::class, 'admin']);
+        Route::put('/commandes/{id}/paiement',          [\App\Http\Controllers\Api\PaiementController::class, 'decider'])->whereNumber('id');
         Route::get('/utilisateurs',             [\App\Http\Controllers\Api\AdminController::class, 'indexUtilisateurs']);
         Route::post('/utilisateurs',            [\App\Http\Controllers\Api\AdminController::class, 'storeUtilisateur'])->middleware('idempotence');
         Route::put('/utilisateurs/{id}/bloquer',   [\App\Http\Controllers\Api\AdminController::class, 'bloquer']);
@@ -121,6 +129,8 @@ Route::middleware(['auth:sanctum', 'compte.actif'])->group(function () {
     Route::get('/suivi/actifs',                      [\App\Http\Controllers\Api\SuiviController::class, 'actifs']);
     Route::post('/suivi/{type}/{id}/positions',      [\App\Http\Controllers\Api\SuiviController::class, 'enregistrer'])->whereNumber('id')->middleware('throttle:120,1');
     // Lot 9 : guidage du conducteur (chemin, consignes, action en arrivant)
+    // Lot 12 : « Mon argent » de chaque acteur
+    Route::get('/argent', [\App\Http\Controllers\Api\PaiementController::class, 'argent']);
     Route::get('/navigation/{type}/{id}', [\App\Http\Controllers\Api\NavigationController::class, 'itineraire'])->whereNumber('id')->middleware('throttle:60,1');
     Route::get('/suivi/{type}/{id}',                 [\App\Http\Controllers\Api\SuiviController::class, 'consulter'])->whereNumber('id');
 

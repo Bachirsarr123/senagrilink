@@ -6,6 +6,7 @@ use App\Models\Commande;
 use App\Models\HistoriqueOperation;
 use App\Models\Livraison;
 use App\Models\Utilisateur;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Fin de livraison : la livraison arrivée est remise à l'acheteur. Soit
@@ -25,5 +26,8 @@ class ReceptionCommande
         $c->statut = 'receptionnee';
         $c->save();
         HistoriqueOperation::consigner('commande', $c->id, 'reception', $auteur, 'en_livraison', 'receptionnee', null, ['mode' => $mode]);
+
+        // Lot 12 : la marchandise est reçue, l'argent mis de côté est versé à chacun
+        DB::afterCommit(fn () => app(Paiements::class)->liberer($c));
     }
 }

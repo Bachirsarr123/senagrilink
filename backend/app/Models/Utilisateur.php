@@ -30,6 +30,8 @@ class Utilisateur extends Authenticatable
         'valide_par',
         'valide_le',
         'motif_refus',
+        'moyen_paiement',
+        'numero_paiement',
     ];
 
     /** Statuts du compte (lot 6). Seul « actif » peut se connecter. */

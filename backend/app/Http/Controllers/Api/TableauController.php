@@ -168,6 +168,10 @@ class TableauController extends Controller
                 'statut' => $c->statut, 'date_commande' => $c->date_commande, 'panier' => $c->panier,
                 'prix_unitaire' => $voitPrix ? $c->prix_unitaire : null, 'prix' => $voitPrix ? $c->prix : null,
             ],
+            // Lot 12 : qui paie quoi, qui reçoit quoi (le transporteur ne voit que sa part)
+            'paiement'        => $voitPrix
+                ? $c->only(['total_a_payer', 'frais_livraison', 'frais_stockage', 'commission', 'montant_producteur', 'statut_paiement'])
+                : ['frais_livraison' => $c->frais_livraison, 'statut_paiement' => $c->statut_paiement],
             'actions'         => CircuitLivraison::actionsCommande($c, $u, $c->incidents->contains(fn ($i) => $i->statut === 'ouvert' && $i->type === 'demande_annulation')),
             'actions_livraison' => $l ? CircuitLivraison::actionsLivraison($l, $u, $incidents->contains(fn ($i) => $i->sujet_type === 'livraison' && $i->estBloquant())) : [],
             'prochaine_etape' => CircuitLivraison::prochaineEtape($c),

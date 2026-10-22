@@ -58,6 +58,15 @@ return [
         'delai_s'      => (int) env('ROUTAGE_DELAI_S', 4),
     ],
 
+    // Lot 12 : paiements. Fournisseur « simulation » (comme un vrai paiement, sans
+    // argent réel) en attendant Wave Business ; tarifs de la plateforme.
+    'paiement' => [
+        'fournisseur'           => env('PAIEMENT_FOURNISSEUR', 'simulation'),
+        'commission_pourcent'   => (float) env('PAIEMENT_COMMISSION_POURCENT', 2),
+        'livraison_forfait'     => (float) env('LIVRAISON_FORFAIT_FCFA', 500),
+        'livraison_par_km'      => (float) env('LIVRAISON_PAR_KM_FCFA', 100),
+    ],
+
     // Lot 6 (Q15) : notifications sur téléphone. Fichier JSON du compte de
     // service Firebase encodé en base64 ; absent = pas d'envoi (secret Render).
     'firebase' => [
