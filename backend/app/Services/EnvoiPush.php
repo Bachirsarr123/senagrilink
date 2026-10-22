@@ -77,7 +77,7 @@ class EnvoiPush
     /** Jeton OAuth 2 du compte de service (JWT signé RS256), gardé 50 minutes. */
     private function jetonAcces(array $compte): string
     {
-        return Cache::remember('firebase_jeton_'.md5($compte['client_email']), 3000, function () use ($compte) {
+        return Cache::remember('firebase_jeton_'.hash('sha256', $compte['client_email']), 3000, function () use ($compte) {
             $b64 = fn (string $s) => rtrim(strtr(base64_encode($s), '+/', '-_'), '=');
             $maintenant = time();
             $entete = $b64(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));

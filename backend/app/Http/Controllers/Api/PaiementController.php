@@ -82,7 +82,7 @@ class PaiementController extends Controller
             return response()->json(['message' => 'Ce paiement est déjà traité.', 'paiement' => $this->presenter($p)], 422);
         }
 
-        $d['resultat'] === 'reussi' ? $this->paiements->reussi($p, 'SIM-'.strtoupper(substr(md5($p->reference), 0, 10))) : $this->paiements->echoue($p);
+        $d['resultat'] === 'reussi' ? $this->paiements->reussi($p, 'SIM-'.strtoupper(substr(hash('sha256', $p->reference), 0, 10))) : $this->paiements->echoue($p);
         $p->refresh();
 
         return response()->json([
