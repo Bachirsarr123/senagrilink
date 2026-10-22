@@ -34,7 +34,7 @@ class EcransParRoleTest extends TestCase
     public function test_a_faire_suit_le_circuit_de_role_en_role(): void
     {
         $c = $this->commandeJusqua('confirmee');
-        $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5])->assertStatus(201);
+        $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5, 'moyen' => 'especes'])->assertStatus(201);
 
         // Entrepôt : une commande à préparer, une à confirmer ; rien pour l'acheteur ni les transporteurs
         $g = collect($this->aFaire($this->gestionnaire));
@@ -106,7 +106,7 @@ class EcransParRoleTest extends TestCase
         $this->assertSame('acheteur', $acheteur['role']);
         $this->assertMatchesRegularExpression('/^\d{4}$/', $acheteur['code_reception']);
         $this->assertSame(1500.0, (float) $acheteur['commande']['prix']);
-        $this->assertSame(['Création', 'Confirmée', 'Préparation lancée', 'Prête', 'Création', 'Mission acceptée', 'Chargée', 'Marchandise chargée'],
+        $this->assertSame(['Création', 'Paiement choisi', 'Confirmée', 'Préparation lancée', 'Prête', 'Création', 'Mission acceptée', 'Chargée', 'Marchandise chargée'],
             array_column($acheteur['etapes'], 'libelle'));
         $this->assertSame($this->acheteur->prenom.' '.$this->acheteur->nom, $acheteur['etapes'][0]['auteur']);
         $this->assertNotNull($acheteur['livraison']['transporteur']['telephone']);
@@ -133,7 +133,7 @@ class EcransParRoleTest extends TestCase
     {
         $admin = Utilisateur::factory()->administrateur()->create();
         $c = $this->commandeJusqua('en_cours');
-        $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5])->assertStatus(201);
+        $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5, 'moyen' => 'especes'])->assertStatus(201);
         $this->en($this->transporteurA)->postJson('/api/incidents', ['sujet_type' => 'livraison', 'sujet_id' => $this->livraisonId($c->id), 'type' => 'retard', 'description' => 'Bouchons'])->assertStatus(201);
 
         $this->travelTo(now()->addDays(3));

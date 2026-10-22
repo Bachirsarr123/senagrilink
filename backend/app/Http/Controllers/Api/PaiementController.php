@@ -86,7 +86,7 @@ class PaiementController extends Controller
         $p->refresh();
 
         return response()->json([
-            'message'  => $p->statut === 'reussi' ? sprintf('Paiement de %s FCFA réussi. L\'argent est mis de côté jusqu\'à la réception.', Paiements::fcfa($p->montant))
+            'message'  => $p->statut === 'reussi' ? sprintf('Paiement de %s FCFA réussi : commande validée, l\'entrepôt la prépare.', Paiements::fcfa($p->montant))
                 : 'Paiement non abouti. Vous pouvez réessayer.',
             'paiement' => $this->presenter($p),
         ]);

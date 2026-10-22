@@ -103,7 +103,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('commande-quantite')), '5');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Confirmer la commande'));
+    await tester.tap(find.byKey(const Key('commander-especes')));
     await tester.pumpAndSettle();
     final corps = jsonDecode(requetes.singleWhere((r) => r.method == 'POST').body) as Map<String, dynamic>;
     expect([corps['livraison_latitude'], corps['livraison_longitude']], [14.75, -17.38]);

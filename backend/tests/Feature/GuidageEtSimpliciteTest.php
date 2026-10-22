@@ -120,7 +120,7 @@ class GuidageEtSimpliciteTest extends TestCase
         $this->assertSame($this->transporteurB->transporteur->id, $e['transporteur_propose']['id']);
 
         // Commande à confirmer : bouton « Confirmer » directement dans la liste
-        $nouvelle = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 1])->json('commande.id');
+        $nouvelle = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 1, 'moyen' => 'especes'])->json('commande.id');
         $e = collect($this->en($this->gestionnaire)->getJson('/api/a-faire')->json('elements'))->firstWhere('sujet_id', $nouvelle);
         $this->assertSame('confirmer', $e['action']);
 

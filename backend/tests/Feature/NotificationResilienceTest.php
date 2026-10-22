@@ -53,7 +53,7 @@ class NotificationResilienceTest extends TestCase
         Log::spy();
         $p = $this->stockEtActeurs();
 
-        $this->en($p->acheteur)->postJson('/api/commandes', ['stock_id' => $p->stock->id, 'quantite' => 4])
+        $this->en($p->acheteur)->postJson('/api/commandes', ['stock_id' => $p->stock->id, 'quantite' => 4, 'moyen' => 'especes'])
              ->assertStatus(201);
 
         $this->assertSame(1, Commande::count());

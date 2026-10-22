@@ -168,11 +168,11 @@ void main() {
 
     await tester.tap(find.byKey(const Key('panier')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('commander-panier')));
+    await tester.tap(find.byKey(const Key('commander-especes')));
     await tester.pumpAndSettle();
 
     final envoi = requetes.firstWhere((r) => r.method == 'POST');
-    expect(jsonDecode(envoi.body), {'lignes': [{'stock_id': 1, 'quantite': 20.0}, {'stock_id': 2, 'quantite': 5.0}]});
+    expect(jsonDecode(envoi.body), {'lignes': [{'stock_id': 1, 'quantite': 20.0}, {'stock_id': 2, 'quantite': 5.0}], 'moyen': 'especes'});
     expect(find.textContaining('Panier ('), findsNothing);
     expect(find.textContaining('2 commandes passées'), findsOneWidget);
   });

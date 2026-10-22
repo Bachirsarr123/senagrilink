@@ -47,7 +47,7 @@ void main() {
 
   testWidgets('acheteur : commande passée depuis le catalogue mobile (P-09)', (tester) async {
     await demarrer(tester, acheteur, (req) async => req.method == 'POST'
-        ? json({'commande': {'id': 9, 'numero_commande': 'CMD-20261020-ABCD'}}, 201)
+        ? json({'message': 'Commande passée. Vous paierez 1 875 FCFA en espèces.', 'commande': {'id': 9, 'numero_commande': 'CMD-20261020-ABCD'}}, 201)
         : json(catalogue));
 
     expect(find.text('40 kg dispo.'), findsOneWidget); // quantité « 40 » (chaîne PostgreSQL) affichée
@@ -56,7 +56,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('commande-quantite')), '50');
-    await tester.tap(find.text('Confirmer la commande'));
+    await tester.tap(find.byKey(const Key('commander-especes')));
     await tester.pumpAndSettle();
     expect(find.text('Au plus 40 kg disponibles.'), findsOneWidget);
     expect(requetes.where((r) => r.method == 'POST'), isEmpty);
@@ -65,14 +65,14 @@ void main() {
     await tester.pump();
     expect(find.text('Total : 1875 FCFA'), findsOneWidget);
     expect(find.byKey(const Key('commande-prix')), findsNothing); // l'acheteur ne saisit pas de prix
-    await tester.tap(find.text('Confirmer la commande'));
+    await tester.tap(find.byKey(const Key('commander-especes')));
     await tester.pumpAndSettle();
 
     final post = requetes.singleWhere((r) => r.method == 'POST');
     expect(post.url.path, endsWith('/commandes'));
-    expect(jsonDecode(post.body), {'stock_id': 5, 'quantite': 12.5});
+    expect(jsonDecode(post.body), {'stock_id': 5, 'quantite': 12.5, 'moyen': 'especes'});
     expect(post.headers['Idempotency-Key'], isNotNull);
-    expect(find.textContaining('CMD-20261020-ABCD'), findsOneWidget);
+    expect(find.textContaining('Vous paierez 1 875 FCFA'), findsOneWidget);
     await arreter(tester);
   });
 
@@ -81,17 +81,17 @@ void main() {
     await demarrer(tester, acheteur, (req) async {
       if (req.method != 'POST') return json(catalogue);
       essais++;
-      return essais == 1 ? http.Response('<html>502</html>', 502) : json({'commande': {'id': 9, 'numero_commande': 'CMD-X'}}, 201);
+      return essais == 1 ? http.Response('<html>502</html>', 502) : json({'message': 'Commande CMD-X passée.', 'commande': {'id': 9, 'numero_commande': 'CMD-X'}}, 201);
     });
 
     await tester.tap(find.text('Commander'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('commande-quantite')), '5');
-    await tester.tap(find.text('Confirmer la commande'));
+    await tester.tap(find.byKey(const Key('commander-especes')));
     await tester.pumpAndSettle();
     expect(find.text('Erreur serveur (502)'), findsOneWidget); // erreur affichée, formulaire conservé
 
-    await tester.tap(find.text('Confirmer la commande'));
+    await tester.tap(find.byKey(const Key('commander-especes')));
     await tester.pumpAndSettle();
 
     final cles = requetes.where((r) => r.method == 'POST').map((r) => r.headers['Idempotency-Key']).toList();

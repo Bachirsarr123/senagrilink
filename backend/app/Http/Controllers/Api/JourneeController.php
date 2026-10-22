@@ -47,6 +47,7 @@ class JourneeController extends Controller
         $aPreparer = Commande::with(['acheteur.utilisateur:id,nom,prenom,telephone'])
             ->whereHas('stock', fn ($q) => $q->where('entrepot_id', $e->id))
             ->whereIn('statut', ['en_attente', 'confirmee', 'en_preparation'])
+            ->where(fn ($q) => $q->where('statut', '!=', 'en_attente')->orWhere('statut_paiement', '!=', 'a_payer')) // lot 13 : payée d'abord
             ->orderByRaw("case statut when 'en_preparation' then 0 when 'confirmee' then 1 else 2 end")->orderBy('date_commande')
             ->get()->map(fn (Commande $c) => [
                 'id' => $c->id, 'numero' => $c->numero_commande, 'produit' => $c->produit, 'quantite' => (float) $c->quantite,

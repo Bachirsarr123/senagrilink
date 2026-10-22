@@ -136,6 +136,7 @@ trait ConstruitParcours
             'date_commande' => now(),
             'statut'        => $statut,
             'etat_stock'    => $confirmee ? 'reserve' : null,
+            'statut_paiement' => 'a_la_livraison', // lot 13 : l'entrepôt ne traite qu'une commande réglée
         ]);
     }
 }

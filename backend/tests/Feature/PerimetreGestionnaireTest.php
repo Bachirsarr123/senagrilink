@@ -59,6 +59,7 @@ class PerimetreGestionnaireTest extends TestCase
             'quantite'      => $quantite,
             'date_commande' => now(),
             'statut'        => $statut,
+            'statut_paiement' => 'a_la_livraison',
         ]);
     }
 

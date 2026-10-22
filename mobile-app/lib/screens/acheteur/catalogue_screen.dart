@@ -9,6 +9,7 @@ import '../../widgets/app_theme.dart';
 import '../../widgets/choix_position.dart';
 import '../../widgets/info_card.dart';
 import 'formulaire_commande.dart';
+import '../paiement/paiement_screen.dart';
 import 'mes_commandes_screen.dart';
 import '../shared/tracabilite_screen.dart';
 import '../shared/profil_screen.dart';
@@ -103,9 +104,10 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
 
   Future<void> _ouvrirPanier() async {
     final messager = ScaffoldMessenger.of(context);
-    final commande = await showModalBottomSheet<bool>(
+    final moyen = await showModalBottomSheet<String>(
       context: context,
-      builder: (c) => StatefulBuilder(builder: (c, setSheet) => SafeArea(child: Padding(
+      isScrollControlled: true,
+      builder: (c) => StatefulBuilder(builder: (c, setSheet) => SafeArea(child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const Text('Mon panier', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -122,18 +124,24 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
           const Text('Tout ou rien : si un produit n\'est plus disponible en quantité suffisante, aucune commande n\'est passée.',
               style: TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 12),
-          ElevatedButton(key: const Key('commander-panier'), onPressed: () => Navigator.pop(c, true), child: const Text('Commander le panier')),
+          const Text('Livraison ajoutée au paiement selon la distance.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 8),
+          // Lot 13 : le panier est commandé et payé d'un seul appui
+          BoutonsPaiement(onChoix: (m) => Navigator.pop(c, m), libelleWave: 'Payer le panier avec Wave'),
         ]),
       ))),
     );
-    if (commande != true || _panier.isEmpty) return;
+    if (moyen == null || _panier.isEmpty) return;
     try {
       final res = await ApiService.passerCommande({
         'lignes': [for (final l in _panier) {'stock_id': l.stockId, 'quantite': l.quantite}],
         ..._champsLieu,
+        'moyen': moyen,
       }, cleIdempotence: _clePanier);
       setState(() { _panier.clear(); _clePanier = ApiService.nouvelleCleIdempotence(); });
-      messager.showSnackBar(SnackBar(content: Text('${res['message'] ?? 'Panier commandé.'} Suivez-le dans « Mes commandes ».'), backgroundColor: AppTheme.vert));
+      if (!mounted) return;
+      final message = await apresCommande(context, res is Map ? res : const {});
+      if (message != null) messager.showSnackBar(SnackBar(content: Text(message), backgroundColor: AppTheme.vert));
       _charger();
     } on ApiException catch (e) {
       messager.showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppTheme.rouge));
@@ -141,10 +149,11 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   }
 
   Future<void> _commander(Map<String, dynamic> produit) async {
-    final numero = await ouvrirFormulaireCommande(context, produit, surPanier: (q) => _ajouter(produit, q), lieu: _champsLieu);
-    if (numero == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Commande $numero passée. Suivez-la dans « Mes commandes ».'), backgroundColor: AppTheme.vert));
+    final res = await ouvrirFormulaireCommande(context, produit, surPanier: (q) => _ajouter(produit, q), lieu: _champsLieu);
+    if (res == null || !mounted) return;
+    final messager = ScaffoldMessenger.of(context);
+    final message = await apresCommande(context, res);
+    if (message != null) messager.showSnackBar(SnackBar(content: Text(message), backgroundColor: AppTheme.vert));
     _charger();
   }
 

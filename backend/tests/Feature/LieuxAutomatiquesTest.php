@@ -72,7 +72,7 @@ class LieuxAutomatiquesTest extends TestCase
     public function test_lieu_de_livraison_de_la_commande(): void
     {
         $id = $this->en($this->acheteur)->postJson('/api/commandes', [
-            'stock_id' => $this->stock->id, 'quantite' => 5, 'livraison_latitude' => 14.72, 'livraison_longitude' => -17.47, 'livraison_adresse' => 'Marché Castors',
+            'stock_id' => $this->stock->id, 'quantite' => 5, 'livraison_latitude' => 14.72, 'livraison_longitude' => -17.47, 'livraison_adresse' => 'Marché Castors', 'moyen' => 'especes',
         ])->assertStatus(201)->json('commande.id');
         $this->assertSame(14.72, $this->acheteur->acheteurGros->fresh()->latitude);
 

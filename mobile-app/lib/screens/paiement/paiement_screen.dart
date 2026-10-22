@@ -24,6 +24,47 @@ Future<String?> payerCommandes(BuildContext context, List<int> commandes, double
   return Navigator.push<String>(context, MaterialPageRoute(builder: (_) => PaiementScreen(reference: (res as Map)['paiement']['reference'] as String)));
 }
 
+/// Lot 13 : boutons « commander et payer » d'un seul appui (catalogue, panier).
+class BoutonsPaiement extends StatelessWidget {
+  final ValueChanged<String>? onChoix;
+  final String libelleWave;
+  const BoutonsPaiement({super.key, required this.onChoix, this.libelleWave = 'Payer avec Wave'});
+
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        SizedBox(height: 52, child: ElevatedButton.icon(
+          key: const Key('commander-wave'),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1DC8F2), foregroundColor: const Color(0xFF05324A)),
+          icon: const Icon(Icons.waves), label: Text(libelleWave, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          onPressed: onChoix == null ? null : () => onChoix!('wave'),
+        )),
+        const SizedBox(height: 8),
+        SizedBox(height: 52, child: ElevatedButton.icon(
+          key: const Key('commander-orange_money'),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF7900), foregroundColor: Colors.white),
+          icon: const Icon(Icons.phone_android), label: const Text('Orange Money', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          onPressed: onChoix == null ? null : () => onChoix!('orange_money'),
+        )),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: const Key('commander-especes'),
+          icon: const Icon(Icons.payments_outlined), label: const Text('En espèces à la livraison'),
+          onPressed: onChoix == null ? null : () => onChoix!('especes'),
+        ),
+      ]);
+}
+
+/// Lot 13 : après « commander et payer », Wave ou Orange Money ouvrent aussitôt
+/// l'écran de paiement ; en espèces, la commande est déjà partie à l'entrepôt.
+/// Renvoie le message à montrer à l'acheteur.
+Future<String?> apresCommande(BuildContext context, Map res) async {
+  final p = res['paiement'];
+  if (p is Map && p['moyen'] != 'especes' && p['reference'] != null && context.mounted) {
+    return Navigator.push<String>(context, MaterialPageRoute(builder: (_) => PaiementScreen(reference: p['reference'] as String)));
+  }
+  return res['message'] as String?;
+}
+
 /// Écran de paiement. En attendant Wave Business, il simule celui du service de
 /// paiement ; avec le vrai service, l'acheteur sera envoyé dans son application Wave.
 class PaiementScreen extends StatefulWidget {
@@ -75,6 +116,8 @@ class _PaiementScreenState extends State<PaiementScreen> {
               const SizedBox(height: 20),
               if (p['statut'] == 'initie') ...[
                 Text('Depuis le numéro ${p['telephone'] ?? ''}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+                const Text('Votre commande est validée dès le paiement. Sans paiement dans les 30 minutes, elle est annulée.',
+                    textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12)),
                 const SizedBox(height: 12),
                 SizedBox(height: 56, child: ElevatedButton(
                   key: const Key('confirmer-paiement'),
@@ -85,7 +128,7 @@ class _PaiementScreenState extends State<PaiementScreen> {
                 TextButton(onPressed: _envoi ? null : () => _confirmer('echoue'), child: const Text('Annuler')),
               ] else ...[
                 Icon(p['statut'] == 'reussi' ? Icons.check_circle : Icons.error, size: 64, color: p['statut'] == 'reussi' ? AppTheme.vert : AppTheme.rouge),
-                Text(_message ?? (p['statut'] == 'reussi' ? 'Paiement réussi.' : 'Paiement non abouti.'), key: const Key('paiement-resultat'),
+                Text(_message ?? (p['statut'] == 'reussi' ? 'Commande payée et validée.' : 'Paiement non abouti.'), key: const Key('paiement-resultat'),
                     textAlign: TextAlign.center, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                 if (p['statut'] == 'reussi') const Text('L\'argent est mis de côté : il ne sera versé au producteur qu\'une fois la marchandise reçue.',
                     textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),

@@ -19,6 +19,7 @@ use App\Notifications\NouvelleCommandeNotification;
 use App\Notifications\OperationModifieeNotification;
 use App\Services\AnnulationCommande;
 use App\Services\GestionStock;
+use App\Services\Paiements;
 use App\Services\ReceptionCommande;
 use App\Support\CircuitLivraison;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -88,9 +89,10 @@ class CommandeController extends Controller
             : [['stock_id' => $request->stock_id, 'quantite' => $request->quantite]];
         [$livLat, $livLng, $livAdresse] = Lieux::retenir($request, 'livraison', $acheteur, $request->user()->adresse);
         $panier = count($lignes) > 1 ? 'PAN-'.now()->format('Ymd').'-'.strtoupper(Str::random(5)) : null;
+        $moyen  = $request->input('moyen');
 
         // Une ligne impossible lève une exception : la transaction annule tout le panier.
-        $resultat = DB::transaction(function () use ($lignes, $acheteur, $panier, $request, $livLat, $livLng, $livAdresse) {
+        $resultat = DB::transaction(function () use ($lignes, $acheteur, $panier, $request, $livLat, $livLng, $livAdresse, $moyen) {
             $commandes = [];
 
             foreach ($lignes as $index => $ligne) {
@@ -134,6 +136,12 @@ class CommandeController extends Controller
                     'statut'        => 'en_attente',
                 ]);
 
+                // Lot 13 : payée en ligne, la quantité est gardée pour l'acheteur le temps du paiement
+                if (in_array($moyen, Paiements::MOYENS_EN_LIGNE, true)) {
+                    $this->gestionStock->reserver($stock->id, $quantite, $request->user(), 'commande', $commande->id);
+                    $commande->update(['etat_stock' => 'reserve']);
+                }
+
                 HistoriqueOperation::consigner('commande', $commande->id, 'creation', $request->user(), null, 'en_attente', null, [
                     'quantite' => $quantite, 'prix_unitaire' => (float) $prixUnitaire, 'montant' => (float) $commande->prix, 'panier' => $panier,
                 ]);
@@ -151,15 +159,25 @@ class CommandeController extends Controller
             $stock->entrepot?->utilisateur?->notify(new NouvelleCommandeNotification($commande));
         }
 
-        // Lot 11 : confirmation automatique (le stock est déjà réservé)
-        app(\App\Services\PiloteAutomatique::class)->commandesPassees(collect($resultat)->map(fn ($r) => $r[0]->load('stock.entrepot')));
+        // Lot 13 : commande et paiement d'un seul geste. L'entrepôt (ou son pilote
+        // automatique) ne la traite qu'une fois payée, ou les espèces choisies.
+        $paiement = $moyen
+            ? app(Paiements::class)->initier($acheteur, collect($resultat)->map(fn ($r) => $r[0]->id)->all(), $moyen, $request->input('telephone'))
+            : null;
         $commandes = collect($resultat)->map(fn ($r) => $r[0]->fresh()->load('stock.entrepot'));
+        $total     = Paiements::fcfa($commandes->sum('total_a_payer'));
 
         return response()->json([
-            'message'   => $commandes->count() > 1 ? sprintf('Panier commandé : %d commandes passées.', $commandes->count()) : 'Commande passée avec succès.',
+            'message'   => match (true) {
+                $moyen === 'especes' => sprintf('Commande passée. Vous paierez %s FCFA en espèces au transporteur, à la livraison.', $total),
+                $moyen !== null      => sprintf('Confirmez le paiement de %s FCFA avec %s pour valider la commande.', $total, Paiements::moyen($moyen)),
+                default              => sprintf('Commande enregistrée. Payez-la (%s FCFA) pour que l\'entrepôt la prépare.', $total),
+            },
             'commande'  => $commandes->first(),
             'commandes' => $commandes,
             'panier'    => $panier,
+            'paiement'  => $paiement?->only(['reference', 'montant', 'moyen', 'fournisseur', 'statut']),
+            'delai_paiement_min' => Paiements::DELAI_MIN,
         ], 201);
     }
 
@@ -202,6 +220,9 @@ class CommandeController extends Controller
 
                 if ($c->statut_paiement !== 'a_payer') {
                     return response()->json(['message' => 'Cette commande est déjà payée : elle ne peut plus être modifiée. Annulez-la pour être remboursé.'], 422);
+                }
+                if ($c->etat_stock === 'reserve') {
+                    return response()->json(['message' => 'Cette commande attend votre paiement : payez-la, ou annulez-la et commandez la nouvelle quantité.'], 422);
                 }
 
                 $ancienne     = (float) $c->quantite;
@@ -251,6 +272,11 @@ class CommandeController extends Controller
                 ], 422);
             }
 
+            // Lot 13 : quantité gardée pendant le paiement, rendue au stock
+            if ($c->etat_stock === 'reserve' && $c->stock_id) {
+                $this->gestionStock->liberer($c->stock_id, (float) $c->quantite, $request->user(), 'commande', $c->id, $request->input('motif'));
+                $c->etat_stock = 'libere';
+            }
             $c->statut = 'annulee';
             $c->save();
             HistoriqueOperation::consigner('commande', $c->id, 'annulation', $request->user(), 'en_attente', 'annulee', $request->input('motif'));
@@ -412,6 +438,10 @@ class CommandeController extends Controller
             ], 422);
         }
 
+        if ($commande->attendPaiement()) {
+            return response()->json(['message' => 'L\'acheteur n\'a pas encore payé : la commande sera à confirmer dès son paiement.'], 422);
+        }
+
         $stock = $commande->stock;
 
         if (! $stock) {
@@ -434,7 +464,8 @@ class CommandeController extends Controller
             }
 
             try {
-                $stock = $this->gestionStock->reserver(
+                // Lot 13 : déjà gardée pour l'acheteur pendant son paiement
+                $stock = $commandeVerrouillee->etat_stock === 'reserve' ? Stock::find($commandeVerrouillee->stock_id) : $this->gestionStock->reserver(
                     $commandeVerrouillee->stock_id, (float) $commandeVerrouillee->quantite, $request->user(), 'commande', $commandeVerrouillee->id,
                 );
             } catch (StockInsuffisantException $e) {

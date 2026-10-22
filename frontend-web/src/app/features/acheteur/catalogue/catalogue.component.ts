@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
+import { Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { CleSoumission } from '../../../shared/idempotence/cle-soumission';
 import { ChoixPositionComponent, Position } from '../../../shared/position/choix-position';
@@ -46,7 +47,12 @@ import { PositionAppareilService } from '../../../shared/position/position-appar
           </ul>
           <p class="montant">Total du panier : <strong>{{ totalPanier() | number:'1.0-2' }} FCFA</strong></p>
           <p class="note">Tout ou rien : si un produit n'est plus disponible en quantité suffisante, aucune commande n'est passée.</p>
-          <button class="btn-primary" [disabled]="loadingCmd()" (click)="commanderPanier()">{{ loadingCmd() ? 'Envoi…' : 'Commander le panier' }}</button>
+          <p class="note">Livraison ajoutée au paiement selon la distance.</p>
+          <div class="btn-group payer">
+            <button class="btn-primary btn-wave" [disabled]="loadingCmd()" (click)="commanderPanier('wave')">{{ loadingCmd() ? 'Envoi…' : 'Payer le panier avec Wave' }}</button>
+            <button class="btn-primary btn-om" [disabled]="loadingCmd()" (click)="commanderPanier('orange_money')">Orange Money</button>
+            <button class="btn-secondary" [disabled]="loadingCmd()" (click)="commanderPanier('especes')">En espèces à la livraison</button>
+          </div>
         </div>
       }
 
@@ -90,7 +96,7 @@ import { PositionAppareilService } from '../../../shared/position/position-appar
               </div>
 
               @if (commandeOuverte() === p.stock_id) {
-                <form [formGroup]="formCommande" (ngSubmit)="passerCommande(p)" class="commande-form">
+                <form [formGroup]="formCommande" (ngSubmit)="passerCommande(p, 'wave')" class="commande-form">
                   <div class="form-group">
                     <label>Quantité souhaitée (kg, au plus {{ p.quantite_disponible | number }})</label>
                     <!-- Lot 9 : − / + pour choisir sans clavier (pas de 10 kg), le champ reste modifiable -->
@@ -112,11 +118,16 @@ import { PositionAppareilService } from '../../../shared/position/position-appar
                   @if (depasse(p)) {
                     <span class="field-error">Il ne reste que {{ p.quantite_disponible | number }} kg disponibles.</span>
                   }
-                  <div class="btn-group">
-                    <button type="submit" class="btn-primary" [disabled]="loadingCmd() || depasse(p)">
-                      {{ loadingCmd() ? '...' : 'Confirmer la commande' }}
+                  <!-- Lot 13 : commander et payer d'un seul appui -->
+                  <div class="btn-group payer">
+                    <button type="submit" class="btn-primary btn-wave" [disabled]="loadingCmd() || depasse(p)">
+                      {{ loadingCmd() ? '...' : 'Payer avec Wave' }}
                     </button>
-                    <button type="button" class="btn-secondary" [disabled]="depasse(p)" (click)="ajouterAuPanier(p)">Ajouter au panier</button>
+                    <button type="button" class="btn-primary btn-om" [disabled]="loadingCmd() || depasse(p)" (click)="passerCommande(p, 'orange_money')">Orange Money</button>
+                    <button type="button" class="btn-secondary" [disabled]="loadingCmd() || depasse(p)" (click)="passerCommande(p, 'especes')">En espèces à la livraison</button>
+                  </div>
+                  <div class="btn-group">
+                    <button type="button" class="btn-ghost" [disabled]="depasse(p)" (click)="ajouterAuPanier(p)">Ajouter au panier</button>
                     <button type="button" class="btn-ghost" (click)="commandeOuverte.set(null)">Annuler</button>
                   </div>
                 </form>
@@ -140,6 +151,9 @@ import { PositionAppareilService } from '../../../shared/position/position-appar
     .pas { min-width:48px; min-height:48px; font-size:1.5rem; line-height:1; }
     .lieu-livraison { padding:.8rem 1rem; }
     .lieu-livraison__ligne { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:space-between; margin-bottom:.4rem; }
+    .payer { flex-wrap:wrap; }
+    .btn-wave { background:#1dc8f2; border-color:#1dc8f2; color:#05324a; font-weight:700; }
+    .btn-om { background:#ff7900; border-color:#ff7900; color:#fff; font-weight:700; }
     .panier ul { list-style:none; margin:0 0 .5rem; padding:0; display:grid; gap:.4rem; }
     .panier li { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; justify-content:space-between; }
     .compteur { display:inline-block; min-width:1.6rem; padding:0 .45rem; border-radius:999px; background:#d8f3dc; color:#1b4332; font-size:.85rem; text-align:center; }
@@ -195,6 +209,8 @@ export class CatalogueComponent implements OnInit {
 
   /** Clé de la commande en cours de saisie : un nouvel essai ne crée pas de doublon. */
   private cleCommande = new CleSoumission();
+
+  private readonly router = inject(Router);
 
   constructor(private api: ApiService, private fb: FormBuilder) {
     this.formCommande = this.fb.group({
@@ -254,24 +270,36 @@ export class CatalogueComponent implements OnInit {
     this.erreurCommande.set(null);
   }
 
-  passerCommande(produit: any): void {
+  /**
+   * Lot 13 : commander et payer d'un seul appui. Wave ou Orange Money : la page
+   * de paiement s'ouvre aussitôt (la commande n'est validée qu'une fois payée) ;
+   * espèces : la commande part tout de suite à l'entrepôt.
+   */
+  passerCommande(produit: any, moyen: 'wave' | 'orange_money' | 'especes'): void {
     if (this.formCommande.invalid) { this.formCommande.markAllAsTouched(); return; }
     this.loadingCmd.set(true); this.erreurCommande.set(null);
 
-    this.api.passerCommande({ stock_id: produit.stock_id, ...this.formCommande.value, ...this.lieu() }, this.cleCommande.valeur).subscribe({
+    this.api.passerCommande({ stock_id: produit.stock_id, ...this.formCommande.value, ...this.lieu(), moyen }, this.cleCommande.valeur).subscribe({
       next: res => {
         this.cleCommande.renouveler();
-        this.succes.set(`Commande ${res.commande.numero_commande} passée : ${res.commande.quantite} kg pour ${res.commande.prix} FCFA. L'entrepôt va la confirmer.`);
         this.commandeOuverte.set(null);
         this.loadingCmd.set(false);
-        this.chargerCatalogue();
-        setTimeout(() => this.succes.set(null), 4000);
+        this.apresCommande(res, 4000);
       },
       error: err => {
         this.erreurCommande.set(err.error?.message ?? 'Erreur lors de la commande.');
         this.loadingCmd.set(false);
       },
     });
+  }
+
+  /** Payée en ligne : page de paiement ; espèces : message du serveur (montant à remettre au transporteur). */
+  private apresCommande(res: any, duree: number): void {
+    const p = res.paiement;
+    if (p && p.moyen !== 'especes') { this.router.navigate(['/paiement', p.reference]); return; }
+    this.succes.set(`✅ ${res.message}`);
+    this.chargerCatalogue();
+    setTimeout(() => this.succes.set(null), duree);
   }
 
   ajouterAuPanier(p: any): void {
@@ -287,18 +315,15 @@ export class CatalogueComponent implements OnInit {
     this.clePanier.renouveler();
   }
 
-  commanderPanier(): void {
+  commanderPanier(moyen: 'wave' | 'orange_money' | 'especes'): void {
     const lignes = this.panier().map(({ stock_id, quantite }) => ({ stock_id, quantite }));
-    if (!confirm(`Commander ${lignes.length} produit(s) pour ${this.totalPanier()} FCFA ?`)) return;
     this.loadingCmd.set(true); this.erreurCommande.set(null);
-    this.api.passerCommande({ lignes, ...this.lieu() }, this.clePanier.valeur).subscribe({
+    this.api.passerCommande({ lignes, ...this.lieu(), moyen }, this.clePanier.valeur).subscribe({
       next: res => {
         this.clePanier.renouveler();
         this.panier.set([]);
-        this.succes.set(`${res.message} L'entrepôt va les confirmer.`);
         this.loadingCmd.set(false);
-        this.chargerCatalogue();
-        setTimeout(() => this.succes.set(null), 5000);
+        this.apresCommande(res, 6000);
       },
       error: err => {
         const ligne = err.error?.produit ? ` (${err.error.produit})` : '';

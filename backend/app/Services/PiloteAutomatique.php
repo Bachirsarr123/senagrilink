@@ -126,6 +126,7 @@ class PiloteAutomatique
         if (Cache::add('pilote:relance', true, 60)) {
             try {
                 $this->relancerSansReponse();
+                app(Paiements::class)->expirer(); // lot 13 : commandes non payées à temps
             } catch (Throwable $e) {
                 report($e); // jamais d'erreur pour la requête en cours
             }

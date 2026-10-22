@@ -32,6 +32,19 @@ class PaiementsTest extends TestCase
         $this->admin = \App\Models\Utilisateur::factory()->administrateur()->create();
     }
 
+    /** Lot 13 : commander et payer d'un seul geste. Renvoie [commande, référence du paiement]. */
+    private function commander(string $moyen = 'wave', float $quantite = 10): array
+    {
+        $r = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => $quantite, 'moyen' => $moyen])->assertStatus(201);
+
+        return [Commande::find($r->json('commande.id')), $r->json('paiement.reference'), $r];
+    }
+
+    private function confirmer(Commande $c)
+    {
+        return $this->en($this->gestionnaire)->putJson("/api/commandes/{$c->id}/confirmer");
+    }
+
     private function payer(array $ids, string $moyen = 'wave')
     {
         return $this->en($this->acheteur)->postJson('/api/paiements', ['commandes' => $ids, 'moyen' => $moyen]);
@@ -61,14 +74,22 @@ class PaiementsTest extends TestCase
 
     public function test_paiement_mis_de_cote_puis_verse_a_chacun_a_la_reception(): void
     {
-        $c = $this->commandeJusqua('confirmee', 10);
-        $p = $this->payer([$c->id])->assertStatus(201)->json('paiement');
+        [$c, $ref, $r] = $this->commander('wave');
+        $p = $r->json('paiement');
         $this->assertSame(['initie', 'simulation', 2700], [$p['statut'], $p['fournisseur'], (int) $p['montant']]);
+        $this->assertStringContainsString('Confirmez le paiement de 2 700 FCFA avec Wave', $r->json('message'));
+        // Pas encore payée : quantité gardée pour l'acheteur, l'entrepôt ne peut pas la confirmer
+        $this->assertSame(['en_attente', 'reserve'], [$c->statut, $c->etat_stock]);
+        $this->assertEquals(10, $this->stock->fresh()->quantite_reservee);
+        $this->confirmer($c)->assertStatus(422)->assertJsonPath('message', 'L\'acheteur n\'a pas encore payé : la commande sera à confirmer dès son paiement.');
+        $this->en($this->acheteur)->putJson("/api/commandes/{$c->id}", ['quantite' => 5])->assertStatus(422);
 
         $this->simuler($p['reference'])->assertOk()->assertJsonPath('paiement.statut', 'reussi');
         $this->simuler($p['reference'])->assertStatus(422); // pas deux fois
         $this->payer([$c->id])->assertStatus(422);           // déjà payée
         $this->assertSame('paye', $c->fresh()->statut_paiement);
+        $this->confirmer($c)->assertOk();
+        $this->assertEquals(10, $this->stock->fresh()->quantite_reservee); // gardée une seule fois
         $this->assertEquals(1420.0, $this->argent($this->producteur)['totaux']['mis_de_cote']);
         $this->assertTrue($this->producteur->fresh()->notifications->contains(fn ($n) => str_contains($n->data['message'] ?? '', '1 420 FCFA vous seront versés')));
         // Commande payée : plus modifiable
@@ -94,8 +115,9 @@ class PaiementsTest extends TestCase
 
     public function test_annulation_rembourse_l_acheteur(): void
     {
-        $c = $this->commandeJusqua('confirmee', 10);
-        $this->simuler($this->payer([$c->id])->json('paiement.reference'));
+        [$c, $ref] = $this->commander('wave');
+        $this->simuler($ref);
+        $this->confirmer($c)->assertOk();
         $this->en($this->gestionnaire)->putJson("/api/commandes/{$c->id}/annuler-confirmation", ['motif' => 'Stock abîmé'])->assertOk();
 
         $this->assertSame('rembourse', $c->fresh()->statut_paiement);
@@ -106,9 +128,11 @@ class PaiementsTest extends TestCase
 
     public function test_paiement_en_especes_a_la_livraison(): void
     {
-        $c = $this->commandeJusqua('confirmee', 10);
-        $this->payer([$c->id], 'especes')->assertStatus(201)->assertJsonPath('paiement.fournisseur', 'livraison');
+        [$c, , $r] = $this->commander('especes');
+        $r->assertJsonPath('paiement.fournisseur', 'livraison');
+        $this->assertStringContainsString('Vous paierez 2 700 FCFA en espèces au transporteur', $r->json('message'));
         $this->assertSame('a_la_livraison', $c->fresh()->statut_paiement);
+        $this->confirmer($c)->assertOk(); // rien à attendre : l'entrepôt la traite tout de suite
         foreach (['prete', 'organisee', 'acceptee', 'chargee', 'en_cours', 'arrivee'] as $e) {
             $this->etapeVers($c->id, $e);
         }
@@ -121,8 +145,9 @@ class PaiementsTest extends TestCase
 
     public function test_litige_bloque_l_argent_jusqu_a_la_decision(): void
     {
-        $c = $this->commandeJusqua('confirmee', 10);
-        $this->simuler($this->payer([$c->id])->json('paiement.reference'));
+        [$c, $ref] = $this->commander('orange_money');
+        $this->simuler($ref);
+        $this->confirmer($c)->assertOk();
         foreach (['prete', 'organisee', 'acceptee', 'chargee', 'en_cours', 'arrivee'] as $e) {
             $this->etapeVers($c->id, $e);
         }
@@ -137,18 +162,47 @@ class PaiementsTest extends TestCase
 
     public function test_paiement_echoue_et_controles(): void
     {
-        $c = $this->commandeJusqua('confirmee', 10);
-        $ref = $this->payer([$c->id])->json('paiement.reference');
+        [$c, $ref] = $this->commander('wave');
         $this->simuler($ref, 'echoue')->assertOk()->assertJsonPath('paiement.statut', 'echoue');
         $this->assertNull($c->fresh()->paiement_id);
-        $this->payer([$c->id])->assertStatus(201); // on peut réessayer
+        $this->payer([$c->id])->assertStatus(201); // on peut réessayer depuis « Mes commandes »
 
         // Un autre acheteur ne paie ni ne voit les commandes d'autrui
         $autre = \App\Models\Utilisateur::factory()->acheteur()->create();
         $this->en($autre)->postJson('/api/paiements', ['commandes' => [$c->id], 'moyen' => 'wave'])->assertStatus(404);
         $this->en($autre)->getJson("/api/paiements/{$ref}")->assertStatus(404);
         $this->en($this->acheteur)->postJson('/api/paiements', ['commandes' => [$c->id], 'moyen' => 'bitcoin'])->assertStatus(422);
+        $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 1, 'moyen' => 'bitcoin'])->assertStatus(422);
         $this->en($this->producteur)->putJson('/api/profile', ['numero_paiement' => 'abc'])->assertStatus(422);
+    }
+
+    /** Lot 13 : paiement abandonné, commande annulée après 30 minutes, quantité rendue au stock. */
+    public function test_commande_non_payee_annulee_apres_le_delai(): void
+    {
+        [$c, $ref] = $this->commander('wave');
+        [$payee, $refPayee] = $this->commander('wave', 5);
+        $this->simuler($refPayee);
+        $this->assertEquals(15, $this->stock->fresh()->quantite_reservee);
+
+        $this->travel(29)->minutes();
+        $this->assertSame(0, app(\App\Services\Paiements::class)->expirer());
+        $this->travel(2)->minutes();
+        $this->assertSame(1, app(\App\Services\Paiements::class)->expirer());
+
+        $this->assertSame(['annulee', 'libere'], [$c->fresh()->statut, $c->fresh()->etat_stock]);
+        $this->assertSame('en_attente', $payee->fresh()->statut); // payée : jamais annulée
+        $this->assertEquals(5, $this->stock->fresh()->quantite_reservee);
+        $this->simuler($ref)->assertStatus(422); // paiement trop tard refusé
+        $this->assertTrue($this->acheteur->fresh()->notifications->contains(fn ($n) => str_contains($n->data['message'] ?? '', 'paiement non reçu dans les 30 minutes')));
+    }
+
+    /** Lot 13 : l'acheteur annule pendant le paiement, la quantité revient au stock. */
+    public function test_annulation_pendant_le_paiement_rend_la_quantite(): void
+    {
+        [$c] = $this->commander('wave');
+        $this->en($this->acheteur)->deleteJson("/api/commandes/{$c->id}")->assertOk();
+        $this->assertEquals(0, $this->stock->fresh()->quantite_reservee);
+        $this->assertSame('libere', $c->fresh()->etat_stock);
     }
 
     /** Étape de la commande (lot 3), une à la fois. */

@@ -80,8 +80,15 @@ class PiloteAutomatiqueTest extends TestCase
 
     public function test_commande_confirmee_d_office_puis_livraison_confiee_quand_elle_est_prete(): void
     {
-        $id = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5])
-            ->assertStatus(201)->assertJsonPath('commande.statut', 'confirmee')->json('commande.id');
+        // Lot 13 : commandée et payée avec Wave d'un seul geste ; rien ne bouge avant le paiement
+        $r = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5, 'moyen' => 'wave'])
+            ->assertStatus(201)->assertJsonPath('commande.statut', 'en_attente');
+        $id = $r->json('commande.id');
+        $this->assertNull(collect($this->en($this->gestionnaire)->getJson('/api/a-faire')->json('elements'))->firstWhere('sujet_id', $id));
+        $this->assertNull(collect($this->en($this->gestionnaire)->getJson('/api/journee')->json('a_preparer'))->firstWhere('id', $id));
+        $this->en($this->acheteur)->postJson("/api/paiements/{$r->json('paiement.reference')}/simulation", ['resultat' => 'reussi'])->assertOk();
+        $this->assertSame('confirmee', Commande::find($id)->statut);
+        $this->assertSame(5.0, (float) $this->stock->fresh()->quantite_reservee); // gardée une seule fois
 
         // « À faire » du gestionnaire : seulement « Commande prête »
         $e = collect($this->en($this->gestionnaire)->getJson('/api/a-faire')->json('elements'))->firstWhere('sujet_id', $id);
@@ -105,7 +112,7 @@ class PiloteAutomatiqueTest extends TestCase
         $this->assertSame([false, false, true, 20], [$e->auto_accepter_depots, $e->auto_confirmer_commandes, $e->auto_affecter_transporteurs, $e->delai_reponse_min]);
 
         $this->assertSame('en_attente', Reservation::find($this->deposer()->json('reservation.id'))->statut);
-        $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5])->assertJsonPath('commande.statut', 'en_attente');
+        $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5, 'moyen' => 'especes'])->assertJsonPath('commande.statut', 'en_attente');
 
         // Le producteur qui livre lui-même : accepté, mais aucun transporteur
         $this->en($this->gestionnaire)->putJson('/api/profile', ['auto_accepter_depots' => true])->assertOk();
@@ -125,7 +132,7 @@ class PiloteAutomatiqueTest extends TestCase
     {
         $this->producteur->update(['prenom' => 'Awa', 'nom' => 'Diallo', 'telephone' => '771112233']);
         $r = Reservation::find($this->deposer()->json('reservation.id'));
-        $cid = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5])->json('commande.id');
+        $cid = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5, 'moyen' => 'especes'])->json('commande.id');
 
         $j = $this->en($this->gestionnaire)->getJson('/api/journee')->assertOk()->json();
         $arrivee = collect($j['arrivent'])->firstWhere('id', $r->id);

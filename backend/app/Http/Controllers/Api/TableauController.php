@@ -32,6 +32,8 @@ class TableauController extends Controller
         'assignation_transporteur' => 'Transporteur affecté', 'reassignation_transporteur' => 'Transporteur changé',
         'chargee' => 'Marchandise chargée', 'en_cours' => 'Départ vers l\'acheteur', 'arrivee' => 'Arrivée chez l\'acheteur',
         'livraison' => 'Remise à l\'acheteur', 'code_errone' => 'Code de réception erroné',
+        'paiement_initie' => 'Paiement choisi', 'paiement_recu' => 'Payée', 'argent_verse' => 'Argent versé', 'remboursement' => 'Remboursée',
+        'expiration_paiement' => 'Annulée : paiement non reçu à temps',
     ];
 
     /** Seuils du tableau des exceptions. */

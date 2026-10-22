@@ -46,7 +46,7 @@ trait ConstruitLivraison
     /** Commande de $quantite kg menée jusqu'à $jusqua : confirmee, prete, organisee, acceptee, chargee, en_cours, arrivee. */
     protected function commandeJusqua(string $jusqua, float $quantite = 10): Commande
     {
-        $id = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => $quantite])
+        $id = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => $quantite, 'moyen' => 'especes'])
                    ->assertStatus(201)->json('commande.id');
         $etapes = ['confirmee', 'prete', 'organisee', 'acceptee', 'chargee', 'en_cours', 'arrivee'];
 

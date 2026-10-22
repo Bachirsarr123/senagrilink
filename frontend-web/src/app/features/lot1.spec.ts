@@ -103,9 +103,9 @@ describe('Lot 1 — site web', () => {
     comp.formCommande.setValue({ quantite: 2.5 });
     expect(comp.montant(produit)).toBe(375);
 
-    comp.passerCommande(produit);
+    comp.passerCommande(produit, 'especes');
     const req = http.expectOne(`${API}/commandes`);
-    expect(req.request.body).toEqual({ stock_id: 5, quantite: 2.5 }); // jamais de prix saisi par l'acheteur
+    expect(req.request.body).toEqual({ stock_id: 5, quantite: 2.5, moyen: 'especes' }); // jamais de prix saisi par l'acheteur
     req.flush({ commande: { numero_commande: 'CMD-1', quantite: 2.5, prix: 375 } }, { status: 201, statusText: 'Created' });
     http.expectOne(`${API}/catalogue`).flush({ catalogue: [] });
   });

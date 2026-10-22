@@ -22,6 +22,7 @@ Schedule::command('suivi:purger')->dailyAt('03:15');
 // Lot 11 : missions sans réponse proposées au transporteur suivant (aussi déclenché au fil des requêtes)
 Artisan::command('pilote:relancer', function () {
     $this->info(app(\App\Services\PiloteAutomatique::class)->relancerSansReponse().' mission(s) relancée(s).');
+    $this->info(app(\App\Services\Paiements::class)->expirer().' commande(s) non payée(s) annulée(s).');
 })->purpose('Propose au transporteur suivant les missions restées sans réponse');
 
 Schedule::command('pilote:relancer')->everyMinute()->withoutOverlapping();

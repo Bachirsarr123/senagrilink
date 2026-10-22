@@ -26,10 +26,12 @@ import { MOYENS } from '../../../shared/paiement/paiement';
           </ul>
           @if (p.statut === 'initie') {
             <p class="aide">Depuis le numéro {{ p.telephone }}</p>
+            <!-- Lot 13 : la commande n'est validée qu'une fois payée -->
+            <p class="aide">Votre commande est validée dès le paiement. Sans paiement dans les 30 minutes, elle est annulée.</p>
             <button class="btn-primary gros" [disabled]="envoi()" (click)="confirmer('reussi')">{{ envoi() ? 'Paiement…' : 'Confirmer le paiement' }}</button>
             <button class="btn-ghost" [disabled]="envoi()" (click)="confirmer('echoue')">Annuler</button>
           } @else if (p.statut === 'reussi') {
-            <p class="succes">✅ {{ message() ?? 'Paiement réussi.' }}</p>
+            <p class="succes">✅ {{ message() ?? 'Commande payée et validée.' }}</p>
             <p class="aide">L'argent est mis de côté : il ne sera versé au producteur qu'une fois la marchandise reçue.</p>
             <a class="btn-primary gros" routerLink="/acheteur/mes-commandes">Voir mes commandes</a>
           } @else {

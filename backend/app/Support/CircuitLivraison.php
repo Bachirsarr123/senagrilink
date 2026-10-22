@@ -64,7 +64,8 @@ final class CircuitLivraison
 
         if (self::estGestionnaire($c, $u)) {
             match ($c->statut) {
-                'en_attente'     => array_push($actions, 'confirmer', 'refuser'),
+                // Lot 13 : rien à faire tant que l'acheteur n'a pas payé (seul le refus reste possible)
+                'en_attente'     => $c->attendPaiement() ? $actions[] = 'refuser' : array_push($actions, 'confirmer', 'refuser'),
                 'confirmee'      => $actions[] = 'preparer',
                 'en_preparation' => $actions[] = 'marquer_prete',
                 'prete'          => ! $l || in_array($l->statut, self::ABANDONNEES, true) ? $actions[] = 'organiser_livraison' : null,
@@ -119,7 +120,9 @@ final class CircuitLivraison
         $l = $c->livraison;
 
         return match ($c->statut) {
-            'en_attente'     => ['libelle' => 'Commande à confirmer par l\'entrepôt', 'acteur' => 'gestionnaire_entrepot'],
+            'en_attente'     => $c->attendPaiement()
+                ? ['libelle' => 'Paiement attendu de l\'acheteur', 'acteur' => 'acheteur_gros']
+                : ['libelle' => 'Commande à confirmer par l\'entrepôt', 'acteur' => 'gestionnaire_entrepot'],
             'confirmee'      => ['libelle' => 'Préparation à lancer', 'acteur' => 'gestionnaire_entrepot'],
             'en_preparation' => ['libelle' => 'Commande en préparation', 'acteur' => 'gestionnaire_entrepot'],
             'prete'          => match (true) {

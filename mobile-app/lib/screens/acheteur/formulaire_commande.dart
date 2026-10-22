@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../utils/nombres.dart';
 import '../../widgets/app_theme.dart';
+import '../paiement/paiement_screen.dart';
 
 /// Passer une commande sur un produit du catalogue (P-09 : absent du mobile).
 ///
@@ -14,10 +15,11 @@ import '../../widgets/app_theme.dart';
 /// l'ouverture et réutilisée si l'acheteur réessaie après une erreur : une
 /// commande déjà enregistrée n'est jamais créée deux fois.
 ///
-/// Renvoie le numéro de commande créé, ou null si l'acheteur renonce.
-/// Avec [surPanier], un second bouton ajoute la quantité au panier au lieu de commander.
-Future<String?> ouvrirFormulaireCommande(BuildContext context, Map<String, dynamic> produit, {ValueChanged<double>? surPanier, Map<String, dynamic> lieu = const {}}) =>
-    showModalBottomSheet<String>(
+/// Lot 13 : commander et payer d'un seul appui (Wave, Orange Money ou espèces).
+/// Renvoie la réponse du serveur (commande et paiement), ou null si l'acheteur renonce.
+/// Avec [surPanier], un bouton ajoute la quantité au panier au lieu de commander.
+Future<Map?> ouvrirFormulaireCommande(BuildContext context, Map<String, dynamic> produit, {ValueChanged<double>? surPanier, Map<String, dynamic> lieu = const {}}) =>
+    showModalBottomSheet<Map>(
       context: context,
       isScrollControlled: true,
       builder: (_) => FormulaireCommande(produit: produit, surPanier: surPanier, lieu: lieu),
@@ -96,7 +98,7 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
     return null;
   }
 
-  Future<void> _envoyer() async {
+  Future<void> _envoyer(String moyen) async {
     if (!_form.currentState!.validate()) return;
     setState(() { _envoi = true; _erreur = null; });
     try {
@@ -104,15 +106,16 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
         'stock_id': widget.produit['stock_id'],
         'quantite': _quantite,
         ...widget.lieu,
+        'moyen': moyen,
       }, cleIdempotence: _cle);
-      if (mounted) Navigator.pop(context, (res['commande']?['numero_commande'] ?? '') as String);
+      if (mounted) Navigator.pop(context, res is Map ? res : <String, dynamic>{});
     } on ApiException catch (e) {
       if (mounted) setState(() { _erreur = e.message; _envoi = false; });
     }
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) => SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
         child: Form(
           key: _form,
@@ -155,10 +158,8 @@ class _FormulaireCommandeState extends State<FormulaireCommande> {
               Text(_erreur!, style: const TextStyle(color: AppTheme.rouge)),
             ],
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _envoi ? null : _envoyer,
-              child: Text(_envoi ? 'Envoi…' : 'Confirmer la commande'),
-            ),
+            // Lot 13 : un seul appui commande et paie
+            BoutonsPaiement(onChoix: _envoi ? null : _envoyer, libelleWave: _envoi ? 'Envoi…' : 'Payer avec Wave'),
             if (widget.surPanier != null)
               OutlinedButton.icon(
                 key: const Key('ajouter-panier'),

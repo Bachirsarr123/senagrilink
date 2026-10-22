@@ -154,7 +154,7 @@ class FondationsStockTest extends TestCase
         $acheteur = Utilisateur::factory()->acheteur()->create();
         $transporteur = Utilisateur::factory()->transporteur()->create();
 
-        $commandeId = $this->en($acheteur)->postJson('/api/commandes', ['stock_id' => $stock->id, 'quantite' => 20])
+        $commandeId = $this->en($acheteur)->postJson('/api/commandes', ['stock_id' => $stock->id, 'quantite' => 20, 'moyen' => 'especes'])
                            ->assertStatus(201)->json('commande.id');
         $this->en($this->gestionnaire)->putJson("/api/commandes/{$commandeId}/confirmer")->assertOk();
         $this->assertEquals([60.0, 20.0], [$stock->fresh()->quantite, $stock->fresh()->quantite_reservee]);
@@ -181,7 +181,7 @@ class FondationsStockTest extends TestCase
         $this->assertSame('receptionnee', Commande::find($commandeId)->statut);
         $this->assertSame(['entree', 'reservation', 'sortie'], $stock->mouvements()->pluck('type')->all());
         $this->assertSame(
-            ['creation', 'confirmation', 'preparation', 'prete', 'chargement', 'reception'],
+            ['creation', 'paiement_initie', 'confirmation', 'preparation', 'prete', 'chargement', 'reception'],
             Commande::find($commandeId)->historique()->pluck('action')->all(),
         );
     }

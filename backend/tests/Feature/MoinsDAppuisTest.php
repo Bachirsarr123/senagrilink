@@ -72,7 +72,7 @@ class MoinsDAppuisTest extends TestCase
 
     public function test_commande_accepter_puis_prete_et_confier(): void
     {
-        $id = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5])->json('commande.id');
+        $id = $this->en($this->acheteur)->postJson('/api/commandes', ['stock_id' => $this->stock->id, 'quantite' => 5, 'moyen' => 'especes'])->json('commande.id');
         $this->assertSame('confirmer', $this->aFaire($this->gestionnaire, $id)['action']);                          // appui 1
         $this->en($this->gestionnaire)->putJson("/api/commandes/{$id}/confirmer")->assertOk();
 

@@ -27,10 +27,13 @@ class Paiements
 {
     public const MOYENS_EN_LIGNE = ['wave', 'orange_money'];
 
+    /** Lot 13 : minutes laissées pour payer une commande en ligne avant son annulation. */
+    public const DELAI_MIN = 30;
+
     /** Paiement de commandes de l'acheteur. Renvoie le paiement créé. */
     public function initier(AcheteurGros $acheteur, array $commandeIds, string $moyen, ?string $telephone): Paiement
     {
-        return DB::transaction(function () use ($acheteur, $commandeIds, $moyen, $telephone) {
+        $paiement = DB::transaction(function () use ($acheteur, $commandeIds, $moyen, $telephone) {
             $commandes = Commande::whereIn('id', $commandeIds)->lockForUpdate()->get();
             if ($commandes->count() !== count(array_unique($commandeIds)) || $commandes->contains(fn ($c) => (int) $c->acheteur_id !== (int) $acheteur->id)) {
                 $this->refus('Commande introuvable parmi les vôtres.', 404);
@@ -57,6 +60,51 @@ class Paiements
 
             return $paiement;
         });
+
+        // Espèces : rien à attendre, l'entrepôt peut confirmer
+        if ($moyen === 'especes') {
+            $this->entrepotPrevenu($paiement);
+        }
+
+        return $paiement;
+    }
+
+    /** Lot 13 : commande réglée (ou espèces choisies), le pilote de l'entrepôt la confirme. */
+    private function entrepotPrevenu(Paiement $p): void
+    {
+        app(PiloteAutomatique::class)->commandesPassees($p->commandes()->with('stock.entrepot')->where('statut', 'en_attente')->get());
+    }
+
+    /**
+     * Lot 13 : commandes en ligne restées sans paiement au-delà du délai :
+     * annulées, quantité rendue au stock, acheteur prévenu. Seules celles dont
+     * la quantité a été gardée à la commande (nouveau parcours) sont concernées.
+     */
+    public function expirer(): int
+    {
+        $ids = Commande::where('statut', 'en_attente')->where('statut_paiement', 'a_payer')->where('etat_stock', 'reserve')
+            ->where('date_commande', '<=', now()->subMinutes(self::DELAI_MIN))->pluck('id');
+        $n = 0;
+        foreach ($ids as $id) {
+            $c = DB::transaction(function () use ($id) {
+                $c = Commande::whereKey($id)->lockForUpdate()->first();
+                if (! $c?->attendPaiement() || $c->etat_stock !== 'reserve') {
+                    return null;
+                }
+                $c->paiement?->statut === 'initie' && $c->paiement->update(['statut' => 'echoue']);
+                app(AnnulationCommande::class)->annuler($c, null, 'expiration_paiement', sprintf('Paiement non reçu dans les %d minutes', self::DELAI_MIN));
+
+                return $c;
+            });
+            if ($c) {
+                $n++;
+                $c->loadMissing('acheteur.utilisateur')->acheteur?->utilisateur?->notify(new OperationModifieeNotification('commande_expiree', sprintf(
+                    'Commande %s annulée : paiement non reçu dans les %d minutes. Vous pouvez la passer de nouveau.', $c->numero_commande, self::DELAI_MIN),
+                    ['commande_id' => $c->id]));
+            }
+        }
+
+        return $n;
     }
 
     /** Paiement confirmé par le fournisseur (ou le simulateur) : l'argent est mis de côté. */
@@ -78,6 +126,8 @@ class Paiements
                 HistoriqueOperation::consigner('commande', $c->id, 'paiement_recu', null, null, null, null, ['reference' => $p->reference, 'montant' => (float) $c->total_a_payer]);
             });
         });
+
+        $this->entrepotPrevenu($p);
 
         foreach ($prevenus as $c) {
             $c->stock?->production?->producteur?->utilisateur?->notify(new OperationModifieeNotification('paiement_recu', sprintf(

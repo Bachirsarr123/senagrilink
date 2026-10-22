@@ -91,6 +91,12 @@ class Commande extends Model
      * qui portent sur un stock de son entrepôt. Sans stock, le périmètre ne peut
      * pas être établi : refus pour un gestionnaire.
      */
+    /** Lot 13 : commande en ligne pas encore payée ; l'entrepôt ne la traite pas encore. */
+    public function attendPaiement(): bool
+    {
+        return $this->statut === 'en_attente' && $this->statut_paiement === 'a_payer';
+    }
+
     public function estGereePar(Utilisateur $utilisateur): bool
     {
         if ($utilisateur->role === 'administrateur') {

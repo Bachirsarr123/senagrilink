@@ -50,13 +50,13 @@ describe('Lot 0 — site web', () => {
       comp.formCommande.setValue({ quantite: 5 });
       expect(comp.montant(PRODUIT)).toBe(750);
 
-      comp.passerCommande(PRODUIT);
+      comp.passerCommande(PRODUIT, 'especes');
       const essai1 = http.expectOne(`${API}/commandes`);
       const cle = essai1.request.headers.get('Idempotency-Key');
       expect(cle).toMatch(/^[A-Za-z0-9_-]{8,100}$/);
       essai1.flush({ message: 'Erreur' }, { status: 502, statusText: 'Bad Gateway' });
 
-      comp.passerCommande(PRODUIT);
+      comp.passerCommande(PRODUIT, 'especes');
       const essai2 = http.expectOne(`${API}/commandes`);
       expect(essai2.request.headers.get('Idempotency-Key')).toBe(cle);
       essai2.flush({ commande: { numero_commande: 'CMD-1' } }, { status: 201, statusText: 'Created' });
@@ -65,7 +65,7 @@ describe('Lot 0 — site web', () => {
 
       comp.ouvrirCommande(PRODUIT);
       comp.formCommande.setValue({ quantite: 5 });
-      comp.passerCommande(PRODUIT);
+      comp.passerCommande(PRODUIT, 'especes');
       const suivante = http.expectOne(`${API}/commandes`);
       expect(suivante.request.headers.get('Idempotency-Key')).not.toBe(cle);
       suivante.flush({ commande: { numero_commande: 'CMD-2' } }, { status: 201, statusText: 'Created' });

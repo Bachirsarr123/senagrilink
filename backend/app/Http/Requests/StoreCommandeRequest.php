@@ -22,6 +22,9 @@ class StoreCommandeRequest extends FormRequest
             'lignes.*.quantite' => ['required', 'numeric', 'min:0.01'],
             // Le prix n'est jamais saisi par l'acheteur : il vient du lot (producteur).
             'prix'     => ['prohibited'],
+            // Lot 13 : commander et payer d'un seul geste (Wave, Orange Money ou espèces à la livraison)
+            'moyen'     => ['nullable', 'in:wave,orange_money,especes'],
+            'telephone' => ['nullable', 'string', 'max:20'],
             // Lieu de livraison : position du téléphone, sinon lieu habituel du profil
             ...\App\Support\Lieux::regles('livraison'),
         ];
@@ -37,6 +40,7 @@ class StoreCommandeRequest extends FormRequest
             'stock_id.exists'   => 'Le produit sélectionné est introuvable en stock.',
             'quantite.required' => 'La quantité est obligatoire.',
             'quantite.min'      => 'La quantité doit être supérieure à zéro.',
+            'moyen.in'          => 'Moyen de paiement inconnu : Wave, Orange Money ou espèces à la livraison.',
             'prix.prohibited'   => 'Le prix est fixé par le producteur du lot : il ne peut pas être saisi.',
         ];
     }

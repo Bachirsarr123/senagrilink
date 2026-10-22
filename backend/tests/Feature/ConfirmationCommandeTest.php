@@ -48,6 +48,7 @@ class ConfirmationCommandeTest extends TestCase
             'quantite'      => 10,
             'date_commande' => now(),
             'statut'        => 'en_attente',
+            'statut_paiement' => 'a_la_livraison',
         ]);
     }
 
@@ -129,7 +130,7 @@ class ConfirmationCommandeTest extends TestCase
     {
         $autre = Commande::create([
             'acheteur_id' => $this->commande->acheteur_id, 'stock_id' => $this->stock->id, 'produit' => 'riz',
-            'quantite' => 85, 'date_commande' => now(), 'statut' => 'en_attente',
+            'quantite' => 85, 'date_commande' => now(), 'statut' => 'en_attente', 'statut_paiement' => 'a_la_livraison',
         ]);
 
         $this->confirmer()->assertOk();
